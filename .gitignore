@@ -1,11 +1,28 @@
-/tmp
-/out-tsc
+# OS
+.DS_Store
 
-/node_modules
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Editor
+.vscode/*
+.idea/workspace.xml
+
+# Node + package managers
+/node_modules
 /.pnp
 .pnp.js
 
-.vscode/*
+# Build output
+/tmp
+/dist
+/out-tsc
+/.next
+/out
+/coverage
+next-env.d.ts
+
+# Env
+.env*.local

@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-clay: 58% 0.115 38;
+    --color-clay-deep: 46% 0.13 36;
+    --color-sage: 76% 0.045 145;
+    --color-cream: 97% 0.008 75;
+    --color-cream-warm: 94% 0.012 70;
+    --color-ink: 20% 0.008 40;
+    --color-ash: 58% 0.008 40;
+    --color-ash-line: 82% 0.008 40;
+
+    --font-display-feat: "ss01" on, "ss02" on;
+    --focus-ring: 0 0 0 2px oklch(97% 0.008 75), 0 0 0 4px oklch(46% 0.13 36);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background: oklch(var(--color-cream));
+    color: oklch(var(--color-ink));
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  @media (min-width: 768px) {
+    body {
+      font-size: 18px;
+    }
+  }
+
+  ::selection {
+    background: oklch(58% 0.115 38 / 0.18);
+    color: oklch(20% 0.008 40);
+  }
+
+  *:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px oklch(97% 0.008 75), 0 0 0 4px oklch(46% 0.13 36);
+    border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .display-serif {
+    font-family: var(--font-display), Georgia, serif;
+    font-feature-settings: "ss01", "ss02";
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .text-pretty {
+    text-wrap: pretty;
+  }
+}
