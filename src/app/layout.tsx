@@ -21,7 +21,10 @@ export const metadata: Metadata = {
   title: "Apothem · Telehealth, made considered",
   description:
     "Care for the things people quietly look up at night. ED, hair, weight, and physician-supervised peptides, prescribed by clinicians you can name.",
-  metadataBase: new URL("https://example.com"),
+  // TODO: replace with the real production domain before launch
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  ),
 };
 
 export const viewport: Viewport = {

@@ -46,8 +46,8 @@ export function Hero() {
             </div>
 
             <p className="mt-10 max-w-prose text-sm text-cream/80">
-              From $25/month. Cash-pay, no insurance gymnastics. Available in 28
-              states and counting.
+              Cash-pay, no insurance gymnastics. Available in all 50 states
+              through our licensed clinician network.
             </p>
           </div>
 
@@ -56,25 +56,13 @@ export function Hero() {
             className="hidden self-end pl-2 lg:col-span-3 lg:block xl:col-span-4"
           >
             <ul className="border-t border-cream/40 pt-5 font-mono text-[0.78rem] uppercase tracking-eyebrow text-cream/75">
-              <li className="flex items-baseline justify-between border-b border-cream/20 py-3">
-                <span>01 Sexual health</span>
-                <span>$39</span>
-              </li>
-              <li className="flex items-baseline justify-between border-b border-cream/20 py-3">
-                <span>02 Hair</span>
-                <span>$25</span>
-              </li>
-              <li className="flex items-baseline justify-between border-b border-cream/20 py-3">
-                <span>03 Weight</span>
-                <span>$199</span>
-              </li>
-              <li className="flex items-baseline justify-between py-3">
-                <span>04 Peptides</span>
-                <span>$89</span>
-              </li>
+              <li className="border-b border-cream/20 py-3">01 Sexual health</li>
+              <li className="border-b border-cream/20 py-3">02 Hair</li>
+              <li className="border-b border-cream/20 py-3">03 Weight</li>
+              <li className="py-3">04 Peptides</li>
             </ul>
             <p className="mt-5 text-[0.78rem] uppercase tracking-eyebrow text-cream/70">
-              Catalog, in plain numbers
+              Care categories
             </p>
           </aside>
         </div>
