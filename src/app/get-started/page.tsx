@@ -4,9 +4,9 @@ import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
-  title: "Start a visit · Apothem",
+  title: "Start a visit · Apoth",
   description:
-    "Begin your intake with Apothem. Connect with a US-licensed clinician to see if treatment is appropriate for you.",
+    "Begin your intake with Apoth. Connect with a US-licensed clinician to see if treatment is appropriate for you.",
 };
 
 export default function GetStartedPage() {

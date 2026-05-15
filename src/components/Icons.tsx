@@ -5,7 +5,7 @@ export function Wordmark({ className }: { className?: string }) {
     <span
       className={`display-serif text-[1.55rem] font-light leading-none tracking-tight ${className ?? ""}`}
     >
-      Apothem
+      Apoth
     </span>
   );
 }

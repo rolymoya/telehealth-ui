@@ -5,9 +5,9 @@ import { Footer } from "@/components/Footer";
 import { LegalReviewBanner } from "@/components/LegalReviewBanner";
 
 export const metadata: Metadata = {
-  title: "Terms of Service · Apothem",
+  title: "Terms of Service · Apoth",
   description:
-    "Terms of Service for Apothem, including the telehealth disclosure and the refunds and cancellation policy.",
+    "Terms of Service for Apoth, including the telehealth disclosure and the refunds and cancellation policy.",
 };
 
 const lastUpdated = "May 15, 2026";
@@ -25,7 +25,7 @@ export default function TermsPage() {
               Terms of Service
             </h1>
             <p className="mt-6 max-w-measure text-pretty text-ink/75">
-              The agreement between you and Apothem when you use this site or
+              The agreement between you and Apoth when you use this site or
               receive care through our platform. This page also contains the{" "}
               <Link
                 href="#telehealth-disclosure"
@@ -171,8 +171,8 @@ export default function TermsPage() {
               <Section id="acceptance" title="1. Acceptance of these terms">
                 <p>
                   These Terms of Service (&ldquo;Terms&rdquo;) are a binding
-                  agreement between you and Apothem Health PBC, a Delaware
-                  public benefit corporation (&ldquo;Apothem,&rdquo;
+                  agreement between you and Apoth Health LLC, an Illinois limited
+                  liability company (&ldquo;Apoth,&rdquo;
                   &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;).
                   By accessing or using our website, mobile app, or services,
                   you agree to these Terms, our{" "}
@@ -191,7 +191,7 @@ export default function TermsPage() {
                 <ul>
                   <li>
                     You must be at least eighteen (18) years old and a resident
-                    of a U.S. state where Apothem currently offers services.
+                    of a U.S. state where Apoth currently offers services.
                   </li>
                   <li>
                     You must provide accurate, current, and complete
@@ -206,7 +206,7 @@ export default function TermsPage() {
                     Do not share your account with anyone.
                   </li>
                   <li>
-                    Care through Apothem is for personal use only. You may not
+                    Care through Apoth is for personal use only. You may not
                     request prescriptions or care on behalf of another person.
                   </li>
                 </ul>
@@ -214,15 +214,15 @@ export default function TermsPage() {
 
               <Section id="nature" title="3. Nature of the service">
                 <p>
-                  Apothem is a technology and patient-management platform. We
+                  Apoth is a technology and patient-management platform. We
                   build and operate the website, the patient portal, the
                   intake experience, scheduling, billing, and customer support
                   that make telehealth visits possible.{" "}
                   <strong>
-                    Apothem is not a medical provider, does not practice
+                    Apoth is not a medical provider, does not practice
                     medicine, and does not dispense medication.
                   </strong>{" "}
-                  Apothem does not provide medical advice, diagnosis, or
+                  Apoth does not provide medical advice, diagnosis, or
                   treatment.
                 </p>
                 <p>
@@ -236,7 +236,7 @@ export default function TermsPage() {
 
               <Section id="clinical" title="4. Clinical services">
                 <p>
-                  Clinical care is provided by Apothem Medical PA and its
+                  Clinical care is provided by MD Integrations and its
                   state-specific affiliated professional entities
                   (collectively, the &ldquo;Physician Group&rdquo;). The
                   Physician Group&apos;s clinicians are licensed in the
@@ -259,9 +259,9 @@ export default function TermsPage() {
 
               <Section id="pharmacy" title="5. Pharmacy services">
                 <p>
-                  Medications prescribed through Apothem are dispensed by a
+                  Medications prescribed through Apoth are dispensed by a
                   licensed pharmacy partner that is a separate legal entity
-                  from Apothem Health PBC and the Physician Group. The
+                  from Apoth Health LLC and the Physician Group. The
                   pharmacy partner is responsible for compounding (where
                   applicable), labeling, dispensing, and shipping medication
                   in accordance with applicable federal and state law and its
@@ -269,7 +269,7 @@ export default function TermsPage() {
                 </p>
                 <p>
                   Questions about your medication, shipment, or refills may be
-                  routed to the pharmacy directly. Apothem can help coordinate
+                  routed to the pharmacy directly. Apoth can help coordinate
                   but does not control the pharmacy&apos;s operations.
                 </p>
               </Section>
@@ -279,7 +279,7 @@ export default function TermsPage() {
                 title="6. Prescriptions and medications"
               >
                 <p>
-                  Some medications offered through Apothem are FDA-approved
+                  Some medications offered through Apoth are FDA-approved
                   (e.g., sildenafil, tadalafil, finasteride, minoxidil).
                   Others are{" "}
                   <strong>compounded medications that are not FDA-approved</strong>
@@ -309,7 +309,7 @@ export default function TermsPage() {
                 <p>
                   Fees are displayed on the website at the time of purchase.
                   By starting a visit or enrolling in a subscription, you
-                  authorize Apothem (or its payment processor) to charge your
+                  authorize Apoth (or its payment processor) to charge your
                   selected payment method for all applicable fees, taxes, and
                   shipping where charged separately.
                 </p>
@@ -354,16 +354,16 @@ export default function TermsPage() {
                   <li>
                     Do not use the platform for any illegal purpose, to harass
                     or threaten others, or to attempt to interfere with or
-                    misuse Apothem&apos;s systems.
+                    misuse Apoth&apos;s systems.
                   </li>
                 </ul>
               </Section>
 
               <Section id="ip" title="9. Intellectual property">
                 <p>
-                  The Apothem name and wordmark, the look and feel of the
+                  The Apoth name and wordmark, the look and feel of the
                   site, and the software that powers the platform are owned by
-                  Apothem Health PBC and protected by intellectual property
+                  Apoth Health LLC and protected by intellectual property
                   laws. We grant you a limited, revocable, non-exclusive,
                   non-transferable license to use the service for its intended
                   purpose. You may not copy, modify, reverse-engineer, or
@@ -415,7 +415,7 @@ export default function TermsPage() {
                   </strong>
                 </p>
                 <p>
-                  Apothem does not warrant the services of the Physician Group
+                  Apoth does not warrant the services of the Physician Group
                   or of the pharmacy partner; those services are governed by
                   their own respective terms, professional standards, and
                   applicable law.
@@ -425,7 +425,7 @@ export default function TermsPage() {
               <Section id="liability" title="12. Limitation of liability">
                 <p>
                   TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL
-                  APOTHEM, ITS OFFICERS, DIRECTORS, EMPLOYEES, AGENTS, OR
+                  APOTH, ITS OFFICERS, DIRECTORS, EMPLOYEES, AGENTS, OR
                   AFFILIATES BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
                   CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS
                   OR REVENUES, WHETHER INCURRED DIRECTLY OR INDIRECTLY, OR ANY
@@ -436,7 +436,7 @@ export default function TermsPage() {
                   TO THE MAXIMUM EXTENT PERMITTED BY LAW, OUR TOTAL LIABILITY
                   FOR ANY CLAIM ARISING OUT OF OR RELATING TO THESE TERMS OR
                   THE PLATFORM WILL NOT EXCEED THE GREATER OF (A) THE AMOUNT
-                  YOU PAID APOTHEM IN THE TWELVE MONTHS BEFORE THE EVENT GIVING
+                  YOU PAID APOTH IN THE TWELVE MONTHS BEFORE THE EVENT GIVING
                   RISE TO THE CLAIM AND (B) ONE HUNDRED U.S. DOLLARS.
                 </p>
                 <p>
@@ -449,7 +449,7 @@ export default function TermsPage() {
 
               <Section id="indemnification" title="13. Indemnification">
                 <p>
-                  You agree to defend, indemnify, and hold harmless Apothem
+                  You agree to defend, indemnify, and hold harmless Apoth
                   and its officers, directors, employees, and agents from and
                   against any claims, liabilities, damages, losses, and
                   expenses, including reasonable legal fees, arising out of or
@@ -468,7 +468,7 @@ export default function TermsPage() {
                   under the Federal Arbitration Act, administered by a
                   recognized arbitration provider, in English, in the county
                   where you reside or another location the parties mutually
-                  agree on. You and Apothem each waive the right to a trial by
+                  agree on. You and Apoth each waive the right to a trial by
                   jury and to participate in a class action or class
                   arbitration.
                 </p>
@@ -478,7 +478,7 @@ export default function TermsPage() {
                   <span className="font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep">
                     TODO:
                   </span>{" "}
-                  legal@apothem.example within thirty (30) days of first
+                  legal@apoth.example within thirty (30) days of first
                   accepting these Terms. Claims for small-claims-court relief
                   and claims for injunctive relief related to intellectual
                   property may be brought in court.
@@ -488,10 +488,10 @@ export default function TermsPage() {
               <Section id="governing-law" title="15. Governing law">
                 <p>
                   These Terms are governed by the laws of the State of
-                  Delaware, without regard to its conflict-of-laws principles.
+                  Illinois, without regard to its conflict-of-laws principles.
                   Subject to the arbitration section above, any action arising
                   out of these Terms must be brought in the state or federal
-                  courts located in Delaware, and you consent to the personal
+                  courts located in Illinois, and you consent to the personal
                   jurisdiction of those courts.
                 </p>
               </Section>
@@ -527,12 +527,12 @@ export default function TermsPage() {
                   <span className="font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep">
                     TODO:
                   </span>{" "}
-                  legal@apothem.example
+                  legal@apoth.example
                   <br />
                   <span className="font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep">
                     TODO:
                   </span>{" "}
-                  Apothem Health PBC, [street address], [city, state ZIP]
+                  Apoth Health LLC, [street address], [city, state ZIP]
                 </p>
               </Section>
 
@@ -550,7 +550,7 @@ export default function TermsPage() {
                   physical location.
                 </p>
 
-                <h3>How telehealth visits work at Apothem</h3>
+                <h3>How telehealth visits work at Apoth</h3>
                 <ul>
                   <li>
                     Most visits are <strong>asynchronous</strong>: you submit
@@ -684,7 +684,7 @@ export default function TermsPage() {
                   <span className="font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep">
                     TODO:
                   </span>{" "}
-                  support@apothem.example with your order number and the
+                  support@apoth.example with your order number and the
                   reason for the request. Refunds are processed to the
                   original payment method within seven to fourteen business
                   days of approval.

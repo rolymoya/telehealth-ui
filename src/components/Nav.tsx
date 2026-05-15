@@ -24,7 +24,7 @@ export function Nav({ variant = "dark" }: NavProps) {
   return (
     <header className="relative z-10">
       <div className="mx-auto flex max-w-page items-center justify-between px-6 pt-7 md:px-10 md:pt-9">
-        <Link href="/" aria-label="Apothem home" className={wordmarkClass}>
+        <Link href="/" aria-label="Apoth home" className={wordmarkClass}>
           <Wordmark />
         </Link>
 

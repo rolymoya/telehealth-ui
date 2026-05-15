@@ -5,9 +5,9 @@ import { Footer } from "@/components/Footer";
 import { LegalReviewBanner } from "@/components/LegalReviewBanner";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · Apothem",
+  title: "Privacy Policy · Apoth",
   description:
-    "How Apothem collects, uses, shares, and protects your personal and health information, including the HIPAA Notice of Privacy Practices.",
+    "How Apoth collects, uses, shares, and protects your personal and health information, including the HIPAA Notice of Privacy Practices.",
 };
 
 const lastUpdated = "May 15, 2026";
@@ -25,7 +25,7 @@ export default function PrivacyPage() {
               Privacy Policy
             </h1>
             <p className="mt-6 max-w-measure text-pretty text-ink/75">
-              How Apothem collects, uses, shares, and protects information about
+              How Apoth collects, uses, shares, and protects information about
               you — including your health information. This page also contains
               the{" "}
               <Link
@@ -34,7 +34,7 @@ export default function PrivacyPage() {
               >
                 HIPAA Notice of Privacy Practices
               </Link>{" "}
-              for Apothem Medical PA.
+              for MD Integrations.
             </p>
             <p className="mt-8 font-mono text-[0.78rem] uppercase tracking-eyebrow text-ash">
               Last updated · {lastUpdated}
@@ -121,19 +121,19 @@ export default function PrivacyPage() {
             <article className="prose-policy lg:col-span-9">
               <Section id="who-we-are" title="1. Who we are">
                 <p>
-                  Apothem is operated by Apothem Health PBC, a Delaware public
-                  benefit corporation (&ldquo;Apothem,&rdquo; &ldquo;we,&rdquo;
-                  &ldquo;us,&rdquo; or &ldquo;our&rdquo;). Apothem is a
+                  Apoth is operated by Apoth Health LLC, an Illinois limited
+                  liability company (&ldquo;Apoth,&rdquo; &ldquo;we,&rdquo;
+                  &ldquo;us,&rdquo; or &ldquo;our&rdquo;). Apoth is a
                   telehealth technology and patient-management platform. We are
                   not a medical provider and we do not dispense medication.
                 </p>
                 <p>
                   Clinical care is provided by independent licensed clinicians
-                  of Apothem Medical PA and its state-specific affiliated
+                  of MD Integrations and its state-specific affiliated
                   professional entities (collectively the &ldquo;Physician
                   Group&rdquo;). The Physician Group is a covered entity under
                   the Health Insurance Portability and Accountability Act of
-                  1996, as amended (&ldquo;HIPAA&rdquo;). Apothem Health PBC
+                  1996, as amended (&ldquo;HIPAA&rdquo;). Apoth Health LLC
                   acts as a business associate of the Physician Group with
                   respect to Protected Health Information (&ldquo;PHI&rdquo;)
                   it handles on the Physician Group&apos;s behalf, under a
@@ -147,7 +147,7 @@ export default function PrivacyPage() {
                 </p>
                 <p>
                   This Privacy Policy describes the information practices of
-                  Apothem Health PBC. The{" "}
+                  Apoth Health LLC. The{" "}
                   <a
                     className="underline decoration-ash-line underline-offset-[4px] hover:text-clay-deep"
                     href="#notice-of-privacy-practices"
@@ -183,7 +183,7 @@ export default function PrivacyPage() {
                     <strong>Payment information</strong> — your billing address
                     and the last four digits of your payment method. Full
                     payment card numbers are processed by our PCI-compliant
-                    payment processor and are not stored on Apothem&apos;s
+                    payment processor and are not stored on Apoth&apos;s
                     servers.
                   </li>
                   <li>
@@ -290,7 +290,7 @@ export default function PrivacyPage() {
                     <strong>For legal, safety, and compliance reasons.</strong>{" "}
                     To comply with law, court orders, subpoenas, or government
                     requests; to enforce our terms; to investigate fraud; to
-                    protect the rights, safety, or property of Apothem, our
+                    protect the rights, safety, or property of Apoth, our
                     users, or others; or to report public health information
                     where required.
                   </li>
@@ -300,7 +300,7 @@ export default function PrivacyPage() {
                     at any time.
                   </li>
                   <li>
-                    <strong>In a business transaction.</strong> If Apothem is
+                    <strong>In a business transaction.</strong> If Apoth is
                     involved in a merger, acquisition, financing, or sale of
                     assets, your information may be transferred subject to
                     HIPAA, applicable law, and continued privacy protections.
@@ -422,7 +422,7 @@ export default function PrivacyPage() {
 
               <Section id="children" title="9. Children">
                 <p>
-                  Apothem is intended for adults aged eighteen and older. We do
+                  Apoth is intended for adults aged eighteen and older. We do
                   not knowingly collect personal information from anyone under
                   eighteen. If you believe a child has provided us with
                   information, contact us and we will delete it.
@@ -449,12 +449,12 @@ export default function PrivacyPage() {
                   <span className="font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep">
                     TODO:
                   </span>{" "}
-                  privacy@apothem.example
+                  privacy@apoth.example
                   <br />
                   <span className="font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep">
                     TODO:
                   </span>{" "}
-                  Apothem Health PBC, [street address], [city, state ZIP]
+                  Apoth Health LLC, [street address], [city, state ZIP]
                 </p>
                 <p>
                   To file a HIPAA complaint with the federal government, you
@@ -486,7 +486,7 @@ export default function PrivacyPage() {
 
                 <h3>Who follows this Notice</h3>
                 <p>
-                  This Notice is issued by Apothem Medical PA and its
+                  This Notice is issued by MD Integrations and its
                   state-specific affiliated professional entities
                   (collectively, the &ldquo;Physician Group&rdquo;), which is a
                   HIPAA covered entity. It applies to the PHI created and
@@ -516,7 +516,7 @@ export default function PrivacyPage() {
                     <strong>Health care operations.</strong> For activities
                     such as quality assessment, clinician credentialing,
                     training, audits, accreditation, business management, and
-                    customer service. We may share PHI with Apothem Health PBC
+                    customer service. We may share PHI with Apoth Health LLC
                     under a Business Associate Agreement to support these
                     operations.
                   </li>

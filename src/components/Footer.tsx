@@ -31,12 +31,12 @@ export function Footer() {
           <div className="col-span-2 md:col-span-5">
             <Wordmark className="text-ink" />
             <p className="mt-5 max-w-prose text-pretty text-ink/75">
-              Telehealth, made considered. We see adults in all 50 states for
-              sexual health, hair, weight, and physician-supervised peptide
-              protocols.
+              Real visits, named clinicians, in all 50 states. We see adults
+              for sexual health, hair, weight, and physician-supervised
+              peptide protocols.
             </p>
             <p className="mt-6 text-sm text-ash">
-              hello@apothem.example · 1-800-555-0144
+              hello@apoth.example · 1-800-555-0144
             </p>
           </div>
 
@@ -92,13 +92,13 @@ export function Footer() {
         <div className="mt-16 grid grid-cols-1 gap-y-6 border-t border-ash-line pt-8 text-xs text-ash md:grid-cols-12 md:gap-x-10">
           <div className="md:col-span-9 space-y-3 text-pretty">
             <p>
-              Apothem Health PBC is a technology and patient-management platform.
+              Apoth Health LLC is a technology and patient-management platform.
               It is not a medical provider and does not practice medicine.
               Clinical decisions are made solely by independent licensed
-              clinicians of Apothem Medical PA and affiliates, who provide care
-              through Apothem&apos;s platform. Medications are dispensed by
+              clinicians of MD Integrations and affiliates, who provide care
+              through Apoth&apos;s platform. Medications are dispensed by
               licensed pharmacy partners that are separate legal entities from
-              Apothem Health PBC.
+              Apoth Health LLC.
             </p>
             <p>
               Compounded medications referenced on this site — including
@@ -115,7 +115,7 @@ export function Footer() {
           </div>
           <div className="md:col-span-3 md:text-right space-y-2">
             <p>NPI 0000000000 (TODO: real NPI)</p>
-            <p>© 2026 Apothem Health PBC</p>
+            <p>© 2026 Apoth Health LLC</p>
           </div>
         </div>
       </div>

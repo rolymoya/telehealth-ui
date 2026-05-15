@@ -8,7 +8,7 @@ export function Pricing() {
           <header className="lg:col-span-5">
             <p className="text-eyebrow uppercase text-ash">Pricing</p>
             <h2 className="display-serif mt-5 text-display-md font-light text-balance">
-              All-in monthly pricing, on the same page as the rest of the site.
+              All-in monthly pricing. The number you see is the number you pay.
             </h2>
             <p className="mt-6 max-w-prose text-pretty text-ink/75">
               Cash-pay, no insurance. Each price below is the full all-in

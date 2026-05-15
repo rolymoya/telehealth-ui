@@ -9,7 +9,7 @@ export function LegalReviewBanner() {
           This document is a starting point intended for review by a healthcare
           attorney before launch. It is not legal advice, has not been reviewed
           by counsel, and should not be relied upon as the final terms governing
-          your use of Apothem.
+          your use of Apoth.
         </p>
       </div>
     </div>

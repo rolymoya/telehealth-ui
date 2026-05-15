@@ -18,7 +18,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Apothem · Telehealth, made considered",
+  title: "Apoth · Real visits, named clinicians",
   description:
     "Care for the things people quietly look up at night. ED, hair, weight, and physician-supervised peptides, prescribed by clinicians you can name.",
   // TODO: replace with the real production domain before launch

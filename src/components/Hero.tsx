@@ -11,18 +11,18 @@ export function Hero() {
         <div className="grid grid-cols-1 gap-x-12 gap-y-12 lg:grid-cols-12">
           <div className="lg:col-span-9 xl:col-span-8">
             <p className="text-eyebrow uppercase text-cream/80">
-              Telehealth, made considered
+              Real visits, named clinicians
             </p>
 
             <h1 className="display-serif mt-6 text-display-xl font-light text-cream text-balance">
-              Care for the things you quietly look up at night.
+              A clearer way to get care, online.
             </h1>
 
             <p className="mt-7 max-w-measure text-[1.075rem] leading-[1.55] text-cream/95 md:text-[1.15rem]">
-              Direct visits with US-licensed clinicians for the categories you
-              wish were less of a search-bar moment. Sexual health, hair, weight,
-              and physician-supervised peptides. No nine-page intake. No
-              automated upsell.
+              Apoth connects you with a US-licensed clinician for sexual
+              health, hair, weight, and physician-supervised peptide protocols.
+              Eligibility is determined by a clinician licensed in your
+              state — not by a checkout flow.
             </p>
 
             <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
@@ -46,8 +46,8 @@ export function Hero() {
             </div>
 
             <p className="mt-10 max-w-prose text-sm text-cream/80">
-              Cash-pay, no insurance gymnastics. Available in all 50 states
-              through our licensed clinician network.
+              Cash-pay only. Available in all 50 states through our licensed
+              clinician network.
             </p>
           </div>
 

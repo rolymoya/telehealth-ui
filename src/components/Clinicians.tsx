@@ -12,7 +12,7 @@ export function Clinicians() {
             Who you'll see
           </p>
           <h2 className="display-serif mt-5 text-display-md font-light text-balance">
-            Real clinicians, named on the page they work behind.
+            You'll know who's reading your chart.
           </h2>
           <p className="mt-6 max-w-prose text-pretty text-ink/75">
             We do not pool. The clinician who reads your intake is the one who

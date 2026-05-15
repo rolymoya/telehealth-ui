@@ -15,7 +15,7 @@ const steps = [
     n: "03",
     name: "A licensed pharmacy dispenses",
     body:
-      "If you are prescribed, a licensed pharmacy partner — a 503A compounding pharmacy for compounded medications — fills the prescription and ships it to you discreetly. Apothem does not dispense medication itself; the pharmacy is a separate licensed entity.",
+      "If you are prescribed, a licensed pharmacy partner — a 503A compounding pharmacy for compounded medications — fills the prescription and ships it to you discreetly. Apoth does not dispense medication itself; the pharmacy is a separate licensed entity.",
   },
   {
     n: "04",
@@ -35,7 +35,7 @@ export function HowItWorks() {
         <header className="max-w-3xl">
           <p className="text-eyebrow uppercase text-ash">How a visit goes</p>
           <h2 className="display-serif mt-5 text-display-md font-light text-balance">
-            Four steps. None of them invented to feel like progress.
+            Four steps, each with a real person at the other end.
           </h2>
         </header>
 

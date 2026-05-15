@@ -4,9 +4,9 @@ import { Footer } from "@/components/Footer";
 import { usStates } from "@/lib/data";
 
 export const metadata: Metadata = {
-  title: "About · Apothem",
+  title: "About · Apoth",
   description:
-    "Apothem is a telehealth platform that connects patients with independent US-licensed clinicians and a licensed compounding pharmacy partner. Available in all 50 states.",
+    "Apoth is a telehealth platform that connects patients with independent US-licensed clinicians and a licensed compounding pharmacy partner. Available in all 50 states.",
 };
 
 export default function AboutPage() {
@@ -22,7 +22,7 @@ export default function AboutPage() {
               look up at night.
             </h1>
             <p className="mt-7 max-w-measure text-pretty text-[1.075rem] leading-[1.6] text-ink/80 md:text-[1.15rem]">
-              Apothem is a telehealth platform. We connect adults with
+              Apoth is a telehealth platform. We connect adults with
               US-licensed clinicians for sexual health, hair, weight, and
               physician-supervised peptide care, and we coordinate with a
               licensed pharmacy partner that fills the prescriptions. We do not
@@ -53,17 +53,17 @@ export default function AboutPage() {
               <div className="border-t border-ash-line py-7">
                 <dt className="flex items-baseline justify-between gap-4">
                   <p className="display-serif text-2xl font-light text-ink">
-                    Apothem Health PBC
+                    Apoth Health LLC
                   </p>
                   <p className="font-mono text-[0.72rem] uppercase tracking-eyebrow text-ash">
                     Platform
                   </p>
                 </dt>
                 <dd className="mt-3 max-w-prose text-pretty text-ink/80">
-                  A Delaware public benefit corporation. Apothem Health PBC
+                  An Illinois limited liability company. Apoth Health LLC
                   operates this website, the patient app, customer support,
                   scheduling, and the technology that makes the visit happen.
-                  Apothem Health PBC is not a medical provider, does not
+                  Apoth Health LLC is not a medical provider, does not
                   practice medicine, and does not make clinical decisions about
                   your care.
                 </dd>
@@ -72,7 +72,7 @@ export default function AboutPage() {
               <div className="border-t border-ash-line py-7">
                 <dt className="flex items-baseline justify-between gap-4">
                   <p className="display-serif text-2xl font-light text-ink">
-                    Apothem Medical PA
+                    MD Integrations
                   </p>
                   <p className="font-mono text-[0.72rem] uppercase tracking-eyebrow text-ash">
                     Physician group
@@ -84,7 +84,7 @@ export default function AboutPage() {
                   the state in which the clinician is licensed. Every clinical
                   decision — including whether to prescribe, what to prescribe,
                   and how to follow up — is made by an independent clinician
-                  licensed in your state. Apothem Health PBC does not influence
+                  licensed in your state. Apoth Health LLC does not influence
                   that decision. The clinician&apos;s name and state of
                   licensure are disclosed to you before your visit.
                 </dd>
@@ -101,8 +101,8 @@ export default function AboutPage() {
                 </dt>
                 <dd className="mt-3 max-w-prose text-pretty text-ink/80">
                   Medication is dispensed by a licensed pharmacy partner that
-                  is a separate legal entity from Apothem Health PBC and
-                  Apothem Medical PA. Compounded medications — including
+                  is a separate legal entity from Apoth Health LLC and
+                  MD Integrations. Compounded medications — including
                   compounded semaglutide, compounded tirzepatide, BPC-157, and
                   retatrutide — are prepared by a licensed 503A compounding
                   pharmacy partner under a valid prescription from a clinician
@@ -135,7 +135,7 @@ export default function AboutPage() {
                   All 50 states.
                 </h2>
                 <p className="mt-6 max-w-prose text-pretty text-ink/75">
-                  Apothem coordinates care in every US state. Your prescription
+                  Apoth coordinates care in every US state. Your prescription
                   is written by a clinician licensed in <em>your</em> state,
                   and your medication is dispensed by a licensed pharmacy
                   partner that ships to your state. If a regulatory or
@@ -199,7 +199,7 @@ export default function AboutPage() {
                     <span className="font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep">
                       TODO:
                     </span>{" "}
-                    support@apothem.example
+                    support@apoth.example
                   </dd>
                   <dd className="mt-1 text-sm text-ash">
                     Responses within one business day.
@@ -229,7 +229,7 @@ export default function AboutPage() {
                     <span className="font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep">
                       TODO:
                     </span>{" "}
-                    privacy@apothem.example
+                    privacy@apoth.example
                   </dd>
                   <dd className="mt-1 text-sm text-ash">
                     For access, correction, or deletion of your records under
@@ -252,7 +252,7 @@ export default function AboutPage() {
                     <span className="font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep">
                       TODO:
                     </span>{" "}
-                    Apothem Health PBC, [street address], [city, state ZIP]
+                    Apoth Health LLC, [street address], [city, state ZIP]
                   </dd>
                 </div>
               </dl>
