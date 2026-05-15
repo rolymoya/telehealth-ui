@@ -18,8 +18,7 @@ export default function AboutPage() {
           <div className="mx-auto max-w-page px-6 md:px-10">
             <p className="text-eyebrow uppercase text-ash">About</p>
             <h1 className="display-serif mt-5 text-display-lg font-light text-balance">
-              A small, considered way to get care for the things people quietly
-              look up at night.
+              What Apoth is, what it isn't, and how we're set up.
             </h1>
             <p className="mt-7 max-w-measure text-pretty text-[1.075rem] leading-[1.6] text-ink/80 md:text-[1.15rem]">
               Apoth is a telehealth platform. We connect adults with
@@ -38,14 +37,14 @@ export default function AboutPage() {
             <header className="lg:col-span-5">
               <p className="text-eyebrow uppercase text-ash">How we are structured</p>
               <h2 className="display-serif mt-5 text-display-md font-light text-balance">
-                Three legal entities, three jobs, kept separate on purpose.
+                Three separate entities with three separate jobs.
               </h2>
               <p className="mt-6 max-w-prose text-pretty text-ink/75">
-                Telehealth gets murky when the platform, the prescriber, and
-                the pharmacy are pretending to be one company. We keep them
-                separate, in writing, because the regulators we operate under
-                require it and because it is the honest way to describe what
-                actually happens when you start care.
+                Many telehealth platforms blur the lines between the platform,
+                the prescriber, and the pharmacy. We don't. These are three
+                separate entities with three separate jobs — both because the
+                law requires it and because it's the honest way to describe
+                how your care actually works.
               </p>
             </header>
 
@@ -179,7 +178,7 @@ export default function AboutPage() {
                   Contact
                 </p>
                 <h2 className="display-serif mt-5 text-display-md font-light text-balance">
-                  A real way to reach a real person.
+                  How to reach us.
                 </h2>
                 <p className="mt-6 max-w-prose text-pretty text-ink/75">
                   For medical questions about your active care, message your
