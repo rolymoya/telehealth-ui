@@ -150,3 +150,26 @@ Rebrand to Apoth and tighten section copy
  src/components/Pricing.tsx           |  2 +-
  14 files changed, 94 insertions(+), 93 deletions(-)
 ```
+
+### 9aa0926 · 2026-05-15T14:59:10-05:00
+
+Add docs/features convention and auto-update hooks
+
+```
+ .claude/hooks/append-commit-to-md.sh            |  68 +++++++++++
+ .claude/hooks/create-feature-md.sh              |  86 ++++++++++++++
+ .claude/settings.json                           |  19 +++
+ docs/features/README.md                         |  26 ++++
+ docs/features/improve-LegitScript-compliance.md | 152 ++++++++++++++++++++++++
+ src/app/about/page.tsx                          |  17 ++-
+ 6 files changed, 359 insertions(+), 9 deletions(-)
+```
+
+### 2026-05-15T18:02:31-05:00
+
+Move append-commit hook to PreToolUse
+
+```
+ docs/features/improve-LegitScript-compliance.md | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+```

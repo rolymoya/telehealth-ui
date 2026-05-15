@@ -1,8 +1,18 @@
 #!/usr/bin/env bash
-# PostToolUse hook for Bash: when a `git commit` command just succeeded,
-# if the current branch has a corresponding docs/features/<branch>.md,
-# append a "Commit log (auto-appended)" entry with SHA, subject, and
-# diff stats. Silent on success and on skip.
+# PreToolUse hook for Bash: when Claude is about to run a `git commit`,
+# append a "Commit log (auto-appended)" entry to docs/features/<branch>.md
+# with date, subject, and staged diff stats, then `git add` the MD file
+# so it lands in the same commit. Silent on success and on skip.
+#
+# Notes / limits:
+# - Runs at PreToolUse, so the SHA isn't known yet — entries are keyed
+#   by date + subject. Use `git log` to map back to SHAs.
+# - Subject is parsed from `-m "..."` (incl. heredoc form) or `-F file`.
+#   If no subject can be parsed, the hook skips silently.
+# - Skips --amend / --fixup / --squash, since those don't represent
+#   new logical commits.
+# - If the commit ultimately fails (e.g. a git pre-commit hook rejects),
+#   the MD update is left in the working tree for the user to clean up.
 
 set -u
 
@@ -11,15 +21,17 @@ input="$(cat)"
 cmd="$(printf '%s' "$input" | jq -r '.tool_input.command // ""')"
 [ -n "$cmd" ] || exit 0
 
-# Only run when the command actually invokes `git commit` (anywhere in the
-# command — also catches `git add ... && git commit ...`). Exclude
-# commit-adjacent commands that contain the substring but aren't a commit.
+# Only act on `git commit` invocations.
 printf '%s' "$cmd" | grep -qE '(^|[[:space:];&|`])git[[:space:]]+commit([[:space:]]|$)' || exit 0
+
+# Skip amend/fixup/squash — these don't create fresh logical commits.
+if printf '%s' "$cmd" | grep -qE -- '(--amend|--fixup|--squash)'; then
+  exit 0
+fi
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null)" || exit 0
 
-# Skip default/long-lived branches.
 case "$branch" in
   main|master|develop|dev|trunk|HEAD) exit 0 ;;
 esac
@@ -27,42 +39,84 @@ esac
 target_file="$repo_root/docs/features/$branch.md"
 [ -f "$target_file" ] || exit 0
 
-# Gather commit metadata. Bail if HEAD isn't a real commit (initial state).
-sha="$(git -C "$repo_root" rev-parse --short HEAD 2>/dev/null)" || exit 0
-[ -n "$sha" ] || exit 0
-subject="$(git -C "$repo_root" log -1 --pretty=%s HEAD 2>/dev/null)" || exit 0
-author_date="$(git -C "$repo_root" log -1 --pretty='%ad' --date=iso-strict HEAD 2>/dev/null)" || exit 0
-stat="$(git -C "$repo_root" show --stat --format= HEAD 2>/dev/null)" || exit 0
+# --- extract the commit subject from the bash command ---
+subject=""
+
+# 1) Heredoc form: git commit -m "$(cat <<'EOF' ... EOF)"
+if printf '%s' "$cmd" | grep -qE "<<'?EOF'?"; then
+  subject="$(printf '%s\n' "$cmd" \
+    | sed -n "/<<'\{0,1\}EOF'\{0,1\}/,/^[[:space:]]*EOF[[:space:]]*\$/p" \
+    | sed -e '1d' -e '/^[[:space:]]*EOF[[:space:]]*$/d' \
+    | sed -E -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+    | grep -v '^$' \
+    | head -1)"
+fi
+
+# 2) Inline -m "subject" or -m 'subject'
+if [ -z "$subject" ]; then
+  subject="$(printf '%s' "$cmd" \
+    | grep -oE -- "-m[[:space:]]+\"[^\"]+\"|-m[[:space:]]+'[^']+'" \
+    | head -1 \
+    | sed -E "s/^-m[[:space:]]+[\"'](.*)[\"']\$/\1/" \
+    | head -1)"
+fi
+
+# 3) -F messagefile
+if [ -z "$subject" ]; then
+  msg_file="$(printf '%s' "$cmd" \
+    | grep -oE -- "-F[[:space:]]+[^[:space:];&|]+" \
+    | head -1 \
+    | sed -E "s/^-F[[:space:]]+//")"
+  if [ -n "$msg_file" ] && [ -f "$msg_file" ]; then
+    subject="$(head -1 "$msg_file")"
+  fi
+fi
+
+# If we still don't have a subject, skip rather than write a malformed entry.
+[ -n "$subject" ] || exit 0
+
+# --- gather stats for what's currently staged ---
+# Best-effort: if the bash command does its own `git add ... && git commit`,
+# this snapshot may be incomplete, but the subject + date are still right.
+stat="$(git -C "$repo_root" diff --cached --stat 2>/dev/null)"
+
+# --- timestamp (macOS-compatible, with `+05:00` style offset) ---
+author_date="$(date +%Y-%m-%dT%H:%M:%S%z | sed -E 's/([+-][0-9]{2})([0-9]{2})$/\1:\2/')"
 
 section_header="## Commit log (auto-appended)"
 
-# Idempotency: never append the same SHA twice. Scope the check to lines
-# below the auto-append section header — mentions of the SHA in earlier
-# narrative (e.g. an author-written "Commits" section) must not block us.
-if sed -n "/^${section_header}\$/,\$p" "$target_file" 2>/dev/null | grep -qF "$sha"; then
-  exit 0
-fi
+# Idempotency: if the latest entry below the section header already has
+# this subject, don't append again (handles a retried bash call after
+# a failed commit).
+if sed -n "/^${section_header}\$/,\$p" "$target_file" 2>/dev/null \
+    | tail -n 40 \
+    | grep -qF -- "$subject"; then
+  : # skip the append, but still re-stage in case the working file is dirty
+else
+  if ! grep -qF "$section_header" "$target_file" 2>/dev/null; then
+    {
+      printf '\n'
+      printf '%s\n' "$section_header"
+      printf '\n'
+      printf '_Auto-generated by .claude/hooks/append-commit-to-md.sh on each \`git commit\`. Newest entries at the bottom._\n'
+    } >> "$target_file"
+  fi
 
-# Ensure the auto-append section header exists.
-if ! grep -qF "$section_header" "$target_file" 2>/dev/null; then
   {
     printf '\n'
-    printf '%s\n' "$section_header"
+    printf '### %s\n' "$author_date"
     printf '\n'
-    printf '_Auto-generated by .claude/hooks/append-commit-to-md.sh on each \`git commit\`. Newest entries at the bottom._\n'
+    printf '%s\n' "$subject"
+    if [ -n "$stat" ]; then
+      printf '\n'
+      printf '```\n'
+      printf '%s\n' "$stat"
+      printf '```\n'
+    fi
   } >> "$target_file"
 fi
 
-# Append the new entry.
-{
-  printf '\n'
-  printf '### %s · %s\n' "$sha" "$author_date"
-  printf '\n'
-  printf '%s\n' "$subject"
-  printf '\n'
-  printf '```\n'
-  printf '%s\n' "$stat"
-  printf '```\n'
-} >> "$target_file"
+# Stage the MD file so it's part of the about-to-happen commit.
+git -C "$repo_root" add "$target_file" >/dev/null 2>&1
 
 exit 0
