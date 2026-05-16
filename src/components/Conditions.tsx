@@ -65,9 +65,26 @@ export function Conditions() {
                 </div>
               </Link>
 
-              <p className="-mt-3 pb-8 text-sm text-ash md:-mt-4 md:pb-10 md:pl-12 lg:pb-12">
-                {condition.treatments.join(" · ")}
-              </p>
+              <div className="-mt-3 pb-8 md:-mt-4 md:pb-10 md:pl-12 lg:pb-12">
+                <p className="text-sm text-ash">
+                  {condition.treatments.join(" · ")}
+                </p>
+                <p
+                  className={`mt-3 max-w-measure text-pretty text-sm leading-relaxed ${
+                    condition.fdaStatus === "fda-approved"
+                      ? "text-ash"
+                      : "border-l-2 border-clay-deep pl-3 text-ink/80"
+                  }`}
+                >
+                  <span className="font-medium uppercase tracking-eyebrow text-[0.72rem]">
+                    {condition.fdaStatus === "fda-approved"
+                      ? "FDA-approved"
+                      : "Not FDA-approved"}
+                    {" · "}
+                  </span>
+                  {condition.fdaNote}
+                </p>
+              </div>
             </li>
           ))}
         </ol>

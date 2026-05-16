@@ -2,24 +2,25 @@ import Link from "next/link";
 import { Wordmark } from "./Icons";
 
 const productLinks = [
-  { label: "What we treat", href: "#what-we-treat" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Clinicians", href: "#clinicians" },
+  { label: "What we treat", href: "/#what-we-treat" },
+  { label: "Pricing", href: "/#pricing" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Clinicians", href: "/#clinicians" },
 ];
 
 const helpLinks = [
-  { label: "FAQ", href: "#faq" },
-  { label: "Contact", href: "mailto:hello@example.com" },
-  { label: "State availability", href: "/states" },
-  { label: "Refunds and cancellation", href: "/policies/cancellation" },
+  { label: "FAQ", href: "/#faq" },
+  { label: "About", href: "/about" },
+  { label: "State availability", href: "/about#states" },
+  { label: "Contact", href: "/about#contact" },
 ];
 
 const legalLinks = [
   { label: "Terms of service", href: "/terms" },
-  { label: "Privacy notice", href: "/privacy" },
-  { label: "Telehealth disclosure", href: "/telehealth-disclosure" },
-  { label: "Notice of privacy practices", href: "/hipaa" },
+  { label: "Telehealth disclosure", href: "/terms#telehealth-disclosure" },
+  { label: "Refunds and cancellation", href: "/terms#refunds-and-cancellation" },
+  { label: "Privacy policy", href: "/privacy" },
+  { label: "Notice of privacy practices", href: "/privacy#notice-of-privacy-practices" },
 ];
 
 export function Footer() {
@@ -30,12 +31,12 @@ export function Footer() {
           <div className="col-span-2 md:col-span-5">
             <Wordmark className="text-ink" />
             <p className="mt-5 max-w-prose text-pretty text-ink/75">
-              Telehealth, made considered. We see adults in 28 states for
-              sexual health, hair, weight, and physician-supervised peptide
-              protocols.
+              Real visits, named clinicians, in all 50 states. We see adults
+              for sexual health, hair, weight, and physician-supervised
+              peptide protocols.
             </p>
             <p className="mt-6 text-sm text-ash">
-              hello@apothem.example · 1-800-555-0144
+              hello@apoth.example · 1-800-555-0144
             </p>
           </div>
 
@@ -88,19 +89,34 @@ export function Footer() {
           </nav>
         </div>
 
-        <div className="mt-16 grid grid-cols-1 gap-y-4 border-t border-ash-line pt-8 text-xs text-ash md:grid-cols-12 md:gap-x-10">
-          <p className="md:col-span-7 text-pretty">
-            Apothem Health PBC operates as a corporate practice supporting
-            independent clinicians. Medical services are provided by Apothem
-            Medical PA and affiliates. Not all medications discussed are
-            FDA-approved; investigational peptide protocols are dispensed only
-            through licensed 503A compounding pharmacies under physician
-            supervision.
-          </p>
-          <p className="md:col-span-3 md:text-right">
-            NPI 0000000000 (placeholder)
-          </p>
-          <p className="md:col-span-2 md:text-right">© 2026 Apothem Health</p>
+        <div className="mt-16 grid grid-cols-1 gap-y-6 border-t border-ash-line pt-8 text-xs text-ash md:grid-cols-12 md:gap-x-10">
+          <div className="md:col-span-9 space-y-3 text-pretty">
+            <p>
+              Apoth Health LLC is a technology and patient-management platform.
+              It is not a medical provider and does not practice medicine.
+              Clinical decisions are made solely by independent licensed
+              clinicians of MD Integrations and affiliates, who provide care
+              through Apoth&apos;s platform. Medications are dispensed by
+              licensed pharmacy partners that are separate legal entities from
+              Apoth Health LLC.
+            </p>
+            <p>
+              Compounded medications referenced on this site — including
+              compounded semaglutide, compounded tirzepatide, BPC-157, and
+              retatrutide — are not FDA-approved. The FDA has not evaluated
+              them for safety, efficacy, or quality. Compounded medications are
+              prepared by a licensed 503A compounding pharmacy partner under a
+              valid prescription from a clinician licensed in the patient&apos;s
+              state. Treatment requires a prescription from an independent
+              licensed clinician based on a clinical evaluation. Individual
+              results vary and are not guaranteed. This site is not medical
+              advice; if you have a medical emergency, call 911.
+            </p>
+          </div>
+          <div className="md:col-span-3 md:text-right space-y-2">
+            <p>NPI 0000000000 (TODO: real NPI)</p>
+            <p>© 2026 Apoth Health LLC</p>
+          </div>
         </div>
       </div>
     </footer>

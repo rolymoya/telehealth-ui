@@ -1,10 +1,26 @@
+export type PricingTier = {
+  label: string;
+  monthly: string;
+  includes: string;
+};
+
 export type Condition = {
   slug: string;
   name: string;
   treats: string;
   treatments: string[];
+  // Placeholder single-number price used while tier pricing is being defined.
+  // Surfaced as "currently from" copy, not "starting at" marketing copy.
   startingFrom: string;
+  // TODO: populate per-condition tiers from product. Replace startingFrom usage
+  // once tiers are filled in. Each tier must list an exact all-in monthly price.
+  pricingTiers: PricingTier[] | null;
   blurb: string;
+  fdaStatus:
+    | "fda-approved"
+    | "compounded-not-fda-approved"
+    | "investigational-not-fda-approved";
+  fdaNote: string;
 };
 
 export const conditions: Condition[] = [
@@ -14,8 +30,12 @@ export const conditions: Condition[] = [
     treats: "Erectile difficulty, performance, longevity",
     treatments: ["Sildenafil", "Tadalafil daily", "Tadalafil PRN"],
     startingFrom: "39",
+    pricingTiers: null,
     blurb:
       "Generic medication, prescribed by a US-licensed clinician after a real visit. Discreet shipping. No subscription tricks.",
+    fdaStatus: "fda-approved",
+    fdaNote:
+      "Sildenafil and tadalafil are FDA-approved medications dispensed by a licensed pharmacy partner.",
   },
   {
     slug: "hair",
@@ -23,8 +43,12 @@ export const conditions: Condition[] = [
     treats: "Male and female pattern hair loss",
     treatments: ["Finasteride", "Topical minoxidil", "Oral minoxidil"],
     startingFrom: "25",
+    pricingTiers: null,
     blurb:
       "The two molecules with real evidence behind them. Your clinician picks what fits your shedding pattern, hairline, and tolerance.",
+    fdaStatus: "fda-approved",
+    fdaNote:
+      "Finasteride and minoxidil are FDA-approved medications dispensed by a licensed pharmacy partner. Oral minoxidil for hair loss is prescribed off-label.",
   },
   {
     slug: "weight",
@@ -32,8 +56,12 @@ export const conditions: Condition[] = [
     treats: "Metabolic care for clinically eligible adults",
     treatments: ["Compounded semaglutide", "Compounded tirzepatide"],
     startingFrom: "199",
+    pricingTiers: null,
     blurb:
-      "GLP-1 therapy with a real intake, real labs, and real follow-up. We will turn down patients who do not clinically qualify.",
+      "GLP-1 therapy with a real intake, real labs, and real follow-up. We will turn down patients who do not clinically qualify. Results vary by patient.",
+    fdaStatus: "compounded-not-fda-approved",
+    fdaNote:
+      "Compounded semaglutide and compounded tirzepatide are not FDA-approved. They are not the same as Ozempic, Wegovy, Mounjaro, or Zepbound, and have not been evaluated by the FDA for safety, efficacy, or quality. They are prepared by a licensed 503A compounding pharmacy partner under a valid prescription from a clinician licensed in your state.",
   },
   {
     slug: "peptides",
@@ -41,8 +69,12 @@ export const conditions: Condition[] = [
     treats: "Investigational, physician-supervised protocols",
     treatments: ["BPC-157", "Retatrutide"],
     startingFrom: "89",
+    pricingTiers: null,
     blurb:
-      "Research-tier peptides, prescribed only when clinically appropriate, dispensed through licensed compounding pharmacies. We will tell you what is and is not FDA-approved before you start.",
+      "Research-tier peptides, prescribed only when clinically appropriate, dispensed through a licensed compounding pharmacy partner. Results vary by patient.",
+    fdaStatus: "investigational-not-fda-approved",
+    fdaNote:
+      "BPC-157 and retatrutide are investigational and not FDA-approved. They are prepared by a licensed 503A compounding pharmacy partner under physician supervision and a valid prescription. The full regulatory status is disclosed before you order.",
   },
 ];
 
@@ -103,13 +135,66 @@ export const faqs: FaqItem[] = [
   },
   {
     q: "What states are you available in?",
-    a: "We are currently active in twenty-eight states across our clinical team. Check eligibility at the start of intake. We will not collect a card before confirming we can actually see you.",
+    a: "All 50 states. Prescriptions are written by clinicians licensed in your state, and medication is dispensed by a licensed compounding pharmacy partner that ships to your state. Eligibility is confirmed at the start of intake — we will not charge a card before confirming we can actually see you.",
   },
 ];
 
+export const usStates: { code: string; name: string }[] = [
+  { code: "AL", name: "Alabama" },
+  { code: "AK", name: "Alaska" },
+  { code: "AZ", name: "Arizona" },
+  { code: "AR", name: "Arkansas" },
+  { code: "CA", name: "California" },
+  { code: "CO", name: "Colorado" },
+  { code: "CT", name: "Connecticut" },
+  { code: "DE", name: "Delaware" },
+  { code: "FL", name: "Florida" },
+  { code: "GA", name: "Georgia" },
+  { code: "HI", name: "Hawaii" },
+  { code: "ID", name: "Idaho" },
+  { code: "IL", name: "Illinois" },
+  { code: "IN", name: "Indiana" },
+  { code: "IA", name: "Iowa" },
+  { code: "KS", name: "Kansas" },
+  { code: "KY", name: "Kentucky" },
+  { code: "LA", name: "Louisiana" },
+  { code: "ME", name: "Maine" },
+  { code: "MD", name: "Maryland" },
+  { code: "MA", name: "Massachusetts" },
+  { code: "MI", name: "Michigan" },
+  { code: "MN", name: "Minnesota" },
+  { code: "MS", name: "Mississippi" },
+  { code: "MO", name: "Missouri" },
+  { code: "MT", name: "Montana" },
+  { code: "NE", name: "Nebraska" },
+  { code: "NV", name: "Nevada" },
+  { code: "NH", name: "New Hampshire" },
+  { code: "NJ", name: "New Jersey" },
+  { code: "NM", name: "New Mexico" },
+  { code: "NY", name: "New York" },
+  { code: "NC", name: "North Carolina" },
+  { code: "ND", name: "North Dakota" },
+  { code: "OH", name: "Ohio" },
+  { code: "OK", name: "Oklahoma" },
+  { code: "OR", name: "Oregon" },
+  { code: "PA", name: "Pennsylvania" },
+  { code: "RI", name: "Rhode Island" },
+  { code: "SC", name: "South Carolina" },
+  { code: "SD", name: "South Dakota" },
+  { code: "TN", name: "Tennessee" },
+  { code: "TX", name: "Texas" },
+  { code: "UT", name: "Utah" },
+  { code: "VT", name: "Vermont" },
+  { code: "VA", name: "Virginia" },
+  { code: "WA", name: "Washington" },
+  { code: "WV", name: "West Virginia" },
+  { code: "WI", name: "Wisconsin" },
+  { code: "WY", name: "Wyoming" },
+];
+
 export const navLinks = [
-  { href: "#what-we-treat", label: "What we treat" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#clinicians", label: "Clinicians" },
+  { href: "/#what-we-treat", label: "What we treat" },
+  { href: "/#pricing", label: "Pricing" },
+  { href: "/#how-it-works", label: "How it works" },
+  { href: "/#clinicians", label: "Clinicians" },
 ];

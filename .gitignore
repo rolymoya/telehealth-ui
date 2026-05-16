@@ -23,6 +23,7 @@ yarn-error.log*
 /out
 /coverage
 next-env.d.ts
+tsconfig.tsbuildinfo
 
 # Env
 .env*.local

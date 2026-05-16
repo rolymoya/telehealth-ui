@@ -9,11 +9,12 @@ export function Faq() {
           <header className="lg:col-span-4">
             <p className="text-eyebrow uppercase text-ash">Common questions</p>
             <h2 className="display-serif mt-5 text-display-md font-light text-balance">
-              Answered without lawyer voice.
+              If yours isn't here, a visit can answer it.
             </h2>
             <p className="mt-6 max-w-prose text-pretty text-ink/75">
-              If something below is wrong about your situation, the right answer
-              is a real visit, not a longer FAQ.
+              Below are the questions we hear most. Anything specific to your
+              situation is better answered in a real visit than in a longer
+              FAQ.
             </p>
           </header>
 

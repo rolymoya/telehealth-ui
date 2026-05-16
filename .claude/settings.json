@@ -1,5 +1,19 @@
 {
   "enabledPlugins": {
     "impeccable@impeccable": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/create-feature-md.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }
