@@ -27,7 +27,9 @@ Length is fine; clarity matters more than brevity.
 
 ## Auto-appended commit log
 
-Each feature MD has a `## Commit log (auto-appended)` section at the bottom that's updated automatically on every `git commit` (SHA + date + subject + diff stat). The logic lives in `.githooks/post-commit`: after your commit lands, the hook appends the entry and runs `git commit --amend --no-edit --no-verify` to fold the MD update into the same commit. This rewrites the commit's SHA once, locally, before any push.
+Each feature MD has a `## Commit log (auto-appended)` section at the bottom that's updated automatically on every `git commit` (date + subject + diff stat). The logic lives in `.githooks/post-commit`: after your commit lands, the hook appends the entry and runs `git commit --amend --no-edit --no-verify` to fold the MD update into the same commit. This rewrites the commit's SHA once, locally, before any push.
+
+No SHA is recorded in the entry — the amend orphans the pre-amend SHA and the post-amend SHA isn't knowable until after a second amend. Use `git log --grep "<subject>"` to find a commit from its log entry.
 
 After cloning, run once to enable:
 

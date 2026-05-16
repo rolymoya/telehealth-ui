@@ -174,13 +174,25 @@ Move append-commit hook to PreToolUse
  1 file changed, 18 insertions(+)
 ```
 
-### d5104c7 · 2026-05-16T00:34:14-05:00
+### 2026-05-16T00:34:14-05:00
 
 Switch auto-log hook to post-commit + amend
 
 ```
- .githooks/post-commit        | 94 ++++++++++++++++++++++++++++++++++++++++++++
- .githooks/prepare-commit-msg | 90 ------------------------------------------
- docs/features/README.md      |  6 ++-
- 3 files changed, 98 insertions(+), 92 deletions(-)
+ .githooks/post-commit                           | 94 ++++++++++++++++++++++++++
+ .githooks/prepare-commit-msg                    | 90 ----------------------------
+ docs/features/README.md                         |  6 +-
+ docs/features/improve-LegitScript-compliance.md | 11 +++
+ 4 files changed, 109 insertions(+), 92 deletions(-)
+```
+
+### 2026-05-16T00:39:18-05:00
+
+Drop SHA from auto-log entries
+
+```
+ .githooks/post-commit                           | 25 +++++++++++++++++--------
+ docs/features/README.md                         |  4 +++-
+ docs/features/improve-LegitScript-compliance.md | 11 ++++++-----
+ 3 files changed, 26 insertions(+), 14 deletions(-)
 ```
