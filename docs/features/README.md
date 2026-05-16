@@ -24,3 +24,15 @@ Per-branch markdown files documenting non-trivial changes to the codebase. These
 - **Testing notes** — how to verify the work, what to watch for.
 
 Length is fine; clarity matters more than brevity.
+
+## Auto-appended commit log
+
+Each feature MD has a `## Commit log (auto-appended)` section at the bottom that's updated automatically on every `git commit` (date + subject + diff stat). The logic lives in `.githooks/prepare-commit-msg` and the entry is folded into the same commit that triggered it, so the doc stays in lockstep with history.
+
+After cloning, run once to enable:
+
+```
+git config core.hooksPath .githooks
+```
+
+Skipped automatically for: `main`/`master`/`develop`/`dev`/`trunk`, merge/squash/amend commits, and branches without a matching `docs/features/<branch>.md`.
