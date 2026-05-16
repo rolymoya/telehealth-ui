@@ -173,3 +173,14 @@ Move append-commit hook to PreToolUse
  docs/features/improve-LegitScript-compliance.md | 18 ++++++++++++++++++
  1 file changed, 18 insertions(+)
 ```
+
+### d5104c7 · 2026-05-16T00:34:14-05:00
+
+Switch auto-log hook to post-commit + amend
+
+```
+ .githooks/post-commit        | 94 ++++++++++++++++++++++++++++++++++++++++++++
+ .githooks/prepare-commit-msg | 90 ------------------------------------------
+ docs/features/README.md      |  6 ++-
+ 3 files changed, 98 insertions(+), 92 deletions(-)
+```

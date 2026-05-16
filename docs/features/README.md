@@ -27,7 +27,7 @@ Length is fine; clarity matters more than brevity.
 
 ## Auto-appended commit log
 
-Each feature MD has a `## Commit log (auto-appended)` section at the bottom that's updated automatically on every `git commit` (date + subject + diff stat). The logic lives in `.githooks/prepare-commit-msg` and the entry is folded into the same commit that triggered it, so the doc stays in lockstep with history.
+Each feature MD has a `## Commit log (auto-appended)` section at the bottom that's updated automatically on every `git commit` (SHA + date + subject + diff stat). The logic lives in `.githooks/post-commit`: after your commit lands, the hook appends the entry and runs `git commit --amend --no-edit --no-verify` to fold the MD update into the same commit. This rewrites the commit's SHA once, locally, before any push.
 
 After cloning, run once to enable:
 
@@ -35,4 +35,6 @@ After cloning, run once to enable:
 git config core.hooksPath .githooks
 ```
 
-Skipped automatically for: `main`/`master`/`develop`/`dev`/`trunk`, merge/squash/amend commits, and branches without a matching `docs/features/<branch>.md`.
+Skipped automatically for: `main`/`master`/`develop`/`dev`/`trunk`, merge commits, branches without a matching `docs/features/<branch>.md`, and commits whose subject already appears in the recent auto-log (catches user-initiated amends).
+
+Caveat: if the per-branch MD had unstaged edits before the commit, the amend will fold those edits in alongside the auto entry. Stage or stash first if that's not what you want.
