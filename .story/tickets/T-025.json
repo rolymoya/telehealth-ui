@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-024"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Recurring monthly billing for ongoing treatment plans with auto-renewal, as disclosed in the Terms. Plan management, upcoming-charge visibility, and a clear cancel path for the patient.",
+  "id": "T-025",
+  "order": 30,
+  "phase": "payments",
+  "status": "open",
+  "title": "Subscription & auto-renewal billing",
+  "type": "feature"
+}

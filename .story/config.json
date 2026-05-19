@@ -1,0 +1,27 @@
+{
+  "features": {
+    "handovers": true,
+    "issues": true,
+    "reviews": true,
+    "roadmap": true,
+    "tickets": true
+  },
+  "language": "typescript",
+  "project": "telehealth-ui",
+  "type": "webapp",
+  "version": 2,
+  "recipeOverrides": {
+    "maxTicketsPerSession": 0,
+    "handoverInterval": 3,
+    "reviewBackends": [
+      "lenses",
+      "agent"
+    ],
+    "stages": {
+      "TEST": {
+        "enabled": true,
+        "command": "npm test"
+      }
+    }
+  }
+}

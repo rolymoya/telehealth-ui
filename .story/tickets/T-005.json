@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-18",
+  "createdDate": "2026-05-18",
+  "description": "Add the four routes LegitScript reviewers expect: /about (corporate structure, 50-state list, contact), /privacy, /terms, and a /get-started stub so primary CTAs no longer 404. Nav gains a light/dark variant for cream-bg subpages.",
+  "id": "T-005",
+  "order": 10,
+  "phase": "compliance",
+  "status": "complete",
+  "title": "Compliance routes: /about, /privacy, /terms, /get-started",
+  "type": "task"
+}

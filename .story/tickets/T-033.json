@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-008"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Populate the pricingTiers field (currently null) on every Condition in data.ts with finalized tier data. The placeholder UI in Pricing.tsx switches automatically from the dashed TODO callout to the real tier list once tiers are present.",
+  "id": "T-033",
+  "order": 60,
+  "phase": "launch-blockers",
+  "status": "open",
+  "title": "Populate tiered pricing in data.ts",
+  "type": "task"
+}

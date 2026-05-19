@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-010",
+    "T-013"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Build sign-up and sign-in screens styled to the design system (warm clay surface, serif headlines, patient-leaning legibility defaults). Use the provider's components or hosted pages themed to brand tokens.",
+  "id": "T-014",
+  "order": 20,
+  "phase": "auth",
+  "status": "open",
+  "title": "Sign-up / sign-in UI",
+  "type": "task"
+}

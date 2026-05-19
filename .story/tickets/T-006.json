@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-18",
+  "createdDate": "2026-05-18",
+  "description": "Draft the HIPAA-aware Privacy Policy at /privacy (11 sections: PHI handled, uses, sharing, patient rights, security, breach notification, retention, cookies, children, changes, contact) with a sticky TOC, and the full Notice of Privacy Practices at #notice-of-privacy-practices. Carries the LegalReviewBanner until attorney sign-off.",
+  "id": "T-006",
+  "order": 20,
+  "phase": "compliance",
+  "status": "complete",
+  "title": "HIPAA Privacy Policy + Notice of Privacy Practices",
+  "type": "task"
+}

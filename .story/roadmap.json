@@ -1,0 +1,63 @@
+{
+  "blockers": [],
+  "date": "2026-05-18",
+  "phases": [
+    {
+      "description": "Next.js 16 (App Router) + React 19 + Tailwind 3 scaffold, design tokens and global styles, and the single-page marketing surface (Hero, Pricing, HowItWorks, Conditions, Clinicians, FAQ, Nav, Footer). Complete.",
+      "id": "foundation",
+      "label": "PHASE 1",
+      "name": "Foundation",
+      "summary": "Scaffold + single-page marketing surface"
+    },
+    {
+      "description": "Compliance pages and content rules for LegitScript telehealth certification: /about, /privacy (HIPAA Privacy Policy + Notice of Privacy Practices), /terms (telehealth disclosure + refunds), FDA-status disclosures on Conditions cards, and the Apothem-to-Apoth rebrand with corporate-structure alignment (Apoth Health LLC + MD Integrations). Complete (PR #1 merged).",
+      "id": "compliance",
+      "label": "PHASE 2",
+      "name": "LegitScript Compliance",
+      "summary": "Compliance pages, disclosures, Apoth rebrand"
+    },
+    {
+      "description": "Resolve the unresolved DESIGN.md tokens (OKLCH clay/sage/cream palette values, display serif + humanist sans font selection), document the component primitives now that they exist in code, and run a WCAG 2.2 AA accessibility audit against the finalized palette and type scale.",
+      "id": "design-system",
+      "label": "PHASE 3",
+      "name": "Design System",
+      "summary": "Finalize design tokens, document components, a11y audit"
+    },
+    {
+      "description": "Build out patient authentication: auth provider setup (Clerk recommended for Next.js email/social login + session management), sign-up/sign-in UI aligned to the design system, session management with protected routes, and a patient account/profile model. Introduces server-side logic to a previously static site.",
+      "id": "auth",
+      "label": "PHASE 4",
+      "name": "Auth Flow",
+      "summary": "Patient auth, sessions, account/profile"
+    },
+    {
+      "description": "Replace the /get-started stub with the real patient intake flow: test framework setup, intake route structure, error/404/loading routes, state-availability logic, per-condition clinical eligibility screening, and the per-condition intake form UI. Honors the \"no card charged before clinical confirmation\" promise.",
+      "id": "intake-flow",
+      "label": "PHASE 5",
+      "name": "Intake Flow",
+      "summary": "Real intake flow + eligibility gating"
+    },
+    {
+      "description": "Stripe payment processor integration: account and SDK setup, visit checkout/payment flow gated on passed clinical eligibility, subscription and auto-renewal billing (as disclosed in Terms), webhook handling for payment events, and refunds/cancellation handling matching the Terms refunds matrix.",
+      "id": "payments",
+      "label": "PHASE 6",
+      "name": "Payments",
+      "summary": "Stripe checkout, subscriptions, webhooks, refunds"
+    },
+    {
+      "description": "Real data and external sign-off required before LegitScript submission (deprioritized — mostly waiting on legal/corporate input): healthcare attorney review of /privacy and /terms, real contact info, mailing address, NPI, pharmacy partner disclosure, and finalized tiered pricing.",
+      "id": "launch-blockers",
+      "label": "PHASE 7",
+      "name": "Launch Blockers",
+      "summary": "Attorney review + real data placeholders"
+    },
+    {
+      "description": "Production readiness and launch: SEO and metadata assets (robots, sitemap, favicon, OG image), analytics and cookie consent backing the privacy policy's cookie disclosure, production domain config with HTTPS/WHOIS, and the production deployment.",
+      "id": "deploy",
+      "label": "PHASE 8",
+      "name": "Deploy",
+      "summary": "SEO assets, consent, domain, production deploy"
+    }
+  ],
+  "title": "telehealth-ui"
+}

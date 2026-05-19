@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-029"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Replace the [street address], [city, state ZIP] placeholder with the real Apoth Health LLC mailing address in Footer.tsx, /about#contact, /privacy section 11, and /terms section 18.",
+  "id": "T-030",
+  "order": 30,
+  "phase": "launch-blockers",
+  "status": "open",
+  "title": "Replace placeholder mailing address",
+  "type": "task"
+}

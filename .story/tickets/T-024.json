@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-021",
+    "T-023"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Build the visit checkout: payment is initiated only after clinical eligibility screening passes, honoring the \"no card charged before confirmation\" promise. Stripe Checkout or Payment Element, all-in transparent pricing matching the marketing copy.",
+  "id": "T-024",
+  "order": 20,
+  "phase": "payments",
+  "status": "open",
+  "title": "Visit checkout / payment flow",
+  "type": "feature"
+}

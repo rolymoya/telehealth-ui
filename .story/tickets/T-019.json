@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-018"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Add brand-aligned not-found.tsx, error.tsx, and loading.tsx so unhandled paths and client errors no longer render the default Next.js screens — important as a trust signal on a regulated healthcare site once intake routes exist.",
+  "id": "T-019",
+  "order": 30,
+  "phase": "intake-flow",
+  "status": "open",
+  "title": "Error, 404 & loading routes",
+  "type": "task"
+}

@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Add Vitest + React Testing Library, a test script, and config. Establishes the harness for testing clinical eligibility logic and intake-flow components in this sensitive domain.",
+  "id": "T-017",
+  "order": 10,
+  "phase": "intake-flow",
+  "status": "open",
+  "title": "Set up test framework (Vitest + React Testing Library)",
+  "type": "chore"
+}

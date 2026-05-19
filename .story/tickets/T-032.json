@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-005"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Fill in the 503A compounding pharmacy partner disclosure in the third entity card on /about: partner name, state of licensure, and NABP / state pharmacy license number.",
+  "id": "T-032",
+  "order": 50,
+  "phase": "launch-blockers",
+  "status": "open",
+  "title": "Pharmacy partner disclosure",
+  "type": "task"
+}

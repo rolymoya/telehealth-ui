@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-010"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Audit the marketing surface against WCAG 2.2 AA: 4.5:1 body / 3:1 large-text and UI contrast on the finalized OKLCH palette, keyboard navigation with visible focus rings, prefers-reduced-motion variants, semantic HTML and ARIA, and screen-reader testing on the booking entry points.",
+  "id": "T-012",
+  "order": 30,
+  "phase": "design-system",
+  "status": "open",
+  "title": "WCAG 2.2 AA accessibility audit",
+  "type": "task"
+}

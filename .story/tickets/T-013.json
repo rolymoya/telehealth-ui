@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Stand up the auth provider. Clerk is the recommended default for Next.js (email/password + social login, session management, JWT out of the box) — confirm vs Supabase Auth / Firebase Auth before implementing. Configure env vars, middleware, and the provider wrapper. This introduces server-side logic to a previously static site.",
+  "id": "T-013",
+  "order": 10,
+  "phase": "auth",
+  "status": "open",
+  "title": "Auth provider setup (Clerk)",
+  "type": "feature"
+}

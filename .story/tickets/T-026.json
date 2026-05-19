@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-023"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Webhook endpoint for Stripe payment events (succeeded, failed, subscription updated/canceled, refund) with signature verification and idempotent handling to keep account/visit state in sync with Stripe.",
+  "id": "T-026",
+  "order": 40,
+  "phase": "payments",
+  "status": "open",
+  "title": "Stripe webhooks",
+  "type": "task"
+}

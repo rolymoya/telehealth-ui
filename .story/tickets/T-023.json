@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Create the Stripe account, configure test/live keys via env vars, install the Stripe SDK, and set up the server-side Stripe client. Establishes the foundation for checkout, subscriptions, and webhooks.",
+  "id": "T-023",
+  "order": 10,
+  "phase": "payments",
+  "status": "open",
+  "title": "Stripe account & SDK setup",
+  "type": "chore"
+}

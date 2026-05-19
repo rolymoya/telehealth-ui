@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-006",
+    "T-007"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Replace placeholder emails (support@/privacy@/legal@/hello@apoth.example) and the 1-800-555-0144 phone with real values across Footer.tsx, /about#contact, /privacy section 11, /terms sections 14 and 18, and /terms#refunds-and-cancellation.",
+  "id": "T-029",
+  "order": 20,
+  "phase": "launch-blockers",
+  "status": "open",
+  "title": "Replace placeholder contact info",
+  "type": "task"
+}

@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-006"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Implement a cookie consent mechanism (and analytics, if any ships) so the Privacy Policy's cookie section is actually backed. If no tracking ships at launch, record that as a deliberate documented decision and align the policy text.",
+  "id": "T-035",
+  "order": 20,
+  "phase": "deploy",
+  "status": "open",
+  "title": "Analytics & cookie consent",
+  "type": "task"
+}

@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-010",
+    "T-016",
+    "T-018"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Build the per-condition intake form UI for sexual health, hair, weight, and peptide protocols: accessible form fields, plain-language labels with progressive disclosure for clinical detail, generous tap targets, and validation. Styled to the design system.",
+  "id": "T-022",
+  "order": 60,
+  "phase": "intake-flow",
+  "status": "open",
+  "title": "Intake form UI (per-condition flows)",
+  "type": "task"
+}

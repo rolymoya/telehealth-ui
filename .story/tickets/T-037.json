@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-028",
+    "T-031",
+    "T-036"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Deploy to production (Vercel recommended for Next.js). Verify all routes build and render, env vars are set, and the site is live on the production domain.",
+  "id": "T-037",
+  "order": 40,
+  "phase": "deploy",
+  "status": "open",
+  "title": "Production deployment",
+  "type": "chore"
+}

@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-010"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Document the component primitives (buttons, inputs, nav, cards, badges, the TODO chip) now that they exist in code. Fills in DESIGN.md section 5, which is still a placeholder.",
+  "id": "T-011",
+  "order": 20,
+  "phase": "design-system",
+  "status": "open",
+  "title": "Component documentation pass",
+  "type": "chore"
+}

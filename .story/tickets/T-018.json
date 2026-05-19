@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Replace the /get-started stub with the real intake flow architecture: route/step structure, navigation between steps, state persistence across steps, and entry points from the homepage Conditions and CTAs. Defines the skeleton the remaining intake tickets build on.",
+  "id": "T-018",
+  "order": 20,
+  "phase": "intake-flow",
+  "status": "open",
+  "title": "Intake flow: design & route structure",
+  "type": "feature"
+}

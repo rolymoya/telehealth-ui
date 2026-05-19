@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-18",
+  "createdDate": "2026-05-18",
+  "description": "Initialize the Next.js 16 App Router project with React 19, TypeScript, Tailwind 3, PostCSS, and autoprefixer. Establishes next.config.mjs, tailwind.config.ts, tsconfig.json, and the src/app structure.",
+  "id": "T-002",
+  "order": 10,
+  "phase": "foundation",
+  "status": "complete",
+  "title": "Next.js + Tailwind + TypeScript scaffold",
+  "type": "task"
+}

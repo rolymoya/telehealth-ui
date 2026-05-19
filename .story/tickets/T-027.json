@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-007",
+    "T-024"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Implement refunds and cancellation matching the Refunds and Cancellation Policy in /terms: refund processing via Stripe, subscription cancellation, and the patient-facing flow to request them.",
+  "id": "T-027",
+  "order": 50,
+  "phase": "payments",
+  "status": "open",
+  "title": "Refunds & cancellation handling",
+  "type": "task"
+}

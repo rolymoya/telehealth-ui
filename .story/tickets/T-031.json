@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-030"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Replace the 0000000000 NPI placeholder in Footer.tsx with the real National Provider Identifier.",
+  "id": "T-031",
+  "order": 40,
+  "phase": "launch-blockers",
+  "status": "open",
+  "title": "Replace placeholder NPI",
+  "type": "task"
+}

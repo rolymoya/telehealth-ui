@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-013"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Patient account/profile model and a basic account page: name, contact details, state of residence (feeds state-availability gating), and visit history scaffolding. Keep PHI handling consistent with the Privacy Policy.",
+  "id": "T-016",
+  "order": 40,
+  "phase": "auth",
+  "status": "open",
+  "title": "Patient account & profile",
+  "type": "task"
+}

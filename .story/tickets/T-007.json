@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-18",
+  "createdDate": "2026-05-18",
+  "description": "Draft the Terms of Service at /terms (18 sections) including the \"Apoth is a technology platform, not a medical provider\" framing, FDA-status disclosure, fees + auto-renewal, arbitration with class-action waiver and 30-day opt-out, and Illinois governing law. Includes the Telehealth Disclosure and Refunds and Cancellation Policy as anchors. Carries the LegalReviewBanner.",
+  "id": "T-007",
+  "order": 30,
+  "phase": "compliance",
+  "status": "complete",
+  "title": "Terms of Service + telehealth disclosure + refunds policy",
+  "type": "task"
+}

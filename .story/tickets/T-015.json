@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-013"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Wire session handling and route protection: middleware-gated authenticated routes, redirect-to-sign-in for unauthenticated access, and sign-out. Define which routes are public (marketing, legal) vs protected (account, intake continuation).",
+  "id": "T-015",
+  "order": 30,
+  "phase": "auth",
+  "status": "open",
+  "title": "Session management & protected routes",
+  "type": "task"
+}

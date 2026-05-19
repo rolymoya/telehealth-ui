@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-006",
+    "T-007"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Healthcare attorney review of the legal pages: Privacy Policy, Notice of Privacy Practices, Terms of Service, Telehealth Disclosure, Refunds and Cancellation matrix, the \"platform, not a provider\" framing, and the arbitration/class-action-waiver clause. Acceptance criterion: remove the LegalReviewBanner from /privacy and /terms once signed off.",
+  "id": "T-028",
+  "order": 10,
+  "phase": "launch-blockers",
+  "status": "open",
+  "title": "Healthcare attorney review of /privacy and /terms",
+  "type": "chore"
+}

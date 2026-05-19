@@ -27,3 +27,8 @@ tsconfig.tsbuildinfo
 
 # Env
 .env*.local
+
+# storybloq (session-local state)
+.story/snapshots/
+.story/sessions/
+.story/status.json

@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-018"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Turn the all-50-states marketing claim into real per-state availability logic in the intake flow: capture the patient's state and confirm coverage before proceeding. Backed by the usStates data and the MD Integrations physician network coverage.",
+  "id": "T-020",
+  "order": 40,
+  "phase": "intake-flow",
+  "status": "open",
+  "title": "State-availability logic",
+  "type": "task"
+}

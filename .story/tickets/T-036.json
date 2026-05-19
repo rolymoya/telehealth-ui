@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Set NEXT_PUBLIC_SITE_URL for the production domain (layout.tsx currently falls back to localhost), provision HTTPS, and configure WHOIS to be either public or use a verified registrar privacy product (not generic privacy protection) per LegitScript expectations.",
+  "id": "T-036",
+  "order": 30,
+  "phase": "deploy",
+  "status": "open",
+  "title": "Production domain config + HTTPS/WHOIS",
+  "type": "chore"
+}

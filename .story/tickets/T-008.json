@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-18",
+  "createdDate": "2026-05-18",
+  "description": "Add fdaStatus and fdaNote fields to the Condition type and render a \"Not FDA-approved\" badge plus the qualifier that compounded semaglutide/tirzepatide are not the same as Ozempic/Wegovy/Mounjaro/Zepbound on every relevant Conditions card.",
+  "id": "T-008",
+  "order": 40,
+  "phase": "compliance",
+  "status": "complete",
+  "title": "FDA-status disclosures on Conditions cards",
+  "type": "task"
+}

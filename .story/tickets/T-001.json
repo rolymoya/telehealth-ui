@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "To create more tickets, click the + button in the Open column header.",
+  "id": "T-001",
+  "order": 10,
+  "phase": "p0",
+  "status": "open",
+  "title": "Select this ticket to edit its details",
+  "type": "task"
+}

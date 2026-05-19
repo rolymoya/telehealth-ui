@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-18",
+  "createdDate": "2026-05-18",
+  "description": "Wire the warm-clay/sage/cream palette, type scale, and motion easing into tailwind.config.ts and globals.css. Note: OKLCH values and font families are still placeholders in DESIGN.md — finalized in the design-system phase.",
+  "id": "T-003",
+  "order": 20,
+  "phase": "foundation",
+  "status": "complete",
+  "title": "Design tokens & global styles",
+  "type": "task"
+}

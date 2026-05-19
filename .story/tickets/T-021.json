@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-017",
+    "T-018",
+    "T-020"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-05-18",
+  "description": "Per-condition clinical screening (age, contraindications, condition-specific questions) that determines whether treatment is appropriate. Enforces the \"eligibility is determined clinically, not by a checkout flow\" promise — no card is charged before clinical confirmation. Covered by tests given the compliance weight.",
+  "id": "T-021",
+  "order": 50,
+  "phase": "intake-flow",
+  "status": "open",
+  "title": "Per-condition clinical eligibility screening",
+  "type": "task"
+}

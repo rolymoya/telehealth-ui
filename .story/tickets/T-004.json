@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-05-18",
+  "createdDate": "2026-05-18",
+  "description": "Build the single-page marketing surface: Hero, Pricing, HowItWorks, Conditions, Clinicians, Faq, Nav, Footer, plus Icons and the shared data layer in src/lib/data.ts.",
+  "id": "T-004",
+  "order": 30,
+  "phase": "foundation",
+  "status": "complete",
+  "title": "Single-page marketing components",
+  "type": "task"
+}
