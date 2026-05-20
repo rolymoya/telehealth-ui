@@ -4,11 +4,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Patient account/profile model and a basic account page: name, contact details, state of residence (feeds state-availability gating), and visit history scaffolding. Keep PHI handling consistent with the Privacy Policy.",
+  "description": "`user_profiles` table holds the demographic data that we collect ourselves (first/last name, DOB, phone, address, state). Sensitive columns use application-level KMS envelope encryption — not `pgcrypto` — to keep keys outside the DB.\n\n**Scope**\n- Drizzle schema: `src/lib/db/schema/user_profiles.ts` — one row per user (UNIQUE on user_id), columns for first_name, last_name, dob (encrypted bytea), phone (encrypted), address fields (encrypted), state (plain — used for routing/eligibility).\n- KMS envelope helper at `src/lib/crypto/kms.ts` (ticket: infrastructure → KMS module). This ticket *consumes* that helper.\n- Read/write helpers that **log every decrypt to `audit_log`** (action: `profile.decrypt`). Plaintext never leaves the request scope.\n- Server actions `getProfile` and `updateProfile` co-located with the profile page.\n\n**Out of scope**\n- Address verification (Persona's KYC handles this in Phase C).\n- Avatar / profile photos (deferred).\n\n**Acceptance**\n- Inserting and reading a profile round-trips correctly.\n- A decrypt without a matching `audit_log` write is impossible at the API layer (enforced by the helper).\n- DB dump shows ciphertext for protected columns.",
   "id": "T-016",
   "order": 40,
   "phase": "auth",
   "status": "open",
-  "title": "Patient account & profile",
+  "title": "Patient profile schema + KMS-encrypted PII columns",
   "type": "task"
 }

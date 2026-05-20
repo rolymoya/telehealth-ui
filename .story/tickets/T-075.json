@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "Operationalize the data retention + deletion policy: how long do we keep what, how do we soft-delete vs hard-delete, and how do we respond to deletion requests (within HIPAA's preemption of GDPR/CCPA-style demands).\n\n**Scope**\n- `docs/compliance/retention-policy.md` — the policy document:\n  - Audit logs: 7 years (LegitScript / HIPAA evidence retention).\n  - Case mirror rows: soft-deleted within 30 days of MDI deletion, hard-deleted at 7 years.\n  - Webhook payload archive in S3: lifecycle rule moves to Glacier at 90 days, deletes at 7 years.\n  - KYC raw payloads: 7 years (regulator-friendly).\n  - User account deletion: tombstone the row, hard-delete PII after 30 days, retain audit/billing references with the tombstone.\n- S3 lifecycle rules configured per the schedule.\n- Drizzle migration adds `deleted_at` columns where missing; soft-delete helpers in `src/lib/db/soft-delete.ts`.\n- `workers/src/jobs/retention-sweep.ts` — daily job that hard-deletes rows whose retention window has expired.\n- Patient deletion request flow:\n  - Route handler that captures the request, requires re-auth + MFA, queues for staff review (HIPAA permits some retention against patient wishes; staff confirms scope).\n  - Per-request audit trail.\n\n**Acceptance**\n- Sweep job hard-deletes a test row whose `deleted_at` is older than its retention window.\n- S3 lifecycle rule visible in AWS console; objects expire at the configured age.\n- Deletion request → tombstone → 30-day countdown → hard delete cycle tested in staging.",
+  "id": "T-075",
+  "order": 70,
+  "phase": "hardening",
+  "status": "open",
+  "title": "Retention &amp; deletion policy implementation",
+  "type": "task"
+}

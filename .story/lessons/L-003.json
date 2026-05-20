@@ -1,0 +1,18 @@
+{
+  "content": "For Stripe subscriptions, MDI cases, and Persona KYC verifications, our DB holds a *mirror* updated via webhooks — never the source of truth. Three rules: (1) every mirror table has `last_synced_at` + `<provider>_updated_at`; (2) webhook handlers drop stale events (compare timestamps); (3) a periodic reconciler pulls from the vendor and corrects drift. Skipping the reconciler is what bites — webhooks drop more often than expected.",
+  "context": "Pattern emerged from the Apoth architecture plan (2026-05-19) covering Stripe, MDI, and Persona. Codified across T-026 (Stripe webhook), T-057 (MDI webhook), T-050 (Persona webhook), T-064 (MDI reconciler), T-069 (Stripe ↔ MDI reconciler). The \"no PHI in our DB\" decision makes this even more important — we can't even reconstruct state from local data; the vendor's truth must be reconciled.",
+  "createdDate": "2026-05-19",
+  "id": "L-003",
+  "lastValidated": "2026-05-19",
+  "reinforcements": 0,
+  "source": "manual",
+  "status": "active",
+  "supersedes": null,
+  "tags": [
+    "architecture",
+    "webhooks",
+    "reconciliation"
+  ],
+  "title": "Mirror integrations; never make local state the source of truth",
+  "updatedDate": "2026-05-19"
+}

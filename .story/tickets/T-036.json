@@ -2,11 +2,11 @@
   "blockedBy": [],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Set NEXT_PUBLIC_SITE_URL for the production domain (layout.tsx currently falls back to localhost), provision HTTPS, and configure WHOIS to be either public or use a verified registrar privacy product (not generic privacy protection) per LegitScript expectations.",
+  "description": "DNS + TLS + edge cache for `apoth.com`, fronting App Runner.\n\n**Scope**\n- Route 53 hosted zone for `apoth.com` (transfer or NS-delegate from current registrar). WHOIS privacy on.\n- ACM certificate (us-east-1 for CloudFront use) covering `apoth.com` and `www.apoth.com`. DNS validation via Route 53.\n- CloudFront distribution with:\n  - Origin: App Runner service (or ALB if we migrate to ECS).\n  - Behavior: pre-rendered marketing routes cached at edge; `(app)/*` and `/api/*` set to `Origin Cache-Control` + private (no cache).\n  - Custom error pages for 404/500.\n- HTTPS-only, HSTS preloaded.\n- AWS WAF associated (managed rule sets + Stripe IP allowlist on `/api/webhooks/stripe`).\n\n**Acceptance**\n- `https://apoth.com` resolves and serves the marketing surface via CloudFront.\n- `curl -I https://apoth.com` shows `Strict-Transport-Security` with `preload`.\n- Marketing routes return CloudFront `Hit from cloudfront` after second load; authenticated routes return `Miss from cloudfront`.",
   "id": "T-036",
   "order": 30,
   "phase": "deploy",
   "status": "open",
-  "title": "Production domain config + HTTPS/WHOIS",
+  "title": "Production domain: Route 53 + CloudFront + ACM",
   "type": "chore"
 }

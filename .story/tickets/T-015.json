@@ -4,11 +4,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Wire session handling and route protection: middleware-gated authenticated routes, redirect-to-sign-in for unauthenticated access, and sign-out. Define which routes are public (marketing, legal) vs protected (account, intake continuation).",
+  "description": "`src/middleware.ts` is the journey enforcer. It guards which routes a user can reach based on auth state, MFA enrollment, and where they are in the onboarding sequence.\n\n**Scope**\n- Session check via the `src/lib/auth.ts` facade.\n- MFA gate: any route under `/dashboard/cases/**` requires an active MFA factor; redirect to `/mfa/enroll` if missing.\n- Onboarding sequence gate: users must complete each step in order — consents → KYC → intake → payment-method-captured. Hitting `/onboarding/payment` without a KYC pass redirects to `/onboarding/identity`. The gate state is derived from rows in `consents`, `kyc_verifications`, and `cases` (mirror).\n- Idle-timeout: short (15 min) on routes that read mirrored case data; standard on marketing surfaces.\n\n**Out of scope**\n- The route handlers themselves (covered in their respective tickets).\n- Step-up MFA for admin actions (T-073 in `hardening` phase).\n\n**Acceptance**\n- E2E test asserts that hitting any onboarding step out of order redirects to the correct next step.\n- Hitting `/dashboard/cases/[id]` without MFA redirects to `/mfa/enroll`, then back after enrollment.\n- Idle-timeout cookie expiry verified.",
   "id": "T-015",
   "order": 30,
   "phase": "auth",
   "status": "open",
-  "title": "Session management & protected routes",
+  "title": "Session middleware: auth + MFA + onboarding-step gates",
   "type": "task"
 }

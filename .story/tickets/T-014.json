@@ -5,11 +5,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Build sign-up and sign-in screens styled to the design system (warm clay surface, serif headlines, patient-leaning legibility defaults). Use the provider's components or hosted pages themed to brand tokens.",
+  "description": "Patient-facing auth surfaces, designed against RULES.md (Committed Clay, Two-Voice, Serif-Lead, Patient Floor — body ≥16px, target 17-18px).\n\n**Scope**\n- `src/app/(app)/signup/page.tsx` — email + password primary; magic-link secondary path (recovery + accessibility option).\n- `src/app/(app)/signin/page.tsx` — same shape, with a magic-link \"trouble signing in?\" exit.\n- `src/app/(app)/mfa/enroll/page.tsx` — TOTP enrollment. MFA is **required** before viewing case detail (enforced in middleware — T-015), but enrollment offered at signup with a clear \"set up now\" CTA and a deferral path to `/dashboard` until the gate is hit.\n- All forms server-action driven (App Router). No client-side auth state outside the session cookie.\n- Honor `RULES.md` design system. No clinical blue, no gradient text, no em dashes in body copy. `LegalReviewBanner` not needed here.\n\n**Out of scope**\n- Passkey enrollment (Phase A.5, post-launch).\n- Password reset UX → handled by better-auth defaults + magic-link path; revisit if friction shows up.\n\n**Acceptance**\n- Signup → email verification → first sign-in works end-to-end against the local stack.\n- MFA enrollment creates a `two_factor` row; the dashboard is accessible without MFA; the case-detail page requires it.\n- Visual review against DESIGN.md tokens once T-010 is complete.",
   "id": "T-014",
   "order": 20,
   "phase": "auth",
   "status": "open",
-  "title": "Sign-up / sign-in UI",
+  "title": "Sign-up / sign-in UI + MFA enrollment",
   "type": "task"
 }

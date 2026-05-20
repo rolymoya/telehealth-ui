@@ -24,6 +24,13 @@
       "summary": "Finalize design tokens, document components, a11y audit"
     },
     {
+      "description": "AWS foundation that everything downstream depends on: VPC + RDS + App Runner via CDK, Secrets Manager, observability skeleton, Postgres baseline schema with Drizzle, KMS envelope encryption, audit-log hash chain, webhook ingestion plumbing (SQS + worker + idempotency), and consent-versioning data model. The BAA boundary is established here.",
+      "id": "infrastructure",
+      "label": "PHASE 4",
+      "name": "Infrastructure",
+      "summary": "AWS foundation: CDK, RDS, secrets, observability, webhook plumbing, audit log, KMS"
+    },
+    {
       "description": "Build out patient authentication: auth provider setup (Clerk recommended for Next.js email/social login + session management), sign-up/sign-in UI aligned to the design system, session management with protected routes, and a patient account/profile model. Introduces server-side logic to a previously static site.",
       "id": "auth",
       "label": "PHASE 4",
@@ -38,6 +45,13 @@
       "summary": "Real intake flow + eligibility gating"
     },
     {
+      "description": "503A compounding pharmacy partner selection, BAA execution, and validation that fulfillment events flow through MDI's e-prescribe passthrough. Direct pharmacy API integration is deferred until a concrete gap (real-time tracking, custom shipping, inventory visibility) is named.",
+      "id": "pharmacy",
+      "label": "PHASE 10",
+      "name": "Pharmacy Fulfillment",
+      "summary": "Pharmacy partner BAA + validate MDI passthrough; direct integration deferred"
+    },
+    {
       "description": "Stripe payment processor integration: account and SDK setup, visit checkout/payment flow gated on passed clinical eligibility, subscription and auto-renewal billing (as disclosed in Terms), webhook handling for payment events, and refunds/cancellation handling matching the Terms refunds matrix.",
       "id": "payments",
       "label": "PHASE 6",
@@ -45,11 +59,32 @@
       "summary": "Stripe checkout, subscriptions, webhooks, refunds"
     },
     {
+      "description": "LegitScript-grade patient identity verification via a hosted KYC vendor (Persona recommended, pending BAA). Placement: signup → consents → KYC → intake → payment → MDI handoff. Declined KYC produces no Stripe customer and no MDI patient. KYC is an identity-of-record control distinct from MDI's clinical driver-license capture.",
+      "id": "kyc",
+      "label": "PHASE 7",
+      "name": "Identity Verification",
+      "summary": "Persona hosted Inquiry flow + webhook + decline UX, sits before payment"
+    },
+    {
+      "description": "The clinical-handoff integration: OAuth client-credentials token cache, single-entrypoint MDI HTTP client, patient + case creation, 40+ webhook event handlers (HMAC + bearer verified, idempotent, SQS-queued), case-status mirroring, embedded URL helpers for sensitive sub-flows (driver-license, face-photo, intake questionnaire, clinician messaging, file uploads), MDI subscription lifecycle for refills, 418 maintenance handling, and the 6-hour reconciliation job. Highest-discovery-risk phase per the architecture plan.",
+      "id": "mdi-integration",
+      "label": "PHASE 8",
+      "name": "MDIntegrations",
+      "summary": "MDI client + 40+ webhooks + dashboard + embedded URLs + reconciler"
+    },
+    {
       "description": "Real data and external sign-off required before LegitScript submission (deprioritized — mostly waiting on legal/corporate input): healthcare attorney review of /privacy and /terms, real contact info, mailing address, NPI, pharmacy partner disclosure, and finalized tiered pricing.",
       "id": "launch-blockers",
       "label": "PHASE 7",
       "name": "Launch Blockers",
       "summary": "Attorney review + real data placeholders"
+    },
+    {
+      "description": "Production-grade reconciliation (Stripe ↔ MDI drift), audit-chain integrity verifier, drift dashboards, admin audit timeline tool, dunning + cross-system cancellation sync, retention/deletion policy implementation, penetration test, and the LegitScript submission package with controls-evidence runbooks.",
+      "id": "hardening",
+      "label": "PHASE 12",
+      "name": "Hardening &amp; LegitScript Prep",
+      "summary": "Reconcilers, audit chain, dashboards, LegitScript submission package, pen test"
     },
     {
       "description": "Production readiness and launch: SEO and metadata assets (robots, sitemap, favicon, OG image), analytics and cookie consent backing the privacy policy's cookie disclosure, production domain config with HTTPS/WHOIS, and the production deployment.",

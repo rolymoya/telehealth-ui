@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "All infrastructure-as-code lives in `/infra` (CDK in TypeScript — shared language with the app).\n\n**Scope**\n- CDK app structured as: `network-stack`, `data-stack`, `app-stack`, `worker-stack`, `observability-stack`.\n- VPC with public + private + isolated subnets across 2+ AZs; NAT gateway for outbound (necessary for MDI/Stripe API calls from private subnets).\n- RDS Postgres 16, Multi-AZ in prod, KMS-encrypted with a customer-managed key, automated backups 35d, PITR enabled. Private (isolated) subnet only.\n- ElastiCache Redis (single-node dev/staging, replication-group with 1 replica prod).\n- App Runner service stub (image pulled from ECR placeholder); VPC connector to access RDS/Redis.\n- ECS Fargate cluster + worker service stub.\n- SQS main queue + DLQ (visibility timeout 60s, max receives 5).\n- S3 buckets: `apoth-<env>-webhook-payloads`, `apoth-<env>-audit-exports`, `apoth-<env>-kyc-documents`. All KMS-encrypted, block public access, versioned.\n- ECR repo for the app image.\n\n**Acceptance**\n- `cdk deploy ApothStaging` succeeds end-to-end and produces a reachable App Runner URL (serving a placeholder 200).\n- `cdk diff` against prod is clean (env-specific differences in `cdk.json` or env-tagged construct props only).",
+  "id": "T-039",
+  "order": 30,
+  "phase": "infrastructure",
+  "status": "open",
+  "title": "CDK skeleton: VPC, RDS, App Runner, ECS, SQS",
+  "type": "task"
+}

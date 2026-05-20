@@ -4,11 +4,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Implement a cookie consent mechanism (and analytics, if any ships) so the Privacy Policy's cookie section is actually backed. If no tracking ships at launch, record that as a deliberate documented decision and align the policy text.",
+  "description": "Cookie consent implementation **plus** an analytics vendor decision that respects our BAA boundary. The privacy policy already documents cookies; nothing currently implements consent.\n\n**Scope**\n- Cookie consent banner — opt-in for non-essential cookies, persisted as a `consents` row (kind: `cookies`, versioned per T-018b infrastructure ticket).\n- Analytics vendor: avoid putting PHI-adjacent identifiers into a non-BAA tool. Options ranked:\n  1. **PostHog Cloud (US) with BAA on Teams tier** (recommended once volume justifies; until then, self-hosted PostHog on the same AWS account is BAA-clean by default).\n  2. Plausible (privacy-first, no BAA needed but limited event model).\n  3. Posthog OSS self-hosted on our AWS infra (BAA-clean since it's inside our boundary; ops overhead).\n- All analytics calls go through a `src/lib/analytics/client.ts` facade. Patient identifier is `apoth_user_id` (opaque); never email or name.\n- Suppress analytics in `/onboarding/identity/**`, `/onboarding/intake/**`, `/dashboard/**` if vendor doesn't have BAA.\n\n**Acceptance**\n- Banner appears on first visit; non-essential cookies blocked until consent.\n- `consents` row written on accept/decline with version.\n- Analytics tag fires only on marketing surfaces in the no-BAA path.",
   "id": "T-035",
   "order": 20,
   "phase": "deploy",
   "status": "open",
-  "title": "Analytics & cookie consent",
+  "title": "Analytics &amp; cookie consent — BAA-aware vendor selection",
   "type": "task"
 }

@@ -1,10 +1,10 @@
 {
   "blockedBy": [
-    "T-005"
+    "T-066"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Fill in the 503A compounding pharmacy partner disclosure in the third entity card on /about: partner name, state of licensure, and NABP / state pharmacy license number.",
+  "description": "Replace pharmacy-partner placeholder language on `/privacy` once the partner is selected and BAA-signed in T-066. The disclosure must name the entity, its state(s) of licensure, and its relationship to Apoth (independent compounding pharmacy, not owned by or affiliated with Apoth Health LLC).\n\n**Acceptance**\n- `/privacy` names the pharmacy partner with no `TODO:` chip remaining.\n- The relationship sentence matches the corporate-structure framing in CLAUDE.md.",
   "id": "T-032",
   "order": 50,
   "phase": "launch-blockers",

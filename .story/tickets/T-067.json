@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "v1 pattern: pharmacy fulfillment events flow through MDI (DoseSpot → pharmacy partner) and come back to us as MDI webhooks. No direct pharmacy integration in v1 — this ticket validates the passthrough actually works end-to-end.\n\n**Scope**\n- In MDI sandbox: create a case with the production pharmacy partner linked via `POST /partner/patients/:id/pharmacies/preferences`. Walk through `case_completed` → Rx written → DoseSpot routes to pharmacy → fulfillment.\n- Observe which MDI webhooks fire for fulfillment events (`case_completed`, `order_*` if MDI exposes them).\n- Update `docs/external/mdi-event-catalog.md` (from T-052) with the fulfillment-stage event sequence.\n- Add fixture replays for fulfillment to the integration test suite.\n- Document the operational gap: what info do we get vs. need? (e.g., tracking number, shipping status). If gaps are blocking, escalate to ticket T-068 (direct integration).\n\n**Acceptance**\n- A sandbox case ends with a confirmed fulfillment event from MDI and the right `cases.status`.\n- Gap log produced; if no gaps block patient UX, T-068 stays deferred.",
+  "id": "T-067",
+  "order": 20,
+  "phase": "pharmacy",
+  "status": "open",
+  "title": "Validate pharmacy fulfillment via MDI passthrough",
+  "type": "task"
+}

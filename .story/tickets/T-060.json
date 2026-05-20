@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "Secondary webhook families — handlers that update UI state cues, surface ops events, or are explicitly safe to ignore in v1 (triage tier per the T-052 event catalog).\n\n**Scope**\n- `workers/src/handlers/mdi/messages.ts` — `message_created` → surface a \"new message\" UI indicator in the dashboard (read state lives client-side; the underlying message bodies stay in MDI). No PHI persisted.\n- `workers/src/handlers/mdi/files.ts` — `file_lab_results_processed` → audit row + dashboard cue. The file itself stays in MDI.\n- `workers/src/handlers/mdi/vouchers.ts` — `voucher_created`, `voucher_used`, `voucher_expired`, `voucher_reminder_sent`. v1 behavior: log + audit only; full promo flow deferred until product asks for it.\n- `workers/src/handlers/mdi/exams.ts` — `exam_*` → ops route only (no patient-facing surface yet).\n- Each handler is idempotent on `event.id`.\n- Events in the \"safe-to-ignore-v1\" tier (per T-052 triage) are explicitly registered as a no-op handler so they don't end up in DLQ.\n\n**Acceptance**\n- All event types in the T-052 catalog have a registered handler (no DLQ pollution from unknown event types).\n- A `message_created` fixture triggers the dashboard cue at next page load.",
+  "id": "T-060",
+  "order": 90,
+  "phase": "mdi-integration",
+  "status": "open",
+  "title": "MDI webhook handlers: messages, files, vouchers, exams",
+  "type": "task"
+}

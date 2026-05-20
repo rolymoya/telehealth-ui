@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "Operational visibility. Datadog for real-time + alerting; Metabase (or Sigma) for finance + product analytics.\n\n**Scope — Datadog dashboards**\n- **Webhook health**: receipt rate by provider, signature failure rate, DLQ depth, processor latency p95/p99.\n- **MDI health**: API error rate (by class: 4xx / 5xx / 418), token refresh count, case drift count, embedded URL request rate.\n- **Stripe health**: webhook lag, drift count, SetupIntent failure rate, payment-method-failure rate.\n- **KYC health**: pass rate, decline rate, needs-review backlog age.\n- **Onboarding funnel**: signup → consents → KYC → intake → payment → MDI handoff conversion rates per step.\n\n**Scope — Metabase dashboards** (or equivalent, BAA-aware vendor)\n- **Per-case PnL**: revenue (Stripe `invoice.paid`) − MDI cost (`partner_charge`) − pharmacy cost (Phase E or TBD).\n- **MRR / ARR** by condition.\n- **Cohort retention** by signup month.\n- **Refund + dunning** trends.\n\n**Acceptance**\n- Each Datadog dashboard has at least one alarm rule wired to PagerDuty.\n- Metabase dashboards refresh nightly from a read replica.",
+  "id": "T-071",
+  "order": 30,
+  "phase": "hardening",
+  "status": "open",
+  "title": "Drift + ops dashboards (Datadog + Metabase)",
+  "type": "task"
+}

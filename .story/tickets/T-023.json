@@ -2,11 +2,11 @@
   "blockedBy": [],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Create the Stripe account, configure test/live keys via env vars, install the Stripe SDK, and set up the server-side Stripe client. Establishes the foundation for checkout, subscriptions, and webhooks.",
+  "description": "Wire up the Stripe SDK with a single-entrypoint client and codify the **\"no PHI in Stripe\"** policy that everything downstream depends on.\n\n**Scope**\n- `src/lib/stripe/client.ts` — single Stripe SDK instance (server-only). All Stripe calls route through this module or its siblings (`customer.ts`, `subscription.ts`).\n- Secrets live in AWS Secrets Manager (`apoth/<env>/stripe/restricted_key`). Local dev uses a test-mode restricted key with the minimum scopes needed.\n- Environment sentinel: assert at boot that `STRIPE_ENV ∈ {test, live}` matches `APP_ENV`. Hard-exit on mismatch.\n- **BAA policy** (Stripe does not sign a BAA — codified in `docs/stripe-data-policy.md` and lint-enforced):\n  - Customer metadata: only `apoth_user_id` (opaque ULID).\n  - Product/price names: opaque internal codes (e.g. `tx-cond-a-monthly`). Patient-facing names render from our DB.\n  - Invoice line items: opaque descriptors only.\n  - No condition names, no diagnoses, no DOB, no SSN, no health data anywhere in Stripe.\n\n**Acceptance**\n- `src/lib/stripe/client.ts` is the only path to the Stripe SDK (grep audit).\n- A failing test exists that catches any new code passing a condition name or PHI-shaped string to Stripe (regex guard on the policy doc).",
   "id": "T-023",
   "order": 10,
   "phase": "payments",
   "status": "open",
-  "title": "Stripe account & SDK setup",
+  "title": "Stripe SDK setup + BAA-aware metadata policy",
   "type": "chore"
 }

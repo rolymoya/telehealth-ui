@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "MDI charges Apoth wholesale per case via the `partner_charge` webhook. Captured in the `billing_events` ledger to support unit-economics reporting (revenue vs MDI cost vs pharmacy cost).\n\n**Scope**\n- Drizzle schema: `src/lib/db/schema/billing_events.ts` — `id`, `source` (`stripe`/`mdi_partner_charge`/`pharmacy`), `external_id`, `user_id`, `case_id`, `subscription_id`, `amount_cents`, `currency`, `occurred_at`, `metadata` (jsonb, **no PHI**).\n- `workers/src/handlers/mdi/partner-charge.ts`:\n  - Idempotent insert keyed on `external_id` (MDI charge id).\n  - Joins charge to local `case_id` via `mdi_case_id` lookup; missing → log + DLQ for ops review.\n  - Audit log row.\n- Reporting view: a Postgres view `billing_events_per_case` that aggregates revenue + MDI cost + pharmacy cost by case_id for a Metabase/Sigma dashboard (built in hardening phase).\n\n**Acceptance**\n- Replayed `partner_charge` fixture produces exactly one row; duplicate event id is a no-op.\n- Aggregating revenue − MDI cost for a known sandbox case returns the expected margin.",
+  "id": "T-059",
+  "order": 80,
+  "phase": "mdi-integration",
+  "status": "open",
+  "title": "MDI webhook handler: partner_charge → billing_events ledger",
+  "type": "task"
+}

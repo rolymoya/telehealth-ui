@@ -1,0 +1,18 @@
+{
+  "content": "When inserting multiple new phases, plan the `after` chain to match desired *display* order, not just logical position. `phase_create` accepts `after` and `atStart` but there's no `phase_update` to move a phase later. If you insert `pharmacy` after `intake-flow` but the architecture plan actually wants `pharmacy` after `mdi`, you can't fix it without recreating phases.",
+  "context": "Discovered while turning the Apoth architecture plan into storybloq tickets (2026-05-19). The 5 new phases (infrastructure, kyc, mdi-integration, pharmacy, hardening) were inserted relative to existing phases, but the existing intake-flow / payments order placed Intake before Payments — so Pharmacy (inserted after intake-flow) landed before Payments / KYC / MDI in the display, even though execution order should be Payments → KYC → MDI → Intake → Pharmacy. No storybloq tool exists to fix this after the fact.",
+  "createdDate": "2026-05-19",
+  "id": "L-001",
+  "lastValidated": "2026-05-19",
+  "reinforcements": 0,
+  "source": "manual",
+  "status": "active",
+  "supersedes": null,
+  "tags": [
+    "storybloq",
+    "planning",
+    "phases"
+  ],
+  "title": "Storybloq has no phase reorder — sequence inserts on first pass",
+  "updatedDate": "2026-05-19"
+}

@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "Nightly job that catches any drift between Stripe and MDI subscription state. Webhooks should keep them in sync, but this is the safety net.\n\n**Scope**\n- `workers/src/jobs/reconcile-stripe-mdi.ts` — runs every 6h (more frequently than case reconciliation since billing drift has real money impact).\n- Joins `subscriptions` table on (`stripe_subscription_id`, `mdi_subscription_id`).\n- For each row: re-fetch from Stripe and MDI, compare status / current_period_end / payment_method_status.\n- Drift cases handled:\n  - Stripe active + MDI cancelled → cancel Stripe at period end + alarm.\n  - Stripe cancelled + MDI active → cancel MDI immediately + alarm.\n  - Stripe past_due + MDI active → pause MDI (dunning, T-027) if not already.\n  - Unpaired rows (one ID present, the other null) older than 1h → alarm for ops review.\n- Datadog metrics: `subscription.drift_count`, `subscription.unpaired_count`.\n- Alarm policy: any drift_count >0 pages on-call.\n\n**Acceptance**\n- Manually drift a sandbox subscription (e.g., cancel only in Stripe) → next run corrects MDI side + writes audit + alarms.\n- Unpaired row detection fires within 1h of creation.",
+  "id": "T-069",
+  "order": 10,
+  "phase": "hardening",
+  "status": "open",
+  "title": "Stripe ↔ MDI subscription reconciliation job",
+  "type": "task"
+}

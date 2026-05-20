@@ -6,11 +6,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Per-condition clinical screening (age, contraindications, condition-specific questions) that determines whether treatment is appropriate. Enforces the \"eligibility is determined clinically, not by a checkout flow\" promise — no card is charged before clinical confirmation. Covered by tests given the compliance weight.",
+  "description": "Narrowed from the original \"per-condition clinical eligibility screening.\" The deep clinical questionnaire now lives in MDI (embedded URL, see mdi-integration phase). What stays on our side is a **light prefilter**: condition-specific yes/no screens that determine whether we should even attempt to create an MDI case (age cutoffs, pregnancy flags for certain conditions, contraindication red flags that MDI also re-asks but we want to fail fast on).\n\n**Scope**\n- `src/lib/eligibility/condition.ts` — exports `prefilter(conditionKey, answers): { eligible: boolean; reasons: string[] }`. Pure function.\n- A small set of yes/no questions per condition, sourced from MDI's questionnaire metadata where possible; otherwise from clinical/operations input.\n- Failure path: friendly \"this condition may not be a fit\" copy + a route to general resources, plus an audit-log entry (`eligibility.condition_failed`).\n- TDD: extend T-017's invariant suite with per-condition cases.\n\n**Out of scope**\n- Full clinical intake → MDI embedded URL (mdi-integration phase).\n- DEA / controlled-substance rules → enforced server-side by MDI/DoseSpot; we do not duplicate.\n\n**Acceptance**\n- Prefilter answers persist nowhere durable (in-memory through the onboarding step); only the **outcome** persists as an audit row.\n- A failing prefilter does **not** create an MDI patient or Stripe customer.",
   "id": "T-021",
   "order": 50,
   "phase": "intake-flow",
   "status": "open",
-  "title": "Per-condition clinical eligibility screening",
+  "title": "Per-condition eligibility prefilter (light) — deep clinical Qs move to MDI",
   "type": "task"
 }

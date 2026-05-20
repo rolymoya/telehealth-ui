@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "Lock in Persona as the KYC vendor (recommended per the architecture plan; see also Stripe Identity and Veriff as fallbacks) and execute their BAA.\n\n**Why Persona over the alternatives**\n- Signs a BAA without enterprise-tier pricing.\n- Hosted **Inquiry** flow is the cleanest \"drop you out, bring you back\" pattern; we don't have to embed an SDK and pull KYC liability into our boundary.\n- Webhook model is conventional (HMAC signature, retries).\n- Pricing reasonable at our scale.\n\n**Scope**\n- Vendor due diligence: SOC 2 Type II, HIPAA posture, data residency (US-only).\n- BAA executed + filed in `docs/compliance/baa-register.md`.\n- Persona account configured with: an Inquiry Template Set (gov ID + selfie liveness + address verification), sandbox + prod environments, webhook endpoint registered to `https://staging.apoth.com/api/webhooks/persona` and prod equivalent.\n- Webhook signing secret + API key stashed in Secrets Manager.\n- Fallback documented: if Persona launches blockers, Stripe Identity is the next pick (caveat: ties more Stripe surface into our PHI boundary).\n\n**Acceptance**\n- BAA execution date recorded.\n- A sandbox Inquiry can be created via the API and completed against Persona's test profiles.",
+  "id": "T-048",
+  "order": 10,
+  "phase": "kyc",
+  "status": "open",
+  "title": "KYC vendor selection + Persona BAA execution",
+  "type": "chore"
+}

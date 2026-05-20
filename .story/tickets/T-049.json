@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "Send the patient to Persona's hosted Inquiry, then receive them back at our return URL once they've completed (or abandoned) verification.\n\n**Scope**\n- `src/lib/kyc/provider.ts` — vendor-agnostic interface: `startVerification(userId) → { redirectUrl, referenceId }`, `handleWebhook(payload)`. Apoth-side data flows through this facade only.\n- `src/lib/kyc/persona.ts` — concrete implementation. Creates an Inquiry via Persona's API, stores `vendor_reference_id` against a `kyc_verifications` row with status `pending`, returns the redirect URL.\n- `src/app/(app)/onboarding/identity/page.tsx` — explains what's about to happen (plain-spoken per PRODUCT.md), single CTA: \"Start verification\" → server action → 302 to Persona.\n- `src/app/(app)/onboarding/identity/return/page.tsx` — Persona's `returnUrl`. Reads the current `kyc_verifications` row state (which the webhook may have already updated) and either advances to `/onboarding/intake` (status `approved`) or shows a \"we're reviewing\" interstitial (status `pending`/`needs_review`).\n\n**Out of scope**\n- Webhook handler → T-050.\n- Decline UX → T-051.\n\n**Acceptance**\n- Round trip in Persona sandbox completes; user lands back at our return URL.\n- `kyc_verifications` row reflects the Inquiry state correctly.\n- The redirect URL is signed/short-lived (re-generated on each step entry).",
+  "id": "T-049",
+  "order": 20,
+  "phase": "kyc",
+  "status": "open",
+  "title": "Persona Inquiry hosted flow integration",
+  "type": "feature"
+}

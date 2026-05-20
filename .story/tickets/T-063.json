@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "The post-onboarding home for patients. Shows mirrored case status from our DB, surfaces embedded MDI UI for clinical interactions, and respects the MFA gate on case detail.\n\n**Scope**\n- `src/app/(app)/dashboard/page.tsx` — server component. Lists the user's cases from the local mirror (`cases` table). For each case: status, condition, last-update relative time, \"new message\" cue if applicable.\n- `src/app/(app)/dashboard/cases/[caseId]/page.tsx` — case detail. Behind MFA gate (T-015 middleware). Embeds MDI's:\n  - Intake questionnaire (for cases in `created` or `waiting` status that have unanswered questions).\n  - Message thread.\n  - File-request slots (if MDI requested a doc).\n- Status banner: if `MDI_UNAVAILABLE` feature flag is on (T-064), surface a maintenance message.\n- Plain-spoken voice per PRODUCT.md; no clinical-blue per RULES.md.\n\n**Acceptance**\n- A case in `assigned` status displays the embedded questionnaire; once submitted (via MDI's iframe), the next webhook moves status to `processing` and the questionnaire disappears.\n- Hitting case detail without MFA redirects to enrollment, then back.\n- No raw clinical content (questions, answers, messages) lives in our DB — verified via DB inspection.",
+  "id": "T-063",
+  "order": 120,
+  "phase": "mdi-integration",
+  "status": "open",
+  "title": "Patient dashboard: case mirror + embedded MDI surfaces",
+  "type": "feature"
+}

@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "Shared webhook plumbing for Stripe, MDI, and Persona. Receivers verify, enqueue, and ACK fast; workers do the heavy lifting.\n\n**Scope**\n- Drizzle schema: `src/lib/db/schema/webhook_events.ts` — `id (provider event id, PK)`, `provider` (`stripe`/`mdi`/`persona`), `signature_verified` (bool), `received_at`, `processed_at`, `status` (`received`/`processing`/`done`/`failed`), `attempts`, `payload_s3_key`.\n- Provider-agnostic helper `enqueueWebhook(provider, event)`:\n  - Upserts into `webhook_events` keyed on provider event id (PK collision → return immediately, do not re-enqueue).\n  - Writes raw payload to `apoth-<env>-webhook-payloads` S3 bucket (encrypted) with key `<provider>/<yyyy>/<mm>/<dd>/<event_id>.json`.\n  - Sends a minimal envelope to SQS: `{ provider, event_id, s3_key }`.\n- Receiver routes (route handlers in `src/app/api/webhooks/<provider>/route.ts`) call provider-specific signature verifiers then `enqueueWebhook`, return 200 in <500ms.\n- Worker entrypoint `workers/src/index.ts` consumes SQS, dispatches by provider to handler modules. Handler signature: `async (event, ctx) → 'done' | 'retry' | 'dlq'`.\n\n**Acceptance**\n- Duplicate event id arrives twice → second receipt returns 200 immediately, no second SQS message, no second worker invocation.\n- Worker crash mid-handler → SQS visibility timeout re-delivers, idempotent handler completes; no double-effect.\n- After 5 receive attempts, message lands in DLQ + alarm fires.",
+  "id": "T-045",
+  "order": 90,
+  "phase": "infrastructure",
+  "status": "open",
+  "title": "Webhook ingestion: route handlers + SQS enqueue + idempotency",
+  "type": "task"
+}

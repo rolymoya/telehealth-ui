@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "Structured logs, traces, and metrics through a single observability sink with a signed BAA. Datadog over Honeycomb for: BAA availability, broader product surface, AWS integration depth.\n\n**Scope**\n- Datadog account with BAA signed (record date in `docs/compliance/baa-register.md`).\n- AWS Distro for OpenTelemetry (ADOT) collector running as a sidecar on App Runner and the worker.\n- Pino for structured JSON logs → CloudWatch → Datadog forwarder.\n- Trace propagation from inbound webhook (route handler) through SQS to worker handler (preserves the parent trace context across the async hop).\n- Key metrics emitted from app code:\n  - `webhook.latency` (per provider, p95/p99).\n  - `webhook.dlq_depth`.\n  - `mdi.api.error_rate` (segmented by 4xx / 5xx / 418).\n  - `mdi.token.refresh_count`.\n  - `stripe.webhook.lag` (received_at − created).\n  - `kyc.pass_rate`.\n  - `audit.chain_break_count`.\n- Alerts (PagerDuty integration) on: DLQ depth >0 for 10 min, audit chain break, MDI sustained 5xx, signature verification failures, KYC vendor down.\n- Sentry for frontend errors only; `beforeSend` scrubber strips PHI-shaped strings.\n\n**Acceptance**\n- A trace started in the Stripe webhook handler is visible in Datadog spanning through SQS into the worker handler.\n- A DLQ depth alarm fires in <60s of a poisoned message landing.\n- Sentry breadcrumb test confirms PHI scrub.",
+  "id": "T-042",
+  "order": 60,
+  "phase": "infrastructure",
+  "status": "open",
+  "title": "Observability skeleton: CloudWatch + OTEL + Datadog (BAA)",
+  "type": "task"
+}

@@ -4,11 +4,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Webhook endpoint for Stripe payment events (succeeded, failed, subscription updated/canceled, refund) with signature verification and idempotent handling to keep account/visit state in sync with Stripe.",
+  "description": "Stripe webhooks land at `src/app/api/webhooks/stripe/route.ts`, verify the signature, enqueue to SQS for asynchronous processing by the worker (defined in infrastructure phase). Idempotency is keyed on Stripe's `event.id` against the shared `webhook_events` table.\n\n**Scope**\n- Route handler reads raw body, verifies via `stripe.webhooks.constructEvent` against the webhook signing secret in Secrets Manager.\n- Upsert into `webhook_events` keyed on `event.id` — duplicate → 200 immediate, no enqueue.\n- Drop payload to S3 (encrypted bucket), put a minimal envelope on SQS, 200 to Stripe within target <500ms.\n- Worker handler at `workers/src/handlers/stripe.ts` processes:\n  - `customer.subscription.{created,updated,deleted}` → mirror to `subscriptions` table.\n  - `invoice.paid` → `billing_events` row (source: `stripe`).\n  - `invoice.payment_failed` → trigger dunning sync (T-076 in hardening).\n  - `setup_intent.succeeded` → unblock onboarding payment step (T-024).\n  - `payment_method.attached` → cross-check `patient_links.stripe_customer_id`.\n  - `charge.refunded`, `charge.dispute.created` → audit + alert.\n- WAF rule: Stripe IP allowlist on the webhook path (Stripe publishes ranges).\n\n**Acceptance**\n- Invalid signature → 400, audit row, alarm. Never accept untrusted writes.\n- Duplicate event id → 200, no worker enqueue, no side effects.\n- End-to-end test using Stripe CLI (`stripe trigger`) confirms the full path through SQS to worker to DB.",
   "id": "T-026",
   "order": 40,
   "phase": "payments",
   "status": "open",
-  "title": "Stripe webhooks",
+  "title": "Stripe webhook receiver: signature verify + idempotent enqueue",
   "type": "task"
 }

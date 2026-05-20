@@ -2,11 +2,11 @@
   "blockedBy": [],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Stand up the auth provider. Clerk is the recommended default for Next.js (email/password + social login, session management, JWT out of the box) — confirm vs Supabase Auth / Firebase Auth before implementing. Configure env vars, middleware, and the provider wrapper. This introduces server-side logic to a previously static site.",
+  "description": "Replaces the original Clerk plan. We're self-hosting **better-auth** on AWS so user identity stays inside the BAA boundary alongside MDI patient pointers — Clerk's BAA is Enterprise-tier only and would put a copy of identity data outside our boundary.\n\n**Scope**\n- Install better-auth and configure against our Postgres (Drizzle migrations land the `users`, `accounts`, `sessions`, `verifications` tables; later additions: `passkeys`, `two_factor`).\n- Database-backed sessions (Postgres) with Redis read-through cache for hot lookups. JWT-only sessions are rejected — we need revocation-on-the-spot for compliance termination, password reset, and suspected fraud.\n- Route handler at `src/app/api/auth/[...all]/route.ts` exposes better-auth.\n- Thin facade at `src/lib/auth.ts` (`getSession`, `requireUser`) — **every** auth call goes through this facade. Lint-enforced. This is the swap-cost insulator.\n\n**Out of scope (separate tickets)**\n- Sign-up / sign-in UI → T-014\n- Middleware + protected routes → T-015\n- Patient profile + KMS-encrypted PII columns → T-016\n\n**Decisions**\n- Skip the better-auth Stripe plugin in v1 — wrong shape (we want to create the Stripe customer after consents, not at signup). Revisit in Phase F.\n- No organizations plugin — Apoth is direct-to-patient.\n\n**Acceptance**\n- `src/lib/auth.ts` exists and is the only path callers use to reach better-auth.\n- A test user can be created via the better-auth API, persisted in `users`, and a session row exists.\n- Swapping the underlying lib would require changes only inside `src/lib/auth.ts` (verified by reviewing call sites).",
   "id": "T-013",
   "order": 10,
   "phase": "auth",
   "status": "open",
-  "title": "Auth provider setup (Clerk)",
+  "title": "Auth provider setup (better-auth, self-hosted)",
   "type": "feature"
 }

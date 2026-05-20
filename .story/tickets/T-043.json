@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "Application-level encryption for PHI-adjacent columns. Chosen over `pgcrypto` to keep the key material outside the database.\n\n**Scope**\n- `src/lib/crypto/kms.ts` — wraps `@aws-sdk/client-kms`. Exposes `encrypt(plaintext) → bytea` and `decrypt(bytea) → plaintext`.\n- Uses **envelope encryption**: GenerateDataKey for each write, encrypts plaintext with AES-256-GCM using the data key, stores `{ciphertext, encrypted_data_key, iv, tag}` as a single `bytea`.\n- A customer-managed KMS key (CMK) per environment with key policy that restricts decrypt to App Runner + ECS worker task roles only.\n- Decrypt path is **auditing**: every decrypt records to `audit_log` with `action: '<table>.<column>.decrypt'`, the calling user_id, and the request trace id. A decrypt without an audit row is impossible at the helper layer.\n- Convenience wrapper for Drizzle columns: `encryptedColumn(name)` so schema files declare encrypted columns ergonomically.\n\n**Used by**\n- T-016 (user_profiles PII columns), kyc_verifications.raw_payload pointers, any future PHI-shaped field.\n\n**Acceptance**\n- Round-trip encrypt → store → decrypt → matches.\n- DB dump shows ciphertext.\n- Calling `decrypt` outside an audit-logging context is impossible by API design (helper enforces).",
+  "id": "T-043",
+  "order": 70,
+  "phase": "infrastructure",
+  "status": "open",
+  "title": "KMS envelope encryption module",
+  "type": "task"
+}

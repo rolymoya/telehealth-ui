@@ -6,11 +6,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Build the per-condition intake form UI for sexual health, hair, weight, and peptide protocols: accessible form fields, plain-language labels with progressive disclosure for clinical detail, generous tap targets, and validation. Styled to the design system.",
+  "description": "Reframed from the original \"per-condition flows\" — the deep clinical intake now happens inside MDI's embedded UI. Our intake page is intentionally minimal: it picks the condition, runs the state gate (T-020), runs the prefilter (T-021), and routes forward.\n\n**Scope**\n- `src/app/(app)/onboarding/intake/page.tsx` — server component renders the condition picker + state field (pre-filled from `user_profiles.state` if known).\n- Server action `submitIntake` runs `canServeStateForCondition` + `prefilter`, persists nothing PHI-shaped, and either redirects to `/onboarding/payment` or to a friendly fail page.\n- Honor RULES.md typography (Patient Floor ≥16px / target 17-18px), Two-Voice color, plain-spoken voice per PRODUCT.md.\n\n**Out of scope**\n- The deep clinical questionnaire (MDI embedded URL, rendered on `/dashboard/cases/[id]` post-handoff).\n- File uploads (MDI handles in case workflow).\n\n**Acceptance**\n- Three paths tested: happy → `/onboarding/payment`; unsupported state → fail page + audit; failed prefilter → fail page + audit.\n- No PHI persisted at this step (answers are in-memory only — only the outcome is logged).",
   "id": "T-022",
   "order": 60,
   "phase": "intake-flow",
   "status": "open",
-  "title": "Intake form UI (per-condition flows)",
+  "title": "Intake UI (minimal): condition selection + state gate + prefilter",
   "type": "task"
 }

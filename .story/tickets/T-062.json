@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "MDI exposes signed, short-lived URLs for sensitive sub-flows (driver-license capture, face-photo, intake medical questionnaire, clinician messaging, file uploads). Embedding these keeps PHI collection inside MDI's surface (their BAA, their audit trail) while we keep branding and conversion.\n\n**Scope**\n- `src/lib/mdi/embedded.ts` — helpers per workflow:\n  - `getIntakeQuestionnaireUrl(caseId)`\n  - `getFileRequestUrl(caseId, fileType)`\n  - `getDriverLicenseCaptureUrl(patientId)` — clinical artifact, NOT a substitute for KYC (T-049 still required).\n  - `getFacePhotoUrl(patientId)`\n  - `getMessageThreadUrl(patientId)`\n- Each helper requests a **fresh** signed URL per page render via a server action — never cache URLs in client state or in our DB.\n- Iframe embedding from our dashboard pages; CSP `frame-src` allowlists MDI's domain.\n- Audit log entry on each URL request (`embedded.<workflow>.url_requested`).\n\n**Acceptance**\n- A dashboard page rendering an embedded intake URL fetches a fresh URL on every load.\n- The URL expires after MDI's documented TTL; re-render produces a new one.",
+  "id": "T-062",
+  "order": 110,
+  "phase": "mdi-integration",
+  "status": "open",
+  "title": "MDI embedded URL helpers (signed, short-lived)",
+  "type": "feature"
+}

@@ -1,0 +1,19 @@
+{
+  "content": "Stripe does not sign a BAA, so PHI must never enter customer metadata, product/price names, line-item descriptors, or invoice descriptions. Treat this as a policy enforced by `docs/stripe-data-policy.md` + a grep/regex CI check, not as \"we'll be careful.\" The bug class (condition names leaking through descriptors) is silent and only surfaces during audits or breach review.",
+  "context": "Architecture decision in the Apoth telehealth plan (2026-05-19). All other vendors in the BAA boundary can hold PHI; Stripe alone cannot. The fix shape is: opaque internal codes (`tx-cond-a-monthly`) in Stripe, human-readable names rendered from our DB at display time. Codified in T-023 (Stripe SDK setup + BAA-aware metadata policy).",
+  "createdDate": "2026-05-19",
+  "id": "L-002",
+  "lastValidated": "2026-05-19",
+  "reinforcements": 0,
+  "source": "manual",
+  "status": "active",
+  "supersedes": null,
+  "tags": [
+    "stripe",
+    "phi",
+    "compliance",
+    "legitscript"
+  ],
+  "title": "Codify \"no PHI in Stripe\" as policy + lint, not just convention",
+  "updatedDate": "2026-05-19"
+}

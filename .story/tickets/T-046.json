@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-05-19",
+  "description": "The always-on worker process. Same container image as the web tier, different entrypoint. Runs SQS consumer + cron-style jobs.\n\n**Scope**\n- `workers/src/index.ts` — multiplexes between SQS consumer mode and scheduled-job mode based on `WORKER_ROLE` env var.\n- ECS Fargate task definition: 1 always-on `webhook-processor` task, additional tasks per scheduled job.\n- EventBridge Scheduler rules → SQS messages that trigger handlers. Scheduled jobs registered here (full implementations live in their owning tickets):\n  - `mdi-token-prewarm` (every 30 min) — refresh token if TTL <2 min.\n  - `reconcile-stripe-mdi` (every 6h) — drift check (hardening phase).\n  - `reconcile-kyc-pending` (hourly) — re-poll Persona for pending verifications >24h.\n  - `audit-chain-verify` (nightly) — chain integrity (hardening phase).\n  - `dunning-sync` (daily) — Stripe past_due → notify + pause MDI subscription.\n- Graceful shutdown: SIGTERM → finish current message, drain SQS receive loop, exit clean. ECS deregisters via `stopTimeout`.\n- Health endpoint at `:8080/health` for ECS health check.\n\n**Acceptance**\n- Killing a worker task mid-message does not lose the message (re-delivered after visibility timeout).\n- All scheduled jobs are registered in EventBridge and visible in the AWS console.\n- A bad image rollout doesn't take down running messages (blue/green at the ECS service level).",
+  "id": "T-046",
+  "order": 100,
+  "phase": "infrastructure",
+  "status": "open",
+  "title": "Background worker service (ECS Fargate + EventBridge schedules)",
+  "type": "task"
+}

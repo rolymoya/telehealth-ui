@@ -5,11 +5,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Implement refunds and cancellation matching the Refunds and Cancellation Policy in /terms: refund processing via Stripe, subscription cancellation, and the patient-facing flow to request them.",
+  "description": "Cancellation is the most reconciliation-prone moment in the system: a Stripe-side cancel must propagate to MDI's subscription, a clinical-side cancel must propagate to Stripe, and dunning (failed payments) must pause both surfaces.\n\n**Scope**\n- Stripe Customer Portal configured to allow **payment-method update and cancellation only**. No plan switching in the portal (clinical implication; force plan changes through our UI, which can re-check eligibility).\n- `src/app/(app)/billing/page.tsx` redirects to a freshly created Customer Portal session for the user.\n- Worker handler for `customer.subscription.deleted` → calls MDI `POST /partner/subscriptions/:id/cancel` for the linked MDI subscription.\n- Worker handler for MDI `subscription_cancelled` webhook (mdi-integration phase) → cancels the Stripe subscription at period end.\n- Dunning: `invoice.payment_failed` → notify patient via email + pause the MDI subscription (do not cancel — gives patient time to update payment).\n- Refund initiated by support uses a server action that creates a Stripe refund + writes a `billing_events` row + audit log entry.\n\n**Out of scope**\n- The reconciliation drift detector (nightly job → hardening phase).\n- Self-serve refund UI (deferred — support-initiated only in v1).\n\n**Acceptance**\n- Stripe cancel → MDI cancel reflected within one webhook cycle.\n- MDI cancel → Stripe cancel at period end (not immediate, to honor any owed billing period).\n- `invoice.payment_failed` → MDI subscription `status = paused`, patient notified.",
   "id": "T-027",
   "order": 50,
   "phase": "payments",
   "status": "open",
-  "title": "Refunds & cancellation handling",
+  "title": "Refunds, cancellation, dunning — cross-system sync",
   "type": "task"
 }
