@@ -1,0 +1,17 @@
+{
+  "name": "@apoth/infra",
+  "private": true,
+  "version": "0.0.1",
+  "description": "AWS CDK infrastructure constructs for Apoth Health",
+  "scripts": {
+    "build": "tsc",
+    "synth": "cdk synth",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "aws-cdk": ">=2.170.0",
+    "aws-cdk-lib": ">=2.170.0",
+    "constructs": ">=10.0.0",
+    "typescript": ">=5.7.0"
+  }
+}

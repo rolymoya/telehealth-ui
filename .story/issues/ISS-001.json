@@ -1,0 +1,22 @@
+{
+  "components": [
+    "state-availability",
+    "test-suite"
+  ],
+  "discoveredDate": "2026-05-26",
+  "id": "ISS-001",
+  "impact": "7 invariant tests fail on every test run because isStateSupported throws 'not implemented — T-020'. CI is broken until T-020 is completed. Not caused by T-038 changes.",
+  "location": [
+    "src/lib/state-availability.ts",
+    "tests/invariants/state-availability.test.ts"
+  ],
+  "phase": null,
+  "relatedTickets": [
+    "T-020"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "Pre-existing test failures: isStateSupported not implemented (T-020 stub)"
+}
