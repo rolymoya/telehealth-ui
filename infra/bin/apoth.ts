@@ -24,31 +24,25 @@ try {
 
 const env = { account: config.account, region: config.region };
 
-const tags = {
-  Project: 'apoth',
-  Env: config.env,
-};
+// Apply project tags at app level — all child stacks inherit automatically
+cdk.Tags.of(app).add('Project', 'apoth');
+cdk.Tags.of(app).add('Env', config.env);
 
 // Stack instantiation in dependency order.
 // Deploy order: NetworkStack → DataStack → IamStack | AppStack | WorkerStack → ObservabilityStack
 const networkStack = new NetworkStack(app, `ApothNetwork-${config.env}`, { config, env });
-Object.entries(tags).forEach(([k, v]) => cdk.Tags.of(networkStack).add(k, v));
 
 const dataStack = new DataStack(app, `ApothData-${config.env}`, { config, networkStack, env });
 dataStack.addDependency(networkStack);
-Object.entries(tags).forEach(([k, v]) => cdk.Tags.of(dataStack).add(k, v));
 
 const iamStack = new IamStack(app, `ApothIam-${config.env}`, { config, env });
-Object.entries(tags).forEach(([k, v]) => cdk.Tags.of(iamStack).add(k, v));
 
 const appStack = new AppStack(app, `ApothApp-${config.env}`, { config, networkStack, dataStack, env });
 appStack.addDependency(dataStack);
 appStack.addDependency(iamStack);
-Object.entries(tags).forEach(([k, v]) => cdk.Tags.of(appStack).add(k, v));
 
 const workerStack = new WorkerStack(app, `ApothWorker-${config.env}`, { config, networkStack, dataStack, env });
 workerStack.addDependency(dataStack);
-Object.entries(tags).forEach(([k, v]) => cdk.Tags.of(workerStack).add(k, v));
 
 const observabilityStack = new ObservabilityStack(app, `ApothObservability-${config.env}`, {
   config,
@@ -57,4 +51,3 @@ const observabilityStack = new ObservabilityStack(app, `ApothObservability-${con
 });
 observabilityStack.addDependency(appStack);
 observabilityStack.addDependency(workerStack);
-Object.entries(tags).forEach(([k, v]) => cdk.Tags.of(observabilityStack).add(k, v));

@@ -82,11 +82,6 @@ export class AppStack extends Stack {
         healthyThreshold: 1,
         unhealthyThreshold: 5,
       },
-      autoScalingConfigurationArn: undefined,
-      tags: [
-        { key: 'Project', value: 'apoth' },
-        { key: 'Env', value: config.env },
-      ],
     });
 
     this.serviceUrl = service.attrServiceUrl;
