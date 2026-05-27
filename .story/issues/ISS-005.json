@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-05-27",
+  "id": "ISS-005",
+  "impact": "config.ts added 7 validation guards but no config.test.ts exists. All existing tests bypass getConfig() entirely.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "high",
+  "status": "open",
+  "title": "[Missing test coverage] config.ts added 7 validation guards but no config.test.ts exists. All existing t"
+}

@@ -1,0 +1,20 @@
+{
+  "components": [
+    "infra"
+  ],
+  "discoveredDate": "2026-05-27",
+  "id": "ISS-004",
+  "impact": "data-stack.ts manages 5+ distinct infra responsibilities (KMS, RDS, Redis, S3 buckets, SQS+DLQ). Will become a maintenance liability as each concern grows independently. Split into StorageConstruct, QueueConstruct, DatabaseConstruct, CacheConstruct with DataStack as thin coordinator.",
+  "location": [
+    "infra/lib/data-stack.ts"
+  ],
+  "phase": null,
+  "relatedTickets": [
+    "T-039"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "low",
+  "status": "open",
+  "title": "DataStack SRP violation — split into focused constructs"
+}

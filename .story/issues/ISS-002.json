@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-05-27",
+  "id": "ISS-002",
+  "impact": "Stack constructors should accept typed AppConfig props rather than reading CDK context independently",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[clean-code] Stack constructors should accept typed AppConfig props rather than reading CDK c"
+}
