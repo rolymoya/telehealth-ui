@@ -28,15 +28,15 @@ The voice is warm, candid, modern: a knowledgeable friend who happens to work in
 A warm, earth-tonal palette anchored on a committed clay primary, with sage as a quieter supporting tone and bone-cream as the neutral surface. No clinical blue, anywhere.
 
 ### Primary
-- **Warm Clay** (`[OKLCH to be resolved during implementation, target a terracotta in the L 55-65 / C 0.10-0.14 / h 30-45 region]`): the brand's load-bearing color. Used as committed surface treatment on hero and section blocks, on the primary CTA, and as the strong text accent in editorial pull quotes. Carries 30 to 60% of any given screen.
+- **Warm Clay** (`oklch(58% 0.115 38)` — scale: deep `oklch(46% 0.13 36)`, soft `oklch(72% 0.07 40)`, tint `oklch(92% 0.025 50)`): the brand's load-bearing color. Used as committed surface treatment on hero and section blocks, on the primary CTA, and as the strong text accent in editorial pull quotes. Carries 30 to 60% of any given screen.
 
 ### Secondary
-- **Soft Sage** (`[OKLCH to be resolved, target L 70-80 / C 0.04-0.06 / h 130-150]`): the supporting tone. Used on calmer surfaces (testimonials, trust strip, secondary cards) and as a quiet accent in iconography. Never used at full saturation; never paired with the clay at equal weight. Sage is the second voice, never the lead.
+- **Soft Sage** (`oklch(76% 0.045 145)` — scale: deep `oklch(40% 0.06 145)`, soft `oklch(88% 0.03 145)`): the supporting tone. Used on calmer surfaces (testimonials, trust strip, secondary cards) and as a quiet accent in iconography. Never used at full saturation; never paired with the clay at equal weight. Sage is the second voice, never the lead.
 
 ### Neutral
-- **Bone Cream** (`[OKLCH to be resolved, target L 96-98 / C 0.005-0.01 / h 60-80]`): the default page surface and the resting background outside the clay sections. Tinted toward the brand hue; never pure `#fff`.
-- **Stone Ink** (`[OKLCH to be resolved, target L 18-25 / C 0.005-0.01 / h 30-50]`): default body text. Tinted toward warm; never pure `#000`.
-- **Ash Mid** (`[OKLCH to be resolved, target L 55-65 / C 0.005-0.01 / h 30-50]`): meta text, captions, supporting labels. Used sparingly, AA-validated against bone-cream.
+- **Bone Cream** (`oklch(97% 0.008 75)` — scale: warm `oklch(94% 0.012 70)`, deep `oklch(91% 0.014 65)`): the default page surface and the resting background outside the clay sections. Tinted toward the brand hue; never pure `#fff`.
+- **Stone Ink** (`oklch(20% 0.008 40)` — scale: soft `oklch(35% 0.008 40)`): default body text. Tinted toward warm; never pure `#000`.
+- **Ash Mid** (`oklch(58% 0.008 40)` — scale: line `oklch(82% 0.008 40)`): meta text, captions, supporting labels. Used sparingly, AA-validated against bone-cream.
 
 ### Named Rules
 
@@ -48,8 +48,8 @@ A warm, earth-tonal palette anchored on a committed clay primary, with sage as a
 
 ## 3. Typography
 
-**Display Font:** A transitional or contemporary serif `[family to be chosen at implementation; candidates worth evaluating include GT Sectra, Tiempos Headline, Söhne Mono Halbfett's serif sibling, Domaine Display Narrow]`.
-**Body Font:** A humanist sans `[to be chosen; candidates include ABC Diatype, GT America, Söhne Buch, Inter Display]`.
+**Display Font:** Fraunces — a contemporary variable serif with optical size axis (`opsz`) and expressive weight range. Loaded via `next/font/google`, weights 300–500, CSS var `--font-display`. Tailwind: `font-display`.
+**Body Font:** Inter — a humanist sans with excellent legibility at small sizes. Loaded via `next/font/google`, weights 400–600, CSS var `--font-sans`. Tailwind: `font-sans`.
 
 **Character:** A deliberately editorial pairing. The serif on hero and headline does the "made" signal; the humanist sans on body keeps reading effortless for a mixed-literacy patient audience. The contrast between the two is the system's signature move.
 
