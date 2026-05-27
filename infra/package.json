@@ -6,12 +6,17 @@
   "scripts": {
     "build": "tsc",
     "synth": "cdk synth",
+    "test": "vitest run",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
+    "@types/node": "^25.9.1",
     "aws-cdk": ">=2.170.0",
     "aws-cdk-lib": ">=2.170.0",
     "constructs": ">=10.0.0",
-    "typescript": ">=5.7.0"
+    "source-map-support": ">=0.5.21",
+    "ts-node": ">=10.9.0",
+    "typescript": ">=5.7.0",
+    "vitest": ">=1.6.0"
   }
 }
