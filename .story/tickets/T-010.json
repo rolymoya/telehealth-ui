@@ -2,13 +2,13 @@
   "blockedBy": [
     "T-003"
   ],
-  "completedDate": null,
+  "completedDate": "2026-05-26",
   "createdDate": "2026-05-18",
   "description": "Resolve every placeholder in DESIGN.md: concrete OKLCH values for warm clay, soft sage, bone cream, stone ink, and ash mid; and final display serif + humanist sans families. Reconcile with the fonts/colors already hardcoded in layout.tsx. Apply finalized tokens to tailwind.config.ts and globals.css.",
   "id": "T-010",
   "order": 10,
   "phase": "design-system",
-  "status": "open",
+  "status": "complete",
   "title": "Resolve DESIGN.md tokens (OKLCH palette, font selection)",
   "type": "task"
 }
