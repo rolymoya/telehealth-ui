@@ -1,0 +1,13 @@
+{
+  "event": "prescription_sent",
+  "event_id": "evt_mdi_003",
+  "occurred_at": "2026-05-26T13:00:00Z",
+  "data": {
+    "case_id": "case_test_001",
+    "patient_id": "pat_test_001",
+    "provider_id": "prov_test_001",
+    "condition": "weight-loss",
+    "pharmacy_id": "pharm_test_001",
+    "sent_at": "2026-05-26T13:00:00Z"
+  }
+}
