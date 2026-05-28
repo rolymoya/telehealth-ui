@@ -1,43 +1,24 @@
 import "server-only";
 
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
-import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { getConnectionString, createPool } from "./connection";
 import * as schema from "./schema/index";
 
-interface DbSecret {
-  username: string;
-  password: string;
-  host: string;
-  port: number;
-  dbname: string;
-}
+type Db = ReturnType<typeof drizzle<typeof schema>>;
 
-async function buildConnectionString(): Promise<string> {
-  if (process.env.DATABASE_URL) {
-    return process.env.DATABASE_URL;
+// Promise singleton prevents concurrent cold-start requests from racing to create multiple Pools.
+let _dbPromise: Promise<Db> | null = null;
+
+export function getDb(): Promise<Db> {
+  if (!_dbPromise) {
+    _dbPromise = (async () => {
+      const { url, ssl } = await getConnectionString();
+      const pool = createPool(url, ssl, 10);
+      pool.on("error", (err) => {
+        console.error("[db] idle pool client error — pool may be degraded:", err);
+      });
+      return drizzle(pool, { schema });
+    })();
   }
-
-  const arn = process.env.DB_SECRET_ARN;
-  if (!arn) {
-    throw new Error("Either DATABASE_URL or DB_SECRET_ARN must be set");
-  }
-
-  const client = new SecretsManagerClient({
-    region: process.env.AWS_REGION ?? "us-east-1",
-  });
-  const response = await client.send(new GetSecretValueCommand({ SecretId: arn }));
-  const secret: DbSecret = JSON.parse(response.SecretString ?? "{}");
-  return `postgresql://${secret.username}:${secret.password}@${secret.host}:${secret.port}/${secret.dbname}`;
-}
-
-let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
-
-export async function getDb() {
-  if (_db) return _db;
-
-  const connectionString = await buildConnectionString();
-  const pool = new Pool({ connectionString, max: 10 });
-  _db = drizzle(pool, { schema });
-  return _db;
+  return _dbPromise;
 }
