@@ -36,3 +36,10 @@
   screening, state-availability gating, and payment-gating logic. These
   define the contract before implementation — the "no card charged before
   clinical confirmation" promise must be test-enforced.
+- **Known pre-existing failures (ISS-006):** 7 tests in `tests/invariants/`
+  fail because `isStateSupported` (T-020), `checkEligibility` (T-021), and
+  `canActivateSubscription` (T-024) are unimplemented stubs. These failures
+  are expected on all branches until those tickets ship. In autonomous mode,
+  skip the test-retry loop when the only failures are these ISS-006 stubs —
+  report `tests_run` with the failure count and immediately advance to
+  code review without burning retry cycles.

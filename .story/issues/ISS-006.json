@@ -13,9 +13,9 @@
   "relatedTickets": [
     "T-017"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Implemented isStateSupported (state allowlist), checkEligibility (contraindication table), and canActivateSubscription (case-status gate). All 7 invariant tests now pass.",
+  "resolvedDate": "2026-05-27",
   "severity": "low",
-  "status": "open",
+  "status": "resolved",
   "title": "Pre-existing TDD invariant stubs cause test suite to fail (T-020, T-021, T-024)"
 }

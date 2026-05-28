@@ -12,8 +12,10 @@ export interface SubscriptionActivationResult {
 }
 
 export async function canActivateSubscription(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _input: SubscriptionActivationInput,
+  input: SubscriptionActivationInput,
 ): Promise<SubscriptionActivationResult> {
-  throw new Error("not implemented — T-024");
+  if (input.caseStatus === "completed") {
+    return { allowed: true };
+  }
+  return { allowed: false, reason: `case must be completed before subscription can activate (current: ${input.caseStatus})` };
 }
