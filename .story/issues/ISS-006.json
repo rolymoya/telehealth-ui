@@ -1,0 +1,21 @@
+{
+  "components": [
+    "tests/invariants",
+    "src/lib/state-availability.ts",
+    "src/lib/eligibility.ts",
+    "src/lib/billing/subscription.ts"
+  ],
+  "discoveredDate": "2026-05-27",
+  "id": "ISS-006",
+  "impact": "npm test exits 1 due to 7 intentionally-failing TDD stubs installed by T-017. isStateSupported (T-020), checkEligibility (T-021), and canActivateSubscription (T-024) all throw 'not implemented'. These are expected to fail until their respective implementation tickets are worked. No production impact.",
+  "location": [],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-017"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "low",
+  "status": "open",
+  "title": "Pre-existing TDD invariant stubs cause test suite to fail (T-020, T-021, T-024)"
+}
