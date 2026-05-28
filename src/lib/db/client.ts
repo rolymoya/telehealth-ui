@@ -15,10 +15,15 @@ export function getDb(): Promise<Db> {
       const { url, ssl } = await getConnectionString();
       const pool = createPool(url, ssl, 10);
       pool.on("error", (err) => {
-        console.error("[db] idle pool client error — pool may be degraded:", err);
+        console.error("[db] idle pool client error — resetting pool:", err);
+        pool.end().catch(() => {});
+        _dbPromise = null;
       });
       return drizzle(pool, { schema });
     })();
+    _dbPromise.catch(() => {
+      _dbPromise = null;
+    });
   }
   return _dbPromise;
 }

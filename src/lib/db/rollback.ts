@@ -54,11 +54,10 @@ async function main() {
     console.log("Dropping apoth schema...");
     await pool.query("DROP SCHEMA IF EXISTS apoth CASCADE");
 
-    // Only suppress table-not-found (42P01); log anything unexpected.
+    // Only suppress table-not-found (42P01); re-throw anything else so the
+    // outer catch picks it up and exits with code 2 before migrate() runs.
     await pool.query("DELETE FROM drizzle.__drizzle_migrations WHERE 1=1").catch((err: { code?: string }) => {
-      if (err?.code !== "42P01") {
-        console.warn("[rollback] unexpected error clearing migrations table:", err);
-      }
+      if (err?.code !== "42P01") throw err;
     });
 
     const db = drizzle(pool);
