@@ -1,12 +1,13 @@
 {
   "blockedBy": [],
+  "claimedBySession": "bf0b271e-e6f9-4b29-ab71-12d0e5718cbe",
   "completedDate": null,
   "createdDate": "2026-05-19",
   "description": "Drizzle ORM + migration tooling for the owned Postgres schema. Drizzle chosen over Kysely / Prisma for: TypeScript-first migrations, smaller runtime, and clean SQL output.\n\n**Scope**\n- `src/lib/db/client.ts` — Postgres connection pool (pg + Drizzle).\n- `drizzle.config.ts` + `src/lib/db/schema/` directory.\n- Baseline migration creates the `apoth` schema and reserves the table set (empty stubs OK):\n  - `users`, `accounts`, `sessions`, `verifications`, `passkeys`, `two_factor` (better-auth — actual columns come from T-013).\n  - `user_profiles`, `consents`, `consent_documents`, `kyc_verifications`, `patient_links`, `cases`, `subscriptions`, `billing_events`, `webhook_events`, `audit_log`, `feature_flags` (owned by us — full columns come from their respective tickets).\n- Migration script in CI: `npm run db:migrate` runs against staging on every deploy, prod via a manual approval step.\n- Connection string sourced from Secrets Manager at boot (no env-var passing of DB creds in App Runner config).\n\n**Acceptance**\n- Local `docker compose up` → migrations run cleanly into a fresh Postgres 16.\n- Staging migration runs in CI; rollback path documented (`db:rollback` to the previous migration).",
   "id": "T-040",
   "order": 40,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "inprogress",
   "title": "Postgres + Drizzle baseline migrations",
   "type": "task"
 }

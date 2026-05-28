@@ -1,0 +1,51 @@
+# Runs Drizzle migrations against staging on every push to main.
+#
+# BLOCKED: This workflow requires the GitHub Actions OIDC trust relationship
+# established by T-038 (AWS account + IAM baseline). It will fail until that
+# ticket is complete and the following secrets are configured in GitHub:
+#   - DATABASE_URL (staging connection string, masked secret)
+#   - AWS_ACCOUNT_ID
+#   - AWS_REGION
+#
+# Once T-038 is done, remove this comment block and set needs: [build].
+
+name: DB Migrate (staging)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    name: Run migrations
+    runs-on: ubuntu-latest
+    # TODO(T-038): add OIDC permissions block once IAM role is created
+    # permissions:
+    #   id-token: write
+    #   contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # TODO(T-038): replace with OIDC assume-role step once IAM baseline is ready
+      # - name: Configure AWS credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/apoth-github-deploy
+      #     aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run db:migrate

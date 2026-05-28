@@ -26,7 +26,9 @@ next-env.d.ts
 tsconfig.tsbuildinfo
 
 # Env
-.env*.local
+.env
+.env.local
+.env.*.local
 
 # storybloq (session-local state)
 .story/snapshots/
