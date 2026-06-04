@@ -1,12 +1,15 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-052",
+    "T-053"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "`src/lib/mdi/client.ts` is the **only** path to MDI's HTTP surface. Every other call site goes through it. Lint-enforced.\n\n**Scope**\n- Thin `fetch` wrapper that:\n  - Pulls a token via `src/lib/mdi/token.ts` (T-053).\n  - Sets `Authorization: Bearer ...`, `Content-Type: application/json`, `Accept: application/json`.\n  - On 401 → `token.forceRefresh()` + single retry.\n  - On 418 (maintenance) → exponential backoff with jitter, max 6 retries over ~10 min, then throw `MdiUnavailableError` for the caller to handle (T-064 maintenance banner).\n  - On 5xx → retry 3x with jitter, then throw `MdiServerError` (no silent drop, alarm fires).\n  - On 4xx (not 401) → no retry, throw `MdiClientError` with the response body.\n  - Trace propagation: emit OTEL spans named `mdi.<endpoint>` with status code attribute.\n- An ESLint rule (custom or `no-restricted-imports`) prevents direct `fetch('https://api.mdintegrations...')` anywhere in the repo.\n- Typed wrappers for each endpoint family land in sibling files: `patients.ts`, `cases.ts`, `subscriptions.ts`, `files.ts`, `embedded.ts`.\n\n**Acceptance**\n- Grep audit: zero raw `mdintegrations.com` strings outside `src/lib/mdi/`.\n- Fixture test: 418 response cycles backoff and eventually throws `MdiUnavailableError`; 5xx retries 3x.",
+  "description": "Create a single typed MDI HTTP client for all MDI API calls.\n\n**Scope**\n- Centralize base URL, auth header injection, timeout/retry behavior, 401 refresh, 418 maintenance handling, error mapping, and request logging redaction.\n- Keep all MDI calls behind `src/lib/mdi/client.ts` and small domain helpers.\n- Add tests using sanitized fixtures from T-052.\n\n**Acceptance**\n- No production code calls MDI with ad hoc `fetch` outside the client/helper layer.\n- MDI errors are mapped to patient-safe or ops-safe outcomes.\n- Logs contain opaque IDs/status only, not questionnaire answers or clinical details.",
   "id": "T-054",
   "order": 30,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "MDI HTTP client (single entrypoint, lint-enforced)",
+  "title": "MDI HTTP client single entrypoint",
   "type": "task"
 }

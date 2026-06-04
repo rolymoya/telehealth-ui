@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-06-04",
+  "createdDate": "2026-06-04",
+  "description": "Decision completed on 2026-06-04.\n\n**Decision**\n- Use AWS CDK in TypeScript for infrastructure-as-code.\n- Host the frontend as a static Next.js export on S3 behind CloudFront.\n- Put backend behavior behind API Gateway/Lambda.\n- Use Cognito for auth, DynamoDB for minimal app records, Secrets Manager for credentials, SQS/DLQ only where retry durability is needed, and CloudWatch for launch observability.\n\n**Rationale**\n- CDK matches the TypeScript app and the AWS-native serverless launch stack.\n- Static S3/CloudFront keeps marketing/legal pages fast, crawlable, and cheap.\n- Authenticated dashboard pages are not SEO content; they can be static shells that fetch user-specific state from authenticated APIs.\n- API Gateway/Lambda gives a clear security boundary for auth, dashboard data, MDI handoff, Stripe billing, and webhooks.\n- Avoids relying on Amplify Hosting managed Next.js SSR support for the current Next.js 16 app.\n\n**Tradeoffs / revisit triggers**\n- Static export means no frontend reliance on Next middleware, server actions, request-dependent route handlers, ISR, or default server image optimization.\n- Auth redirects, route guards, dashboard data loading, and form submissions move to client UI plus API Gateway/Lambda endpoints.\n- Amplify Hosting can be revisited if AWS officially supports the app's Next.js version and Apoth needs managed preview branch workflows or request-time rendering for public SEO pages.\n\n**Recorded in**\n- `docs/architecture-reset-audit.md` under \"Hosting And IaC Decision\".",
+  "id": "T-076",
+  "order": 120,
+  "phase": "infrastructure",
+  "status": "complete",
+  "title": "Hosting architecture decision: Amplify vs S3/CloudFront + API Gateway",
+  "type": "task"
+}

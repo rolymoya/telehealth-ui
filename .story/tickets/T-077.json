@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-06-04",
+  "description": "Re-review and rewrite legal/privacy copy against the new thin-platform architecture.\n\n**Scope**\n- Update `/privacy`, `/terms`, NPP language, and any compliance copy that currently implies Apoth stores broad clinical intake PHI.\n- Make the posture clear: Apoth owns identity, commerce orchestration, intake UI, and minimal linkage/status records; MDI is the clinical system of record.\n- Preserve attorney review via `LegalReviewBanner` until signed off.\n- Confirm all-50-states, pharmacy, refund, HIPAA/BAA, and dashboard promises are accurate.\n\n**Acceptance**\n- Attorney-facing diff or checklist is ready for review.\n- Copy no longer overstates local clinical storage or provider responsibilities.\n- Any required counsel changes are filed as follow-up issues/tickets.",
+  "id": "T-077",
+  "order": 70,
+  "phase": "launch-blockers",
+  "status": "open",
+  "title": "Thin-PHI legal copy re-review",
+  "type": "chore"
+}

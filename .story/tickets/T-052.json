@@ -1,12 +1,14 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-041"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "A 3–5 day spike that cuts the biggest unknown in the MDI phase before we build anything for real. Highest-discovery-risk work in the architecture per the plan.\n\n**Scope**\n- Stand up the MDI sandbox: obtain credentials, exchange Client Credentials for a token, exercise the happiest path end-to-end.\n- Create a test patient, create a test case, transition through `assigned → processing → completed`, observe what webhooks actually fire and in what order.\n- Use ngrok or a temporary public endpoint as the webhook receiver; record every payload to disk.\n- **Deliverable**: `docs/external/mdi-event-catalog.md` — for each webhook event we expect to handle:\n  - real-world payload shape (field names and types observed in the wild, not just Postman's claim).\n  - actual ordering pattern (does `case_assigned` ever arrive after `case_in_processing`? does `partner_charge` arrive before or after `case_completed`?).\n  - triage tier: **must-handle** / **safe-to-ignore-v1** / **route-to-ops**.\n- **Deliverable**: `tests/fixtures/mdi/*.json` — captured payloads (sanitized) become the integration-test fixture library. This is what lets T-017's invariant suite test MDI flows without a live sandbox.\n\n**Why this matters**\n- Postman docs describe the API surface but not real ordering / timing.\n- MDI doesn't ship a CLI; fixtures are how we test reliably.\n- Embedded URL behavior needs hands-on observation.\n\n**Acceptance**\n- `docs/external/mdi-event-catalog.md` exists and covers every webhook listed in `MD Integrations API.postman_collection.json`.\n- At least 10 sanitized fixture payloads in `tests/fixtures/mdi/`.",
+  "description": "Run a short discovery spike against MDI before building production integration code.\n\n**Scope**\n- Obtain sandbox credentials and validate client-credentials authentication.\n- Create a test patient and case, exercise the expected case lifecycle, and observe webhook ordering/timing.\n- Catalog MDI questionnaire/question payload shapes needed for Apoth-rendered intake.\n- Capture sanitized fixtures only. Do not commit real PHI or raw patient questionnaire answers.\n- Deliver `docs/external/mdi-event-catalog.md` with event names, payload shape, ordering notes, triage tier, and whether Apoth should mirror status, show a dashboard cue, ignore, or route to ops.\n\n**Acceptance**\n- Event catalog covers the webhook/API surface used for launch.\n- Sanitized fixtures exist under `tests/fixtures/mdi/` for must-handle events and at least one questionnaire flow.\n- Open questions are filed for any MDI workflow that affects payment unlock, dashboard scope, or no-answer-retention behavior.",
   "id": "T-052",
   "order": 10,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "Phase 0 spike: MDI sandbox PoC + event catalog",
+  "title": "MDI sandbox PoC + event/questionnaire catalog",
   "type": "task"
 }

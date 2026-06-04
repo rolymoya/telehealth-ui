@@ -4,11 +4,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Add brand-aligned not-found.tsx, error.tsx, and loading.tsx so unhandled paths and client errors no longer render the default Next.js screens — important as a trust signal on a regulated healthcare site once intake routes exist.",
+  "description": "Add resilient App Router states for public and authenticated product routes.\n\n**Scope**\n- Implement error, not-found, loading, and retry states for onboarding, dashboard, billing, and account surfaces.\n- Include patient-safe messaging for MDI or Stripe temporary failures without exposing internal provider details.\n- Reuse existing design-system primitives and avoid marketing-style cards on operational screens.\n\n**Acceptance**\n- Route-level errors render a calm recovery path on mobile and desktop.\n- MDI unavailable and billing unavailable states have distinct user-facing copy.\n- No error state logs PHI or questionnaire payloads.",
   "id": "T-019",
   "order": 30,
   "phase": "intake-flow",
   "status": "open",
-  "title": "Error, 404 & loading routes",
+  "title": "Product error, 404, loading, and maintenance routes",
   "type": "task"
 }

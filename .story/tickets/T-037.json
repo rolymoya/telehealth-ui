@@ -2,15 +2,17 @@
   "blockedBy": [
     "T-028",
     "T-031",
-    "T-036"
+    "T-036",
+    "T-039",
+    "T-076"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Promote the staging stack to production using the CDK from the infrastructure phase. Replaces the original \"ship to Vercel\" assumption — we're AWS-native for BAA scope and webhook latency.\n\n**Scope**\n- Production CDK stack diff'd against staging — only environment-config differences (instance sizes, multi-AZ on RDS, scaling limits, env vars).\n- App Runner web service (or ECS Fargate behind ALB if WAF features App Runner can't do are needed) running the Next.js node server.\n- ECS Fargate worker service (same image, different entrypoint) consuming SQS.\n- RDS Multi-AZ, encrypted at rest with KMS CMK, automated backups 35d, PITR enabled.\n- ElastiCache Redis for sessions + MDI token cache.\n- AWS WAF in front of CloudFront (T-036).\n- Secrets Manager with rotation enabled on DB password + better-auth signing secret.\n- CloudWatch Logs with 7yr retention on audit log group (immutable via resource policy).\n- Datadog integration with BAA in place.\n- Deploy via GitHub Actions: build → push image to ECR → CDK deploy → smoke test → health check.\n- Production smoke test (synthetic) configured per the architecture plan's verification strategy.\n\n**Out of scope (separate hardening tickets)**\n- Penetration test.\n- LegitScript submission package.\n\n**Acceptance**\n- A clean deploy from `main` to prod completes in <15 min with zero downtime (App Runner blue/green).\n- Synthetic smoke runs weekly and reports green.\n- Failover test: restart App Runner; verify worker drains gracefully and SQS messages are not lost.",
+  "description": "Deploy the patient-facing app using the hosting architecture selected in T-076.\n\n**Scope**\n- Deploy Next.js frontend plus required serverless API/Lambda routes, Cognito configuration, DynamoDB tables, Secrets Manager references, webhook endpoints, and SQS/DLQ if used.\n- Configure environment promotion, smoke tests, rollback, and basic alarms.\n- Do not deploy App Runner, RDS, Redis, ECS workers, NAT gateways, or VPC endpoints for launch.\n\n**Acceptance**\n- A clean deployment to staging and production succeeds through documented steps or CI.\n- Smoke test covers marketing route, auth route, intake start, webhook health endpoint, and dashboard auth protection.\n- Monthly cost estimate stays within launch target unless a documented decision approves otherwise.",
   "id": "T-037",
   "order": 40,
   "phase": "deploy",
   "status": "open",
-  "title": "Production deployment: AWS App Runner + CDK + RDS + worker",
+  "title": "Production deployment: lean AWS serverless launch",
   "type": "chore"
 }

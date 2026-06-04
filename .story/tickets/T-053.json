@@ -1,12 +1,15 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-041",
+    "T-052"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "MDI uses OAuth 2.0 Client Credentials with **no refresh tokens** — every refresh is a full credential exchange. Tokens are cached in Redis and shared across all worker processes.\n\n**Scope**\n- `src/lib/mdi/token.ts` — single source of truth for MDI auth tokens.\n  - `getToken()`: read from Redis. If TTL <60s remaining or missing, fetch a new one via `POST /partner/auth/token`. SETEX with `TTL = expires_in - 60s`.\n  - `forceRefresh()`: blow the cache and re-fetch. Called by the HTTP client on a 401 response.\n  - Concurrency: use a Redis lock (`SET NX EX 30`) to serialize concurrent refreshes — N workers shouldn't slam MDI with N parallel token requests.\n- `mdi-token-prewarm` scheduled job (registered by T-046) calls `getToken` every 30 min to keep the cache warm.\n- Credentials sourced from Secrets Manager (`apoth/<env>/mdi/client_credentials`).\n- Boot-time sentinel: secret's `env` field must match `APP_ENV` (per T-041).\n\n**Acceptance**\n- Concurrent worker tasks performing first-time token fetch result in exactly one `POST /partner/auth/token` (locked).\n- A 401 from MDI triggers exactly one refresh + retry; second 401 fails loud (alarm).",
+  "description": "Implement MDI OAuth client-credentials token handling for serverless runtimes.\n\n**Scope**\n- Add `src/lib/mdi/token.ts` as the only token acquisition helper.\n- Cache tokens in Lambda/container memory when available and refresh before expiry; do not require Redis.\n- Use Secrets Manager for MDI client credentials.\n- Handle 401 by forcing a single refresh/retry path and then failing loudly.\n- Add tests for concurrent token requests within one runtime and refresh-on-401 behavior.\n\n**Acceptance**\n- First request fetches a token and subsequent same-runtime requests reuse it until near expiry.\n- No Redis, ElastiCache, or shared token-cache infrastructure is required.\n- Credential and token values never appear in logs.",
   "id": "T-053",
   "order": 20,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "MDI token client (Redis cache + refresh-on-401)",
+  "title": "MDI token client without Redis",
   "type": "task"
 }

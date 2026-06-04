@@ -1,11 +1,10 @@
 {
   "blockedBy": [
-    "T-006",
-    "T-007"
+    "T-077"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Healthcare attorney review of the LegalReviewBanner-marked surfaces (`/privacy`, `/terms`) plus the broader compliance artifact set that has grown since this ticket was scoped.\n\n**Original scope (still applies)**\n- HIPAA Notice of Privacy Practices content.\n- Telehealth disclosure language.\n- Refunds + cancellation matrix.\n- Arbitration clause review.\n\n**Expanded scope (post-architecture plan)**\n- BAA register (`docs/compliance/baa-register.md`) — review the entities listed (AWS, MDI, Persona, Datadog, pharmacy partner) and confirm scope adequacy.\n- Retention &amp; deletion policy (T-075).\n- Consent versioning model — confirm what kinds of consent are legally required vs. nice-to-have.\n- State-of-residence refusal language — does it satisfy state-by-state telehealth regulations?\n- LegitScript submission package (T-073) — independent legal eyes before submission.\n\n**Acceptance**\n- Attorney sign-off recorded.\n- `LegalReviewBanner` removed from `/privacy` and `/terms`.\n- Any required edits captured as issues and resolved before launch.",
+  "description": "Healthcare attorney review of the LegalReviewBanner-marked surfaces (`/privacy`, `/terms`) plus the reset compliance posture.\n\n**Scope**\n- HIPAA Notice of Privacy Practices content.\n- Telehealth disclosure language.\n- Refunds + cancellation matrix.\n- Arbitration clause review.\n- Thin-PHI posture from T-077: MDI as clinical system of record, Apoth storing minimal identity/linkage/status/billing/consent records.\n- BAA register for launch vendors: AWS, MDI, pharmacy partner, and any approved support/analytics vendor. Stripe is not BAA-eligible and must remain opaque-ID only.\n- Consent versioning model and state-of-residence refusal language.\n\n**Acceptance**\n- Attorney sign-off recorded.\n- `LegalReviewBanner` removed from `/privacy` and `/terms` only after approval.\n- Required edits are captured as issues/tickets and resolved before launch.",
   "id": "T-028",
   "order": 10,
   "phase": "launch-blockers",

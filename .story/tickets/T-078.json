@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-052"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-06-04",
+  "description": "Decide exactly which MDI state/event allows Stripe billing activation.\n\n**Scope**\n- Use MDI sandbox findings and product/legal input to choose the event that means clinical approval is complete enough to bill: for example case completed, processing, prescription submitted, or another MDI status.\n- Document how declined, cancelled, maintenance, and delayed-review cases behave.\n- Encode the decision as tests for Stripe activation and refund/cancellation edge cases.\n\n**Acceptance**\n- The selected event/state is documented with evidence from MDI or explicit product/legal sign-off.\n- Payment invariant tests fail if code can charge before the selected event.\n- T-024, T-025, T-058, and dashboard states can depend on this without ambiguity.",
+  "id": "T-078",
+  "order": 60,
+  "phase": "payments",
+  "status": "open",
+  "title": "MDI billing unlock event contract",
+  "type": "task"
+}

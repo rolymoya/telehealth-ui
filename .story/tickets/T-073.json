@@ -1,8 +1,13 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-028",
+    "T-070",
+    "T-071",
+    "T-072"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "Assemble the artifacts LegitScript asks for, in the form they expect, into a single deliverable. Each requirement maps to the code, table, or process that satisfies it.\n\n**Scope**\n- `docs/legitscript/SUBMISSION.md` — table of LegitScript requirements with cross-references to:\n  - Identity verification: Persona (T-049/T-050), kyc_verifications schema.\n  - State-of-residence: T-020 + audit on refusal.\n  - Age verification: DOB capture + 18+ check in profile (T-016).\n  - Strong authentication: MFA (T-014) + middleware gate (T-015).\n  - Versioned consent: T-047 with consent_documents bytes hashed in S3.\n  - Audit logs: T-044 + hash chain T-072.\n  - Account uniqueness: better-auth email uniqueness + Persona dedup signals.\n  - Session hygiene: T-015 idle timeouts + step-up MFA T-073.\n  - Data residency: BAA register `docs/compliance/baa-register.md`.\n  - Access termination + breach response: runbook in `docs/legitscript/incident-response.md`.\n  - Account recovery: better-auth password reset + magic-link rate limits.\n- `docs/legitscript/runbooks/` — operational runbooks for evidence requests:\n  - \"Produce timeline for user X\" → T-073 admin tool + export.\n  - \"Show consent evidence\" → query consents + verify sha256 against S3 bytes.\n  - \"Show data deletion proof\" → T-076 retention runbook.\n- Sign-off checklist for each requirement.\n\n**Acceptance**\n- Walking a fresh reviewer through `docs/legitscript/SUBMISSION.md` produces a clear answer to every LegitScript checklist item.\n- Each runbook is executable by a staff member without code changes.",
+  "description": "Assemble the launch evidence package for LegitScript around the reset architecture.\n\n**Scope**\n- Create `docs/legitscript/SUBMISSION.md` mapping requirements to product surfaces, policies, vendor evidence, tests, and runbooks.\n- Include state gating, FDA-status disclosures, telehealth/NPP/Terms review, consent evidence, MDI clinical-system boundary, Stripe no-PHI policy, pharmacy disclosure, incident/support process, and deployment/security baseline.\n- Do not cite Persona/KYC, better-auth, Postgres audit chains, or Datadog unless reintroduced by a future decision.\n\n**Acceptance**\n- A reviewer can trace every launch requirement to a page, ticket, policy, vendor artifact, or test.\n- Open legal/product gaps are clearly listed and assigned.\n- Package is ready for attorney review before submission.",
   "id": "T-073",
   "order": 50,
   "phase": "hardening",

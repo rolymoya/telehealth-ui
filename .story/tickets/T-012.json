@@ -1,10 +1,11 @@
 {
   "blockedBy": [
-    "T-010"
+    "T-010",
+    "T-011"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Audit the marketing surface against WCAG 2.2 AA: 4.5:1 body / 3:1 large-text and UI contrast on the finalized OKLCH palette, keyboard navigation with visible focus rings, prefers-reduced-motion variants, semantic HTML and ARIA, and screen-reader testing on the booking entry points.",
+  "description": "Run a WCAG 2.2 AA audit against the finalized palette/type scale and the launch-critical public plus product surfaces.\n\n**Scope**\n- Audit public marketing/legal routes.\n- Audit upcoming auth/intake/dashboard patterns or prototypes where implementation exists.\n- Verify focus states, contrast, form labels/errors, keyboard navigation, loading/error states, and mobile readability.\n\n**Acceptance**\n- Findings are filed as tickets/issues or fixed directly if small.\n- No known AA blocker remains for the launch intake/auth/dashboard path.\n- Audit notes call out any remaining legal-copy or third-party embedded-workflow accessibility dependency.",
   "id": "T-012",
   "order": 30,
   "phase": "design-system",

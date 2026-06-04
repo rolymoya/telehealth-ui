@@ -1,14 +1,15 @@
 {
   "blockedBy": [
-    "T-013"
+    "T-013",
+    "T-040"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "`user_profiles` table holds the demographic data that we collect ourselves (first/last name, DOB, phone, address, state). Sensitive columns use application-level KMS envelope encryption — not `pgcrypto` — to keep keys outside the DB.\n\n**Scope**\n- Drizzle schema: `src/lib/db/schema/user_profiles.ts` — one row per user (UNIQUE on user_id), columns for first_name, last_name, dob (encrypted bytea), phone (encrypted), address fields (encrypted), state (plain — used for routing/eligibility).\n- KMS envelope helper at `src/lib/crypto/kms.ts` (ticket: infrastructure → KMS module). This ticket *consumes* that helper.\n- Read/write helpers that **log every decrypt to `audit_log`** (action: `profile.decrypt`). Plaintext never leaves the request scope.\n- Server actions `getProfile` and `updateProfile` co-located with the profile page.\n\n**Out of scope**\n- Address verification (Persona's KYC handles this in Phase C).\n- Avatar / profile photos (deferred).\n\n**Acceptance**\n- Inserting and reading a profile round-trips correctly.\n- A decrypt without a matching `audit_log` write is impossible at the API layer (enforced by the helper).\n- DB dump shows ciphertext for protected columns.",
+  "description": "Define the minimal Apoth-owned patient record model in DynamoDB.\n\n**Scope**\n- Model records for `cognito_sub`, onboarding status, consent evidence, `mdi_patient_id`, latest `mdi_case_id`, `stripe_customer_id`, `stripe_subscription_id`, billing state, timestamps, and webhook idempotency references where appropriate.\n- Capture only non-clinical app data and opaque vendor pointers by default.\n- Document field-level PHI expectations and log/redaction rules.\n- Avoid storing questionnaire answers, diagnoses, clinician notes, message bodies, photos, labs, or condition-specific health context in Apoth.\n\n**Acceptance**\n- DynamoDB access helpers exist for profile/linkage reads and writes.\n- Tests prove intake answer payloads are not written to the profile/linkage table.\n- Data model documentation names each field, owner system, retention expectation, and whether it can appear in logs.",
   "id": "T-016",
   "order": 40,
   "phase": "auth",
   "status": "open",
-  "title": "Patient profile schema + KMS-encrypted PII columns",
+  "title": "Patient profile + linkage records in DynamoDB",
   "type": "task"
 }

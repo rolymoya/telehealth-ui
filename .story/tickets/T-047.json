@@ -1,12 +1,15 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-040",
+    "T-028"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "Versioned consent capture that satisfies LegitScript's \"what did this patient agree to and when\" question. Critical evidence artifact.\n\n**Scope**\n- Drizzle schema:\n  - `consent_documents` — `version` (semver), `kind` (`tos`/`npp`/`telehealth`/`marketing`/`cookies`), `sha256`, `s3_key` (where the rendered HTML/PDF lives, encrypted bucket), `effective_from`.\n  - `consents` — `user_id`, `kind`, `document_version`, `granted_at`, `ip`, `user_agent`, `revoked_at`. UNIQUE on `(user_id, kind, document_version)`.\n- Consent documents stored in S3 — rendering at consent time reads from S3 and shows the exact bytes that hash to `sha256` (LegitScript evidence: \"this is what the patient saw\").\n- `src/lib/consents/grant.ts` — server action that writes the consent row + an audit-log entry, in one transaction.\n- **Re-prompt logic**: middleware (T-015) checks at sign-in whether the user has consented to the current version of each required kind. Missing → redirect to `/onboarding/consents` with the new version diff displayed.\n- `src/app/(app)/onboarding/consents/page.tsx` — renders the documents inline, captures grants per kind.\n\n**Acceptance**\n- Bumping a document version triggers a re-prompt at next sign-in for every user.\n- Granting a consent writes both a `consents` row and an `audit_log` entry in the same transaction (no partial state).\n- S3 object integrity verifier (Phase F) confirms each `sha256` matches its stored bytes.",
+  "description": "Capture the consent evidence LegitScript/legal needs while keeping the launch data model lean.\n\n**Scope**\n- Define consent kinds and current document versions for Terms, Privacy/NPP, telehealth consent, marketing/cookies if used, and any medication-specific disclosure required by counsel.\n- Store user consent version, accepted timestamp, and optional IP/user-agent evidence in DynamoDB.\n- Re-prompt when a required consent version changes.\n- Decide whether rendered document snapshots are needed; do not add S3 document archives unless counsel requires durable byte-level evidence.\n\n**Acceptance**\n- User cannot proceed through intake without current required consents.\n- Bumping a required version triggers a re-prompt on next authenticated visit.\n- Consent evidence is exportable for attorney/LegitScript review without clinical questionnaire content.",
   "id": "T-047",
   "order": 110,
   "phase": "infrastructure",
   "status": "open",
-  "title": "Consent versioning: documents, grants, re-prompt logic",
+  "title": "Consent versioning with minimal evidence records",
   "type": "task"
 }

@@ -1,12 +1,17 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-025",
+    "T-026",
+    "T-046",
+    "T-058"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "Nightly job that catches any drift between Stripe and MDI subscription state. Webhooks should keep them in sync, but this is the safety net.\n\n**Scope**\n- `workers/src/jobs/reconcile-stripe-mdi.ts` — runs every 6h (more frequently than case reconciliation since billing drift has real money impact).\n- Joins `subscriptions` table on (`stripe_subscription_id`, `mdi_subscription_id`).\n- For each row: re-fetch from Stripe and MDI, compare status / current_period_end / payment_method_status.\n- Drift cases handled:\n  - Stripe active + MDI cancelled → cancel Stripe at period end + alarm.\n  - Stripe cancelled + MDI active → cancel MDI immediately + alarm.\n  - Stripe past_due + MDI active → pause MDI (dunning, T-027) if not already.\n  - Unpaired rows (one ID present, the other null) older than 1h → alarm for ops review.\n- Datadog metrics: `subscription.drift_count`, `subscription.unpaired_count`.\n- Alarm policy: any drift_count >0 pages on-call.\n\n**Acceptance**\n- Manually drift a sandbox subscription (e.g., cancel only in Stripe) → next run corrects MDI side + writes audit + alarms.\n- Unpaired row detection fires within 1h of creation.",
+  "description": "Add a scheduled safety net that detects drift between Stripe billing state and MDI clinical/care workflow state.\n\n**Scope**\n- EventBridge schedule invokes a bounded Lambda that checks recent active cases/subscriptions against Stripe and MDI.\n- Detect unpaired IDs, stale local mirrors, active billing without approved MDI state, cancelled MDI workflow with active Stripe billing, and failed-payment states requiring care workflow action.\n- Correct safe drift automatically and route ambiguous cases to ops.\n- Emit CloudWatch metrics/alarms, not Datadog by default.\n\n**Acceptance**\n- Sandbox drift scenarios are detected and either corrected or routed to ops.\n- Reconciliation writes minimal evidence records with opaque IDs.\n- Job is idempotent and bounded for launch scale.",
   "id": "T-069",
   "order": 10,
   "phase": "hardening",
   "status": "open",
-  "title": "Stripe ↔ MDI subscription reconciliation job",
+  "title": "Stripe-MDI billing reconciliation Lambda",
   "type": "task"
 }

@@ -1,12 +1,14 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-039"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "All credentials in AWS Secrets Manager; runtime asserts that environment-tagged secrets match the current `APP_ENV` (prevents prod from accidentally loading sandbox secrets and vice versa).\n\n**Scope**\n- Secret naming convention: `apoth/<env>/<integration>/<purpose>`. Examples:\n  - `apoth/prod/db/master`\n  - `apoth/prod/stripe/restricted_key`\n  - `apoth/prod/stripe/webhook_signing_secret`\n  - `apoth/prod/mdi/client_credentials` (object: `{client_id, client_secret}`)\n  - `apoth/prod/mdi/webhook_signing_secret`\n  - `apoth/prod/mdi/webhook_bearer`\n  - `apoth/prod/persona/api_key`\n  - `apoth/prod/persona/webhook_secret`\n  - `apoth/prod/better-auth/signing_secret`\n  - `apoth/prod/datadog/api_key`\n- App Runner task role scoped to `secretsmanager:GetSecretValue` by ARN list.\n- `src/lib/secrets.ts` — a single helper that reads + caches secrets in-process for the request lifetime.\n- **Boot-time sentinel check**: each integration secret includes an `env` field (`sandbox` / `prod` / `test` / `live`). At app startup, assert all integration env tags match `APP_ENV`. Mismatch → `process.exit(1)`.\n- Rotation enabled on DB master + better-auth signing secret (rotate every 90d).\n- Local dev: `scripts/pull-secrets.sh` writes `.env.local` from staging secrets (gitignored, never used for prod values).\n\n**Acceptance**\n- Booting the app with a sandbox `MDI_ENV` secret in a prod `APP_ENV` deployment hard-exits with a clear log.\n- All access goes through `src/lib/secrets.ts` (grep audit).",
+  "description": "Manage external credentials and environment-specific configuration without leaking secrets or mixing staging/prod data.\n\n**Scope**\n- Store Cognito, MDI, Stripe, webhook, and app secrets in AWS Secrets Manager or the chosen hosting secret store.\n- Add environment sentinels for secrets that can be accidentally copied across environments.\n- Document rotation expectations for MDI client credentials, Stripe webhook signing secrets, and app-level signing material.\n- Ensure logs and test fixtures never print secret values.\n\n**Acceptance**\n- App startup fails clearly if a required secret is missing or tagged for the wrong environment.\n- Secret names and rotation runbook are documented.\n- Test fixtures use fake values and do not resemble production credentials.",
   "id": "T-041",
   "order": 50,
   "phase": "infrastructure",
   "status": "open",
-  "title": "Secrets Manager + environment isolation (sentinels)",
+  "title": "Secrets Manager + environment isolation",
   "type": "task"
 }

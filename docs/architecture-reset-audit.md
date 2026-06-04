@@ -79,6 +79,41 @@ flowchart TB
     Lambda --> Stripe
 ```
 
+## Hosting And IaC Decision
+
+Decision: use AWS CDK in TypeScript for infrastructure-as-code, and host the
+frontend as a static Next.js export on S3 behind CloudFront. Backend behavior
+lives behind API Gateway/Lambda, with Cognito for auth, DynamoDB for minimal
+app records, Secrets Manager for credentials, SQS/DLQ only where retry
+durability is needed, and CloudWatch for launch observability.
+
+Rationale:
+
+- CDK keeps the infrastructure code in the same language as the app and is a
+  good fit for the AWS-native serverless primitives Apoth needs at launch.
+- S3/CloudFront preserves strong marketing SEO and performance because public
+  pages are pre-rendered static HTML served from the edge.
+- The authenticated dashboard is not SEO content, so it can be a static shell
+  that fetches user-specific state from authenticated Lambda APIs.
+- API Gateway/Lambda becomes the explicit security boundary for auth,
+  dashboard data, MDI handoff, Stripe billing, and webhooks.
+- This avoids depending on Amplify Hosting's managed Next.js SSR support for
+  the current Next.js 16 app.
+
+Tradeoffs:
+
+- Static export means the frontend cannot rely on Next middleware, server
+  actions, request-dependent route handlers, ISR, or default server image
+  optimization.
+- Auth redirects, route guards, dashboard data loading, and form submissions
+  must be implemented through client UI plus API Gateway/Lambda endpoints.
+- Preview environments and branch deploy ergonomics will need CDK/CI support
+  instead of Amplify's managed workflow.
+
+Rejected for launch: Amplify Hosting managed Next.js SSR. Revisit if AWS
+officially supports the app's Next.js version and Apoth needs managed preview
+branch workflows or request-time rendering for public SEO pages.
+
 ## Minimal Data Apoth Stores
 
 | Data | Store | Notes |
@@ -92,7 +127,6 @@ flowchart TB
 
 ## Open Questions
 
-- Should the frontend be hosted by AWS Amplify Hosting or by S3/CloudFront with separate API Gateway/Lambda?
 - Which MDI dashboard features must be native Apoth UI versus embedded MDI workflow URLs?
 - Does counsel require a durable consent audit beyond DynamoDB records?
 - Do any selected medications or pharmacy partners require identity verification later?
@@ -104,25 +138,35 @@ This branch was created from `main`, where the tracked Markdown surface is small
 The old infra-heavy architecture docs live on the `infra` branch and should not
 be merged back without rewriting.
 
-### Update Now
+Initial rewrite pass completed on this branch:
+
+- `CLAUDE.md`, `RULES.md`, `PRODUCT.md`, and `DESIGN.md` now reflect the lean
+  Cognito/DynamoDB/MDI/serverless direction.
+- Historical feature docs, handovers, and planning notes are marked as
+  superseded where they mention old architecture assumptions.
+- Legal/privacy copy still needs counsel review before launch because the
+  product posture changed from broad PHI ownership to a thin MDI-backed model.
+
+### Updated In This Branch
+
+| File | Previous issue | Change made |
+| --- | --- | --- |
+| `CLAUDE.md` | Mentioned Clerk/planned auth, planned payments, Vercel deploy target, and static-first future server logic. | Rewritten as the canonical project brief for the new direction: Cognito auth, DynamoDB minimal app data, MDI as clinical source of truth, Stripe integration, serverless AWS deployment, no persisted questionnaire answers. |
+| `RULES.md` | Compliance/design rules still held, but data/storage rules did not encode the new architecture. | Added explicit rules: no questionnaire answer persistence, no PHI in Stripe, no Persona/KYC without a new decision, Cognito owns auth, DynamoDB stores only pointers/status/consent evidence, MDI is authoritative for clinical data. |
+| `PRODUCT.md` | Described only the marketing surface and booking entry point. It did not describe the launch dashboard, account ownership, MDI-backed clinical workflow, or the thin-platform product boundary. | Expanded product purpose/users to include logged-in patients managing status/messages/orders through an Apoth dashboard backed by MDI APIs. Added a product-boundary section naming what Apoth does and does not own. |
+| `DESIGN.md` | Strong marketing design system, but it framed the experience as a marketing surface and lacked guidance for dashboard/intake/product UI. | Kept brand system and added an "Authenticated Product Surfaces" section for intake, dashboard, account, billing, messages/status views. Defined denser, calmer operational layouts that still avoid hospital-portal styling. |
+| `docs/features/README.md` | Feature-doc convention was still valid, but older docs could look current at a glance. | Added a current-architecture note pointing readers to this reset and warning that older auth/infra assumptions are historical. |
+| `docs/features/improve-LegitScript-compliance.md` | Historical feature doc. Mostly still useful, but several TODOs and legal/privacy assumptions need re-review against the new thin-PHI model. | Added a historical-feature note. Kept the landed PR content intact. |
+| `.story/handovers/2026-05-18-01-project-setup.md` | Historical setup handover says Clerk/Vercel/static-first. | Added a superseded architecture note at the top. |
+| `.story/handovers/2026-05-19-01-architecture-plan-to-roadmap.md` | Actively stale architecture: better-auth, Persona, RDS/App Runner/ECS/Redis/VPC, Datadog, heavy audit logging. | Added a superseded warning at the top. |
+| `.story/notes/this-telehealth-ui-needs-frolicking-iverson.md` | Prior heavy architecture plan. | Added a superseded warning at the top. |
+
+### Still Historical
 
 | File | Current issue | Required change |
 | --- | --- | --- |
-| `CLAUDE.md` | Still says auth is Clerk/planned, payments are planned, deploy target is Vercel, and architecture is static-first with future server logic. | Rewrite as the canonical project brief for the new direction: Cognito auth, DynamoDB minimal app data, MDI as clinical source of truth, Stripe integration, serverless AWS deployment, no persisted questionnaire answers. |
-| `RULES.md` | Compliance/design rules still hold, but data/storage rules are too broad and do not encode the new architecture. | Add explicit rules: no questionnaire answer persistence, no PHI in Stripe, no Persona/KYC without a new decision, Cognito owns auth, DynamoDB stores only pointers/status/consent evidence, MDI is authoritative for clinical data. |
-| `PRODUCT.md` | Still describes only the marketing surface and booking entry point. It does not describe the launch dashboard, account ownership, MDI-backed clinical workflow, or the thin-platform product boundary. | Expand product purpose/users to include logged-in patients managing status/messages/orders through an Apoth dashboard backed by MDI APIs. Add a product-boundary section naming what Apoth does and does not own. |
-| `DESIGN.md` | Strong marketing design system, but it explicitly frames the experience as a marketing surface and lacks guidance for dashboard/intake/product UI. | Keep brand system; add an "Authenticated Product Surfaces" section for intake, dashboard, account, billing, messages/status views. Define denser, calmer operational layouts that still avoid hospital-portal styling. |
-| `docs/architecture-reset-audit.md` | New reset checklist, currently the only architecture doc on this branch. | Keep as temporary audit/control doc. Once decisions settle, either rename to `docs/architecture/README.md` or distill into a permanent system architecture doc. |
-
-### Keep Mostly As Historical
-
-| File | Current issue | Required change |
-| --- | --- | --- |
-| `docs/features/README.md` | Feature-doc convention is still valid. | No architecture change needed. Consider noting that feature docs are frozen historical records and architecture-reset docs supersede older assumptions. |
-| `docs/features/improve-LegitScript-compliance.md` | Historical feature doc. Mostly still useful, but several TODOs and legal/privacy assumptions should be re-reviewed against the new thin-PHI model. | Do not rewrite historical content. Add a new feature doc for the architecture reset instead. Keep the launch-blocker list, but revisit privacy/terms copy before certification. |
-| `.story/handovers/2026-05-18-01-project-setup.md` | Historical setup handover says Clerk/Vercel/static-first. | Leave historical. Supersede with a new handover or roadmap-reset doc rather than editing history. |
-| `.story/handovers/2026-05-19-01-architecture-plan-to-roadmap.md` | Actively stale architecture: better-auth, Persona, RDS/App Runner/ECS/Redis/VPC, Datadog, heavy audit logging. | Leave historical but mark superseded in new roadmap/handover work. Do not use it as execution guidance. |
-| `.story/notes/this-telehealth-ui-needs-frolicking-iverson.md` | Planning artifact; may contain old roadmap assumptions. | Leave historical unless it is referenced as current guidance. |
+| `docs/features/improve-LegitScript-compliance.md` | Landed PR documentation from the compliance branch. | Keep body intact. Use its launch blockers as input, but re-review privacy/terms/NPP under the new thin-PHI posture. |
+| `.story/handovers/*` and `.story/notes/*` | Session records and planning archaeology. | Keep bodies intact after supersession banners; future roadmap work should create new records instead of rewriting history. |
 
 ### Do Not Bring Over As-Is From `infra`
 

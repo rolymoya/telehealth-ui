@@ -4,7 +4,7 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Document the component primitives (buttons, inputs, nav, cards, badges, the TODO chip) now that they exist in code. Fills in DESIGN.md section 5, which is still a placeholder.",
+  "description": "Document the shared component primitives and product-surface conventions after the design-token reset.\n\n**Scope**\n- Document marketing components that already exist.\n- Add guidance for authenticated intake, dashboard, billing, account, and status surfaces: denser operational layouts, clear status language, and no hospital-portal styling.\n- Include accessibility notes for form controls used by MDI-backed intake.\n\n**Acceptance**\n- `DESIGN.md` or companion docs describe the component patterns a future implementer should use.\n- Product screens have guidance for tables/status rows/forms without inventing a separate visual language.\n- Docs preserve Apoth rules: clay-first, no clinical blue, serif-leading headlines, patient-readable type.",
   "id": "T-011",
   "order": 20,
   "phase": "design-system",

@@ -1,5 +1,13 @@
 # Handover — storybloq Project Setup
 
+> **Superseded architecture note — current direction changed.**
+> This handover records the original project setup and is useful historical
+> context only. Current implementation guidance lives in
+> `docs/architecture-reset-audit.md`, `CLAUDE.md`, `RULES.md`, `PRODUCT.md`,
+> and `DESIGN.md`. In particular, the planned auth/deploy assumptions below
+> have been reset to Cognito, DynamoDB, MDI-as-clinical-system-of-record, and a
+> lean AWS serverless launch architecture.
+
 ## Session summary
 
 Initialized the storybloq roadmap for **telehealth-ui (Apoth)**, an existing

@@ -1,10 +1,11 @@
 {
   "blockedBy": [
+    "T-017",
     "T-018"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Pure logic that decides whether Apoth serves patients in a given (state × condition) combination. **TDD** per RULES.md — tests in T-017's invariant suite define the contract before implementation.\n\n**Scope**\n- `src/lib/eligibility/state.ts` — exports `canServeStateForCondition(state, conditionKey): { allowed: boolean; reason?: string }`. Pure function, no I/O.\n- Static data source: `src/lib/data/state-coverage.ts` — a typed map of (state, condition) → boolean, sourced from MDI's licensed prescriber footprint (verify against MDI sandbox `GET /partner/clinicians` or operations input — defer until confirmed).\n- A refused-state event is **persisted to `audit_log`** at the point of refusal, not just shown in the UI (LegitScript evidence).\n- Hook the function into the onboarding `intake` step (T-022) and into MDI patient creation (any case-create call must re-check).\n\n**Acceptance**\n- All invariant tests in T-017 pass.\n- An unsupported (state, condition) combination produces an audit row with action `eligibility.state_refused` and the (state, condition) in the resource fields.\n- Switching the static data file's mapping flips behavior immediately (no caching surprises).",
+  "description": "Implement state-of-residence availability gating before clinical intake.\n\n**Scope**\n- Model allowed states by condition/offering using static config or MDI-derived data, whichever product confirms for launch.\n- Refuse unsupported states with clear, non-medical copy and no Stripe/MDI side effects.\n- Record only refusal metadata needed for operations/compliance, not clinical questionnaire answers.\n\n**Acceptance**\n- Tests cover allowed state, unsupported state, missing/invalid state, and condition/state mismatches.\n- Unsupported-state users cannot reach MDI submission or payment.\n- Copy remains legally cautious and preserves Apoth as a technology platform.",
   "id": "T-020",
   "order": 40,
   "phase": "intake-flow",

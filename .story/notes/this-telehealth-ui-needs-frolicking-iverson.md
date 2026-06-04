@@ -1,5 +1,13 @@
 # Apoth — End-to-End Architecture Plan
 
+> **Superseded — historical planning artifact.**
+> This note records the prior heavy infrastructure plan and should not be used
+> as current implementation guidance. Current direction: Cognito for
+> Apoth-owned patient accounts, DynamoDB for minimal app/linkage/status data,
+> MDI as the clinical system of record, no questionnaire-answer persistence by
+> default, no Persona/KYC at launch, and lean AWS serverless infrastructure.
+> See `docs/architecture-reset-audit.md`, `CLAUDE.md`, and `RULES.md`.
+
 ## Context
 
 Apoth (Apoth Health LLC, Illinois) is a patient-facing telehealth product currently shipped as a static Next.js 16 marketing surface. The next chapter turns it into a small full-stack app that can:

@@ -1,12 +1,15 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-057",
+    "T-058"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "MDI charges Apoth wholesale per case via the `partner_charge` webhook. Captured in the `billing_events` ledger to support unit-economics reporting (revenue vs MDI cost vs pharmacy cost).\n\n**Scope**\n- Drizzle schema: `src/lib/db/schema/billing_events.ts` — `id`, `source` (`stripe`/`mdi_partner_charge`/`pharmacy`), `external_id`, `user_id`, `case_id`, `subscription_id`, `amount_cents`, `currency`, `occurred_at`, `metadata` (jsonb, **no PHI**).\n- `workers/src/handlers/mdi/partner-charge.ts`:\n  - Idempotent insert keyed on `external_id` (MDI charge id).\n  - Joins charge to local `case_id` via `mdi_case_id` lookup; missing → log + DLQ for ops review.\n  - Audit log row.\n- Reporting view: a Postgres view `billing_events_per_case` that aggregates revenue + MDI cost + pharmacy cost by case_id for a Metabase/Sigma dashboard (built in hardening phase).\n\n**Acceptance**\n- Replayed `partner_charge` fixture produces exactly one row; duplicate event id is a no-op.\n- Aggregating revenue − MDI cost for a known sandbox case returns the expected margin.",
+  "description": "Handle MDI partner charge/cost events as billing operations data without expanding Apoth's clinical record.\n\n**Scope**\n- Identify the actual MDI event and payload shape from T-052.\n- Store opaque event ID, amount/currency if non-PHI, occurred timestamp, linked MDI case pointer, and processing status in DynamoDB or the billing mirror.\n- Do not store clinical diagnosis, prescription, questionnaire answer, or message/file content.\n- Use idempotency to avoid duplicate cost records.\n\n**Acceptance**\n- Replayed fixture produces exactly one cost/status record.\n- Missing local case pointer routes to ops/DLQ without data loss.\n- Reporting data remains non-PHI and opaque-ID based.",
   "id": "T-059",
   "order": 80,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "MDI webhook handler: partner_charge → billing_events ledger",
+  "title": "MDI partner-charge event handling",
   "type": "task"
 }

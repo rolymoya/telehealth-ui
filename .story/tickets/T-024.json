@@ -1,15 +1,16 @@
 {
   "blockedBy": [
     "T-021",
-    "T-023"
+    "T-023",
+    "T-078"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Replaces a traditional checkout — RULES.md requires that **no card is charged before clinical confirmation**. We capture the payment method via a Stripe `SetupIntent`, persist `payment_method_id` against the customer, and defer subscription creation until MDI emits `case_completed`.\n\n**Scope**\n- `src/app/(app)/onboarding/payment/page.tsx` — Stripe Elements form (PaymentElement) configured for `setup` mode against a server-created SetupIntent.\n- Server action `createSetupIntent`:\n  - Calls `getOrCreateCustomer(userId)` (helper in `src/lib/stripe/customer.ts`); persists `stripe_customer_id` in `patient_links`.\n  - Creates a SetupIntent with `usage: 'off_session'` and the customer attached.\n  - Customer metadata: only `{ apoth_user_id }` (per T-023 policy).\n- Server action `confirmPaymentMethod` (called after Stripe's client confirms the SetupIntent): verifies via the webhook event `setup_intent.succeeded` (T-026) that the payment method is attached, then unblocks the onboarding step.\n\n**Out of scope**\n- Subscription creation → T-025, gated on MDI `case_completed`.\n- Refunds / disputes → T-027.\n\n**Acceptance**\n- TDD invariant from T-017 stays green: no `customer.subscription` with `active` status exists for a user whose `cases.status ≠ completed`.\n- E2E happy path: user lands on `/onboarding/payment`, submits a Stripe test card, lands on `/dashboard` with `payment_method` attached and no subscription yet.",
+  "description": "Build the patient payment collection path so Stripe cannot charge before the approved MDI clinical event.\n\n**Scope**\n- Implement the selected Stripe flow, likely SetupIntent/payment-method capture or Checkout configured to defer charging until the unlock event is known.\n- Store only `stripe_customer_id`, payment readiness/status, and opaque IDs in DynamoDB/Stripe metadata.\n- Handle users who are clinically declined or abandoned without creating charges or active subscriptions.\n- Keep exact event semantics aligned with T-078.\n\n**Acceptance**\n- In tests, no charge or subscription can be created before the selected MDI approval/unlock event.\n- Clinically declined flow leaves no active billing and presents a clear support/refund path if applicable.\n- Stripe metadata contains only allowed opaque identifiers.",
   "id": "T-024",
   "order": 20,
   "phase": "payments",
   "status": "open",
-  "title": "Payment-method capture via SetupIntent (no charge before clinical)",
+  "title": "Payment-method or checkout flow gated by clinical approval",
   "type": "feature"
 }

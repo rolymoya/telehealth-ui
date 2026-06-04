@@ -1,5 +1,12 @@
 # improve-LegitScript-compliance
 
+> **Historical feature doc.**
+> This file documents PR #1 as it landed. The current architecture reset keeps
+> the LegitScript and legal-page work, but narrows the launch product toward a
+> thin Apoth data layer with MDI as the clinical system of record. Privacy,
+> terms, NPP, and product claims still require attorney review under that
+> updated posture before launch.
+
 | | |
 |---|---|
 | Branch | `improve-LegitScript-compliance` |

@@ -1,14 +1,16 @@
 {
   "blockedBy": [
-    "T-024"
+    "T-024",
+    "T-045",
+    "T-058"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "**Subscription model**: one Stripe `Subscription` per condition treated, identified by `price_id`. Maps 1:1 to MDI cases, making cancellation condition-scoped and reconciliation clean. Membership tier (if/when added) layers in as a separate product.\n\n**Activation rule**: subscription is created when MDI emits `case_completed` with an Rx written — **not** during onboarding. Implemented in the mdi-integration phase's `case_completed` worker; this ticket owns the Stripe-side helpers and schema.\n\n**Scope**\n- `src/lib/stripe/subscription.ts` — helpers `createForCase(userId, caseId, priceId)`, `cancelForCase(caseId)`, `pauseForCase(caseId)`. Each writes to `billing_events` (see infrastructure phase) and updates the local `subscriptions` mirror.\n- Drizzle schema: `src/lib/db/schema/subscriptions.ts` — `user_id`, `stripe_subscription_id`, `stripe_price_id`, `mdi_subscription_id`, `status` (mirror), `current_period_end`, `condition_key`. Foreign key to `cases.mdi_case_id`.\n- Stripe subscription created with `{ default_payment_method, off_session: true, metadata: { apoth_user_id, apoth_case_id } }`.\n- Pair with MDI subscription creation (refill cadence) — see mdi-integration phase. Cross-IDs stored both ways in metadata.\n\n**Out of scope**\n- The MDI subscription-create call → mdi-integration phase.\n- Reconciliation drift detection → hardening phase.\n\n**Acceptance**\n- TDD invariant: cannot create a Stripe subscription for a user without a `cases.status = completed` row.\n- Cancellation cascades: cancelling the Stripe subscription triggers the matching MDI subscription cancel (and vice versa, via webhooks).",
+  "description": "Create Stripe subscription/billing activation only after the selected MDI clinical approval event and mirror only minimal billing status locally.\n\n**Scope**\n- Implement helpers to create, cancel, pause, or update Stripe billing for a case after the approval/unlock event.\n- Store `stripe_subscription_id`, status, current period, and opaque linkage IDs in DynamoDB.\n- Use MDI/Stripe webhooks to keep local state as a mirror, not a source of truth.\n- Avoid condition names or clinical labels in Stripe-controlled descriptors where Apoth has control.\n\n**Acceptance**\n- TDD invariant prevents activation without a completed/approved MDI state per T-078.\n- Duplicate approval webhook does not create duplicate billing.\n- Cancellation/refund paths update local mirror state without clinical data leakage.",
   "id": "T-025",
   "order": 30,
   "phase": "payments",
   "status": "open",
-  "title": "Per-condition subscription model + activate-on-case_completed",
+  "title": "Billing activation + subscription state mirror",
   "type": "feature"
 }
