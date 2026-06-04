@@ -32,3 +32,4 @@ tsconfig.tsbuildinfo
 .story/snapshots/
 .story/sessions/
 .story/status.json
+/.idea/vcs.xml
