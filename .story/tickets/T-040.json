@@ -2,13 +2,14 @@
   "blockedBy": [
     "T-039"
   ],
-  "completedDate": null,
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-04",
   "createdDate": "2026-05-19",
   "description": "Replace the old Postgres/Drizzle baseline with DynamoDB tables for Apoth's minimal linkage/status records.\n\n**Scope**\n- Define table/key design for patient profile/linkage, consent evidence, webhook idempotency, billing status, and small operational status records.\n- Add TypeScript access helpers and local/test configuration.\n- Document which data belongs in MDI, Cognito, Stripe, or DynamoDB.\n- Explicitly reject clinical questionnaire answer storage in DynamoDB after MDI submission.\n\n**Acceptance**\n- Local/test reads and writes work through typed helpers.\n- Conditional writes support webhook idempotency and onboarding step transitions.\n- Data documentation maps every table to retention and PHI expectations.",
   "id": "T-040",
   "order": 40,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "complete",
   "title": "DynamoDB minimal app-data model",
   "type": "task"
 }
