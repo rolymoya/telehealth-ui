@@ -1,7 +1,7 @@
 # DynamoDB App Data Model
 
-Apoth uses DynamoDB for minimal app linkage, status, consent evidence, and
-webhook idempotency records. MDI remains the clinical system of record.
+Apoth uses DynamoDB for minimal app linkage, status, consent evidence, evidence
+events, and webhook idempotency records. MDI remains the clinical system of record.
 Questionnaire answers are submitted to MDI and must not be persisted in Apoth
 DynamoDB after submission.
 
@@ -35,6 +35,8 @@ not scan the table or put PHI into third-party metadata.
 | Stripe reverse lookup | Stripe/Apoth | `STRIPE#CUSTOMER#{stripeCustomerId}` or `STRIPE#SUBSCRIPTION#{stripeSubscriptionId}` / `PATIENT` | Same as Stripe linkage | Opaque reverse pointer only |
 | Consent evidence | Apoth | `PATIENT#{cognitoSub}` / `CONSENT#{version}` | Keep per counsel-approved consent retention | Version/timestamp and minimized evidence |
 | Webhook idempotency | Apoth | `WEBHOOK#{provider}#EVENT#{eventId}` / `CLAIM` | Keep long enough to cover vendor retry windows and audit needs | Event IDs/status only |
+| Evidence event | Apoth | `PATIENT#{cognitoSub}` / `EVIDENCE#{occurredAt}#{eventId}` | Keep per counsel-approved evidence retention | Opaque timeline metadata only |
+| Evidence event uniqueness | Apoth | `PATIENT#{cognitoSub}` / `EVIDENCE_UNIQUE#EVENT#{eventId}` for patient-scoped events; `EVIDENCE#EVENT#{eventId}` / `UNIQUE` for webhook side effects | Same as evidence event | Duplicate guard and timeline pointer only |
 | Operational status | Apoth | `STATUS#{name}` / `CURRENT` | Keep while flag/status is relevant | No clinical content |
 
 ## Data Boundaries
@@ -61,6 +63,74 @@ clinical field names such as `answers`, `questionnaire`, `symptoms`,
 Read helpers also validate stored records before returning typed data. Unknown
 record types, invalid enum values, missing key fields, and schema-version
 mismatches fail closed.
+
+## Evidence Events
+
+Evidence events are patient-scoped timeline records for launch-critical facts
+that support, compliance, and operators may need to reconstruct later:
+
+- Consent grants and re-prompts.
+- MDI handoff submission/failure and minimized MDI status updates.
+- Stripe payment method collection, billing activation, and billing status
+  transitions.
+- Webhook claims, processing outcomes, and side effects.
+- Support/admin actions, recorded as bounded action codes only.
+- Notable auth events available from Cognito logs or app hooks.
+
+Each event stores `eventId`, `eventType`, `eventCategory`, `occurredAt`,
+`recordedAt`, `actorType`, `status`, and `summaryCode`. Optional linkage fields
+are opaque IDs only: `mdiPatientId`, `mdiCaseId`, `stripeCustomerId`,
+`stripeSubscriptionId`, `webhookProvider`, `webhookEventId`, `requestId`,
+`adminActorId`, `source`, and a bounded primitive metadata map. Metadata string
+keys are allowlisted per event type, and values must be code-shaped opaque
+strings from per-event allowlists, not free text; numeric and boolean metadata
+are not part of the launch schema. Each `eventType` has exactly one allowed
+`summaryCode`, a bounded set of allowed statuses, and a positive ID shape for
+its event ID and linkage fields. Event types that support case/vendor lookup
+require the relevant opaque linkage fields, except failed handoffs may use a
+request ID until the vendor IDs exist.
+
+Provider side-effect events must use deterministic event IDs. The helper
+`createWebhookEvidenceEventId(provider, webhookEventId, summaryCode, sideEffect?)`
+derives stable IDs so webhook retries record the same logical evidence item
+instead of creating a second timeline item with a later write timestamp. Side
+effect evidence must include the side-effect code in the ID so one provider
+webhook can safely record multiple distinct side effects. Billing side effects
+must include Stripe customer and subscription IDs; MDI status side effects must
+include MDI patient and case IDs. Evidence writes also create a uniqueness guard
+in the same transaction so the logical event ID is unique even if a retry uses a
+different `occurredAt`. Non-webhook evidence guards are scoped to the Cognito
+subject; webhook side-effect guards use the deterministic provider event ID.
+Webhook evidence retries return the already-recorded evidence item rather than
+creating a second timeline item.
+
+Support reads do not scan the table. If support starts with a Cognito subject,
+query that patient's `PATIENT#{cognitoSub}` partition with the `EVIDENCE#`
+timeline prefix using bounded pagination. If support starts with an MDI case
+ID, first resolve `MDI#CASE#{mdiCaseId}` / `PATIENT` through the existing reverse
+lookup, then read the resolved patient timeline and filter to events for that
+`mdiCaseId`. Continue later case pages with the returned `cognitoSub` and
+`nextKey` so pagination remains bound to the same patient partition. Stripe
+customer or subscription IDs follow the same reverse-lookup pattern. Evidence
+timelines are ordered by `occurredAt`; if support is paging during active writes
+and needs a complete point-in-time view, refresh from the first page after the
+write stream settles or use a future append-ordered/case-scoped access path.
+
+Evidence events are not a clinical note system, raw audit payload archive, or
+tamper-evident hash chain. Do not store raw support notes, message/file
+contents, webhook payloads, request/response bodies, IP addresses, user agents,
+email/name claims, payment instruments, questionnaire answers, diagnoses,
+symptoms, medications, photos, labs, or clinician content.
+
+### Evidence Boundaries
+
+| Evidence source | Lives in DynamoDB | Lives in CloudWatch | Lives in vendor system |
+| --- | --- | --- | --- |
+| Consent | Version, timestamp, minimized evidence event/status | PHI-safe route/job outcome metrics and logs | Rendered legal copy source outside the app if counsel requires it |
+| MDI handoff/status | Opaque MDI patient/case IDs, handoff/status event code, timestamps | MDI availability/failure metrics and sanitized request IDs | Questionnaire answers, case details, clinician review, clinical workflow |
+| Stripe billing | Opaque customer/subscription IDs, billing transition code, timestamps | Stripe webhook lag/failure metrics and sanitized request IDs | Payment instruments, invoices, charges, subscription details |
+| Webhooks | Idempotency claim plus minimized evidence side-effect event | Verification/processing metrics and PHI-safe logs | Original provider event and delivery logs |
+| Support/admin/auth | Action/auth event code, actor type, opaque actor/request IDs | Sanitized operational diagnostics only | Cognito auth detail or external support system records, if approved |
 
 ## Consent Evidence
 

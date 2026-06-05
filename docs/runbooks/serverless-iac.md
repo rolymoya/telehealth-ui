@@ -91,7 +91,7 @@ or dashboard work expands the data surface.
 | Cognito user pool | AWS service-managed encryption | PHI-adjacent identity linkage | Stores identity/session/MFA state only; no clinical questionnaire content |
 | API Gateway | AWS service-managed encryption for service data and CloudWatch access logs | PHI-adjacent transit | Security boundary for authenticated APIs and webhooks; keep patient data out of URLs and logs |
 | Lambda | AWS service-managed encryption for runtime/service state and CloudWatch Logs | PHI-adjacent runtime | May transiently process intake or webhook payloads; persist only minimized records and never log bodies, headers, or raw provider payloads |
-| DynamoDB app table | AWS-managed DynamoDB encryption (`TableEncryption.AWS_MANAGED`) | PHI-adjacent linkage/status/evidence | Stores opaque pointers, statuses, consent evidence, and webhook idempotency records only |
+| DynamoDB app table | AWS-managed DynamoDB encryption (`TableEncryption.AWS_MANAGED`) | PHI-adjacent linkage/status/evidence | Stores opaque pointers, statuses, consent evidence, evidence events, and webhook idempotency records only |
 | Secrets Manager | AWS-managed Secrets Manager encryption, no custom `KmsKeyId` by default | Restricted secret | CDK creates secret containers/metadata only; live values are populated in AWS |
 | SQS webhook queue and DLQ | SQS-managed server-side encryption (`QueueEncryption.SQS_MANAGED`) | PHI-adjacent retry metadata | Payloads must be minimized; no raw questionnaire bodies or raw webhook archives |
 | Lambda log groups and API access log group | CloudWatch Logs service-managed encryption | Confidential operational, possibly PHI-adjacent by correlation | Retention is stage-scoped and logs must use PHI-safe structured logging |
@@ -124,6 +124,26 @@ Production traffic remains blocked while AWS or MDI BAA/evidence status is not
 active in `docs/compliance/baa-register.md`. CloudWatch, SQS, and DLQs may still
 hold PHI-adjacent linkage identifiers even when application logging is
 redacted.
+
+### Support Evidence Triage
+
+Use DynamoDB evidence events for patient/case timelines, CloudWatch for
+operational diagnostics, and vendor systems for authoritative clinical,
+billing, or auth detail. Do not copy questionnaire answers, clinician content,
+raw webhook payloads, support free text, payment instruments, email/name
+claims, IP addresses, or user-agent strings into DynamoDB, logs, tickets, or
+incident summaries.
+
+When support starts with a Cognito subject, read the patient-scoped evidence
+timeline at `PATIENT#{cognitoSub}` / `EVIDENCE#{occurredAt}#{eventId}`. When
+support starts with an MDI case ID, first resolve `MDI#CASE#{mdiCaseId}` /
+`PATIENT` to the Cognito subject, then read the patient timeline. Stripe
+customer/subscription lookups follow the same reverse-link pattern. Evidence
+events should answer what code-level event happened, when it happened, who or
+what actor class caused it, and which opaque vendor IDs were involved; they do
+not replace MDI, Stripe, or Cognito records. Provider webhook side-effect
+evidence uses deterministic event IDs plus a DynamoDB uniqueness guard, so
+replays should not create duplicate logical evidence items.
 
 ### Dashboard
 

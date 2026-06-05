@@ -2,13 +2,14 @@
   "blockedBy": [
     "T-040"
   ],
-  "completedDate": null,
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-05",
   "createdDate": "2026-05-19",
   "description": "Implement lightweight audit/evidence records for launch-critical events without a tamper-evident hash chain.\n\n**Scope**\n- Define DynamoDB records for consent grants, webhook processing outcomes, billing state transitions, MDI handoff status, support/admin actions, and notable auth events available from Cognito logs or app hooks.\n- Store event metadata, timestamps, actor/system, opaque IDs, and status. Do not store clinical questionnaire answers or message/file contents.\n- Document what evidence lives in DynamoDB versus CloudWatch versus vendor systems.\n\n**Acceptance**\n- Consent, MDI handoff, Stripe activation, and webhook side effects each write a minimal evidence event.\n- Support can answer \"what happened for this user/case?\" using opaque IDs and timestamps.\n- No hash-chain verifier or immutable audit-log sink is required for launch unless counsel requests it.",
   "id": "T-044",
   "order": 80,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "complete",
   "title": "Minimal audit and evidence events in DynamoDB",
   "type": "task"
 }

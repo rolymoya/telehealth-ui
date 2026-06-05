@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-014",
+  "impact": "Evidence-event schema is duplicated across event type unions, sets, category maps, summary maps, metadata maps, and linkage switch, increasing drift risk.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[maintainability] Evidence-event schema is duplicated across event type unions, sets, category map"
+}

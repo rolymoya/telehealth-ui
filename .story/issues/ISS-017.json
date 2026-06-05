@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-017",
+  "impact": "Case timeline lookup still filters patient timeline pages instead of using a case-scoped access path.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[performance] Case timeline lookup still filters patient timeline pages instead of using a cas"
+}

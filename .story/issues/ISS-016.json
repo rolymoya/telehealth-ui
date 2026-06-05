@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-016",
+  "impact": "Evidence event taxonomy remains duplicated across parallel maps/switches; central schema refactor would reduce drift risk.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[maintainability] Evidence event taxonomy remains duplicated across parallel maps/switches; centra"
+}

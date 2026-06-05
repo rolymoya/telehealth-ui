@@ -40,6 +40,42 @@ export type BillingStatus =
 
 export type WebhookProcessingStatus = "processing" | "processed" | "failed";
 
+export type EvidenceEventCategory =
+  | "consent"
+  | "mdi_handoff"
+  | "stripe_billing"
+  | "webhook"
+  | "support_admin"
+  | "auth";
+
+export type EvidenceEventType =
+  | "consent_granted"
+  | "consent_reprompted"
+  | "mdi_handoff_submitted"
+  | "mdi_handoff_failed"
+  | "mdi_status_updated"
+  | "stripe_payment_method_collected"
+  | "stripe_billing_activated"
+  | "stripe_billing_status_changed"
+  | "webhook_claimed"
+  | "webhook_processed"
+  | "webhook_failed"
+  | "webhook_side_effect_applied"
+  | "support_action_recorded"
+  | "admin_action_recorded"
+  | "auth_sign_in"
+  | "auth_sign_up"
+  | "auth_mfa_changed"
+  | "auth_password_reset";
+
+export type EvidenceActorType = "patient" | "system" | "admin" | "vendor" | "cognito";
+
+export type EvidenceEventStatus = "recorded" | "succeeded" | "failed" | "skipped";
+
+export type EvidenceEventMetadataValue = string;
+
+export type EvidenceEventMetadata = Record<string, EvidenceEventMetadataValue>;
+
 type BaseRecord = AppDataKey & {
   schemaVersion: 1;
   createdAt: string;
@@ -121,6 +157,37 @@ export type WebhookIdempotencyRecord = BaseRecord & {
   attempts: number;
 };
 
+export type EvidenceEventRecord = BaseRecord & {
+  recordType: "evidenceEvent";
+  cognitoSub: string;
+  eventId: string;
+  eventType: EvidenceEventType;
+  eventCategory: EvidenceEventCategory;
+  occurredAt: string;
+  recordedAt: string;
+  actorType: EvidenceActorType;
+  status: EvidenceEventStatus;
+  summaryCode: string;
+  mdiPatientId?: string;
+  mdiCaseId?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  webhookProvider?: WebhookProvider;
+  webhookEventId?: string;
+  requestId?: string;
+  adminActorId?: string;
+  source?: string;
+  metadata?: EvidenceEventMetadata;
+};
+
+export type EvidenceEventUniquenessRecord = BaseRecord & {
+  recordType: "evidenceEventUniqueness";
+  cognitoSub: string;
+  eventId: string;
+  evidencePk: string;
+  evidenceSk: string;
+};
+
 export type OperationalStatusRecord = BaseRecord & {
   recordType: "operationalStatus";
   name: string;
@@ -135,10 +202,18 @@ export type AppDataRecord =
   | StripeReverseLookupRecord
   | ConsentEvidenceRecord
   | WebhookIdempotencyRecord
+  | EvidenceEventRecord
+  | EvidenceEventUniquenessRecord
   | OperationalStatusRecord;
 
 export type AppDataRepository = {
   get(key: AppDataKey): AppDataResult<AppDataRecord | null>;
+  queryByKeyPrefix(input: {
+    pk: string;
+    skPrefix: string;
+    limit?: number;
+    exclusiveStartKey?: AppDataKey;
+  }): AppDataResult<{ items: AppDataRecord[]; nextKey?: AppDataKey }>;
   put<T extends AppDataRecord>(record: T, options?: { ifNotExists?: boolean }): AppDataResult<T>;
   update<T extends AppDataRecord>(record: T, options?: { expected?: AppDataRecord }): AppDataResult<T>;
   delete(key: AppDataKey, options?: { expected?: AppDataRecord }): AppDataResult<void>;
@@ -199,6 +274,36 @@ export function webhookIdempotencyKey(
   return { pk: `WEBHOOK#${provider}#EVENT#${eventId}`, sk: "CLAIM" };
 }
 
+export function evidenceEventKey(
+  cognitoSub: string,
+  occurredAt: string,
+  eventId: string,
+): AppDataKey {
+  return { pk: `PATIENT#${cognitoSub}`, sk: `EVIDENCE#${occurredAt}#${eventId}` };
+}
+
+export function evidenceEventUniquenessKey(eventId: string): AppDataKey {
+  return { pk: `EVIDENCE#EVENT#${eventId}`, sk: "UNIQUE" };
+}
+
+export function patientEvidenceEventUniquenessKey(
+  cognitoSub: string,
+  eventId: string,
+): AppDataKey {
+  return { pk: `PATIENT#${cognitoSub}`, sk: `EVIDENCE_UNIQUE#EVENT#${eventId}` };
+}
+
+export function createWebhookEvidenceEventId(
+  provider: WebhookProvider,
+  webhookEventId: string,
+  summaryCode: string,
+  sideEffect?: string,
+): string {
+  return sideEffect
+    ? `webhook:${provider}:${webhookEventId}:${summaryCode}:${sideEffect}`
+    : `webhook:${provider}:${webhookEventId}:${summaryCode}`;
+}
+
 export function operationalStatusKey(name: string): AppDataKey {
   return { pk: `STATUS#${name}`, sk: "CURRENT" };
 }
@@ -232,6 +337,58 @@ export function createInMemoryAppDataRepository(
       }
 
       return ok(cloneRecord(record));
+    },
+    queryByKeyPrefix(input) {
+      if (
+        typeof input.pk !== "string" ||
+        typeof input.skPrefix !== "string" ||
+        (input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1)) ||
+        (input.exclusiveStartKey !== undefined &&
+          (input.exclusiveStartKey.pk !== input.pk ||
+            !input.exclusiveStartKey.sk.startsWith(input.skPrefix)))
+      ) {
+        return err("validation_failed", "Invalid key-prefix query");
+      }
+
+      const result: AppDataRecord[] = [];
+      for (const record of records.values()) {
+        if (record.pk !== input.pk || !record.sk.startsWith(input.skPrefix)) {
+          continue;
+        }
+
+        const validation = validateAppDataRecord(record);
+        if (!validation.ok) {
+          return validation;
+        }
+
+        result.push(cloneRecord(record));
+      }
+
+      result.sort((left, right) => left.sk.localeCompare(right.sk));
+      let startIndex = 0;
+      if (input.exclusiveStartKey) {
+        const exclusiveIndex = result.findIndex((record) => (
+          record.pk === input.exclusiveStartKey?.pk &&
+          record.sk === input.exclusiveStartKey?.sk
+        ));
+        if (exclusiveIndex < 0) {
+          return err("validation_failed", "Exclusive start key was not found");
+        }
+        startIndex = exclusiveIndex + 1;
+      }
+
+      const items = result.slice(startIndex, input.limit === undefined
+        ? undefined
+        : startIndex + input.limit);
+      const lastItem = items.at(-1);
+      const hasMore = input.limit !== undefined && startIndex + input.limit < result.length;
+
+      return ok({
+        items,
+        nextKey: hasMore && lastItem
+          ? { pk: lastItem.pk, sk: lastItem.sk }
+          : undefined,
+      });
     },
     put(record, options) {
       const validation = validateAppDataRecord(record);
@@ -280,19 +437,23 @@ export function createInMemoryAppDataRepository(
       return ok(undefined);
     },
     transactWrite(operations) {
-      const next = new Map(records);
+      const staged = new Map<string, AppDataRecord | null>();
+      const stagedGet = (key: AppDataKey) => {
+        const compound = compoundKey(key);
+        return staged.has(compound) ? staged.get(compound) : records.get(compound);
+      };
 
       for (const operation of operations) {
         if (operation.type === "delete") {
           const key = compoundKey(operation.key);
-          const existing = next.get(key);
+          const existing = stagedGet(operation.key);
           if (!existing) {
             return err("not_found", `Record not found for ${key}`);
           }
           if (operation.expected && !recordsEqual(existing, operation.expected)) {
             return err("conditional_conflict", `Expected record did not match ${key}`);
           }
-          next.delete(key);
+          staged.set(key, null);
           continue;
         }
 
@@ -303,14 +464,14 @@ export function createInMemoryAppDataRepository(
 
         const key = compoundKey(operation.record);
         if (operation.type === "put") {
-          if (operation.ifNotExists && next.has(key)) {
+          if (operation.ifNotExists && stagedGet(operation.record)) {
             return err("conditional_conflict", `Record already exists for ${key}`);
           }
-          next.set(key, cloneRecord(operation.record));
+          staged.set(key, cloneRecord(operation.record));
           continue;
         }
 
-        const existing = next.get(key);
+        const existing = stagedGet(operation.record);
         if (!existing) {
           return err("not_found", `Record not found for ${key}`);
         }
@@ -318,12 +479,15 @@ export function createInMemoryAppDataRepository(
         if (operation.expected && !recordsEqual(existing, operation.expected)) {
           return err("conditional_conflict", `Expected record did not match ${key}`);
         }
-        next.set(key, cloneRecord(operation.record));
+        staged.set(key, cloneRecord(operation.record));
       }
 
-      records.clear();
-      for (const [key, value] of next.entries()) {
-        records.set(key, value);
+      for (const [key, value] of staged.entries()) {
+        if (value) {
+          records.set(key, value);
+        } else {
+          records.delete(key);
+        }
       }
 
       return ok(undefined);
@@ -570,6 +734,141 @@ export function findPatientByStripePointer(
   return findPatientByReverseKey(repository, key, "stripeReverseLookup");
 }
 
+export function listEvidenceEventsForPatient(
+  repository: AppDataRepository,
+  input: { cognitoSub: string; limit?: number; exclusiveStartKey?: AppDataKey },
+): AppDataResult<{ items: EvidenceEventRecord[]; nextKey?: AppDataKey }> {
+  if (!isCognitoSub(input.cognitoSub)) {
+    return err("validation_failed", "Invalid evidence timeline subject");
+  }
+
+  const limit = normalizeEvidenceEventLimit(input.limit);
+  if (!limit.ok) {
+    return limit;
+  }
+
+  const records = repository.queryByKeyPrefix({
+    pk: patientProfileKey(input.cognitoSub).pk,
+    skPrefix: "EVIDENCE#",
+    limit: limit.value,
+    exclusiveStartKey: input.exclusiveStartKey,
+  });
+  if (!records.ok) {
+    return records;
+  }
+
+  const events: EvidenceEventRecord[] = [];
+  for (const record of records.value.items) {
+    if (record.recordType !== "evidenceEvent") {
+      return err("validation_failed", "Evidence timeline contained another record type");
+    }
+    events.push(record);
+  }
+
+  return ok({ items: events, nextKey: records.value.nextKey });
+}
+
+export function listEvidenceEventsForMdiCase(
+  repository: AppDataRepository,
+  input: {
+    mdiCaseId: string;
+    cognitoSub?: string;
+    limit?: number;
+    exclusiveStartKey?: AppDataKey;
+  },
+): AppDataResult<{
+  cognitoSub: string;
+  items: EvidenceEventRecord[];
+  nextKey?: AppDataKey;
+} | null> {
+  if (!isMdiCaseId(input.mdiCaseId)) {
+    return err("validation_failed", "Invalid evidence case lookup ID");
+  }
+
+  const limit = normalizeEvidenceEventLimit(input.limit);
+  if (!limit.ok) {
+    return limit;
+  }
+
+  let cognitoSub = input.cognitoSub;
+  if (cognitoSub !== undefined) {
+    if (!isCognitoSub(cognitoSub)) {
+      return err("validation_failed", "Invalid evidence case continuation subject");
+    }
+    const patient = findPatientByMdiPointer(repository, {
+      pointerType: "case",
+      mdiCaseId: input.mdiCaseId,
+    });
+    if (!patient.ok) {
+      return patient;
+    }
+    if (patient.value !== cognitoSub) {
+      return err("validation_failed", "Evidence case continuation subject did not match case");
+    }
+  } else {
+    const patient = findPatientByMdiPointer(repository, {
+      pointerType: "case",
+      mdiCaseId: input.mdiCaseId,
+    });
+    if (!patient.ok) {
+      return patient;
+    }
+    if (!patient.value) {
+      return ok(null);
+    }
+    cognitoSub = patient.value;
+  }
+
+  const caseEvents: EvidenceEventRecord[] = [];
+  let nextKey = input.exclusiveStartKey;
+  let scannedPages = 0;
+
+  do {
+    const events = listEvidenceEventsForPatient(repository, {
+      cognitoSub,
+      limit: limit.value,
+      exclusiveStartKey: nextKey,
+    });
+    if (!events.ok) {
+      return events;
+    }
+    scannedPages += 1;
+
+    for (let index = 0; index < events.value.items.length; index += 1) {
+      const event = events.value.items[index];
+      if (event.mdiCaseId !== input.mdiCaseId) {
+        continue;
+      }
+
+      caseEvents.push(event);
+      if (caseEvents.length >= limit.value) {
+        const hasMoreInCurrentPage = index < events.value.items.length - 1;
+        const continuation = hasMoreInCurrentPage || events.value.nextKey
+          ? { pk: event.pk, sk: event.sk }
+          : undefined;
+        return ok({
+          cognitoSub,
+          items: caseEvents,
+          nextKey: continuation,
+        });
+      }
+    }
+    nextKey = events.value.nextKey;
+    if (nextKey && scannedPages >= maxEvidenceCaseQueryPages) {
+      return ok({
+        cognitoSub,
+        items: caseEvents,
+        nextKey,
+      });
+    }
+  } while (nextKey);
+
+  return ok({
+    cognitoSub,
+    items: caseEvents,
+  });
+}
+
 export function recordConsentEvidence(
   repository: AppDataRepository,
   input: {
@@ -689,6 +988,118 @@ export function markWebhookEventStatus(
   return repository.update(record, { expected: existing.value });
 }
 
+export function createEvidenceEventRecord(input: {
+  cognitoSub: string;
+  eventId: string;
+  eventType: EvidenceEventType;
+  eventCategory: EvidenceEventCategory;
+  occurredAt: string;
+  recordedAt: string;
+  actorType: EvidenceActorType;
+  status: EvidenceEventStatus;
+  summaryCode: string;
+  mdiPatientId?: string;
+  mdiCaseId?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  webhookProvider?: WebhookProvider;
+  webhookEventId?: string;
+  requestId?: string;
+  adminActorId?: string;
+  source?: string;
+  metadata?: EvidenceEventMetadata;
+}): EvidenceEventRecord {
+  return {
+    ...evidenceEventKey(input.cognitoSub, input.occurredAt, input.eventId),
+    recordType: "evidenceEvent",
+    schemaVersion: 1,
+    cognitoSub: input.cognitoSub,
+    eventId: input.eventId,
+    eventType: input.eventType,
+    eventCategory: input.eventCategory,
+    occurredAt: input.occurredAt,
+    recordedAt: input.recordedAt,
+    actorType: input.actorType,
+    status: input.status,
+    summaryCode: input.summaryCode,
+    ...(input.mdiPatientId === undefined ? {} : { mdiPatientId: input.mdiPatientId }),
+    ...(input.mdiCaseId === undefined ? {} : { mdiCaseId: input.mdiCaseId }),
+    ...(input.stripeCustomerId === undefined ? {} : {
+      stripeCustomerId: input.stripeCustomerId,
+    }),
+    ...(input.stripeSubscriptionId === undefined ? {} : {
+      stripeSubscriptionId: input.stripeSubscriptionId,
+    }),
+    ...(input.webhookProvider === undefined ? {} : { webhookProvider: input.webhookProvider }),
+    ...(input.webhookEventId === undefined ? {} : { webhookEventId: input.webhookEventId }),
+    ...(input.requestId === undefined ? {} : { requestId: input.requestId }),
+    ...(input.adminActorId === undefined ? {} : { adminActorId: input.adminActorId }),
+    ...(input.source === undefined ? {} : { source: input.source }),
+    ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+    createdAt: input.recordedAt,
+    updatedAt: input.recordedAt,
+  };
+}
+
+export function recordEvidenceEvent(
+  repository: AppDataRepository,
+  input: Parameters<typeof createEvidenceEventRecord>[0],
+): AppDataResult<EvidenceEventRecord> {
+  const record = createEvidenceEventRecord(input);
+  const validation = validateAppDataRecord(record);
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const uniquenessKey = record.eventCategory === "webhook"
+    ? evidenceEventUniquenessKey(record.eventId)
+    : patientEvidenceEventUniquenessKey(record.cognitoSub, record.eventId);
+  const uniqueness: EvidenceEventUniquenessRecord = {
+    ...uniquenessKey,
+    recordType: "evidenceEventUniqueness",
+    schemaVersion: 1,
+    cognitoSub: record.cognitoSub,
+    eventId: record.eventId,
+    evidencePk: record.pk,
+    evidenceSk: record.sk,
+    createdAt: record.recordedAt,
+    updatedAt: record.recordedAt,
+  };
+
+  const written = repository.transactWrite([
+    { type: "put", record: uniqueness, ifNotExists: true },
+    { type: "put", record, ifNotExists: true },
+  ]);
+
+  if (written.ok) {
+    return ok(record);
+  }
+  if (record.eventCategory !== "webhook" || written.error.kind !== "conditional_conflict") {
+    return written;
+  }
+
+  const existingUniqueness = repository.get(uniquenessKey);
+  if (!existingUniqueness.ok) {
+    return existingUniqueness;
+  }
+  if (existingUniqueness.value?.recordType !== "evidenceEventUniqueness") {
+    return written;
+  }
+
+  const existing = repository.get({
+    pk: existingUniqueness.value.evidencePk,
+    sk: existingUniqueness.value.evidenceSk,
+  });
+  if (!existing.ok) {
+    return existing;
+  }
+
+  return existing.value?.recordType === "evidenceEvent" &&
+    isIdempotentEvidenceReplay(record, existing.value)
+    ? ok(existing.value)
+    : written;
+}
+
 export function transitionOnboardingStatus(
   repository: AppDataRepository,
   input: {
@@ -750,8 +1161,8 @@ export function validateAppDataRecord(
     typeof record.pk !== "string" ||
     typeof record.sk !== "string" ||
     record.schemaVersion !== 1 ||
-    typeof record.createdAt !== "string" ||
-    typeof record.updatedAt !== "string"
+    !isIsoTimestamp(record.createdAt) ||
+    !isIsoTimestamp(record.updatedAt)
   ) {
     return err("validation_failed", "Record is missing required base fields");
   }
@@ -805,6 +1216,10 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         keysMatch(record, webhookIdempotencyKey(record.provider, record.eventId))
         ? ok(record)
         : err("validation_failed", "Invalid webhook idempotency record");
+    case "evidenceEvent":
+      return validateEvidenceEvent(record);
+    case "evidenceEventUniqueness":
+      return validateEvidenceEventUniqueness(record);
     case "operationalStatus":
       return typeof record.name === "string" &&
         typeof record.status === "string" &&
@@ -862,6 +1277,170 @@ function validateStripeReverse(
     return ok(record);
   }
   return err("validation_failed", "Invalid Stripe reverse lookup record");
+}
+
+function validateEvidenceEvent(
+  record: EvidenceEventRecord,
+): AppDataResult<AppDataRecord> {
+  return typeof record.cognitoSub === "string" &&
+    isCognitoSub(record.cognitoSub) &&
+    isEvidenceEventType(record.eventType) &&
+    isEvidenceEventId(record) &&
+    isEvidenceEventCategory(record.eventCategory) &&
+    evidenceTypeCategory[record.eventType] === record.eventCategory &&
+    evidenceTypeSummaryCode[record.eventType] === record.summaryCode &&
+    validateWebhookEvidenceIdentity(record) &&
+    validateEvidenceLinkage(record) &&
+    isIsoTimestamp(record.occurredAt) &&
+    isIsoTimestamp(record.recordedAt) &&
+    isEvidenceActorType(record.actorType) &&
+    isEvidenceEventStatus(record.status) &&
+    evidenceTypeStatuses[record.eventType].has(record.status) &&
+    isSummaryCode(record.summaryCode) &&
+    optionalMdiPatientId(record.mdiPatientId) &&
+    optionalMdiCaseId(record.mdiCaseId) &&
+    optionalStripeCustomerId(record.stripeCustomerId) &&
+    optionalStripeSubscriptionId(record.stripeSubscriptionId) &&
+    (record.webhookProvider === undefined ||
+      record.webhookProvider === "stripe" ||
+      record.webhookProvider === "mdi") &&
+    optionalWebhookEventId(record.webhookEventId) &&
+    optionalRequestId(record.requestId) &&
+    optionalAdminActorId(record.adminActorId) &&
+    optionalSource(record.source) &&
+    validateEvidenceMetadata(record.eventType, record.metadata) &&
+    keysMatch(
+      record,
+      evidenceEventKey(record.cognitoSub, record.occurredAt, record.eventId),
+    )
+    ? ok(record)
+    : err("validation_failed", "Invalid evidence event record");
+}
+
+function validateWebhookEvidenceIdentity(record: EvidenceEventRecord) {
+  if (record.eventCategory !== "webhook") {
+    return record.webhookProvider === undefined && record.webhookEventId === undefined;
+  }
+
+  return (
+    record.webhookProvider !== undefined &&
+    record.webhookEventId !== undefined &&
+    record.eventId === createWebhookEvidenceEventId(
+      record.webhookProvider,
+      record.webhookEventId,
+      record.summaryCode,
+      record.eventType === "webhook_side_effect_applied"
+        ? record.metadata?.side_effect
+        : undefined,
+    )
+  );
+}
+
+function validateEvidenceLinkage(record: EvidenceEventRecord) {
+  switch (record.eventType) {
+    case "mdi_handoff_submitted":
+    case "mdi_status_updated":
+      return record.mdiPatientId !== undefined && record.mdiCaseId !== undefined;
+    case "mdi_handoff_failed":
+      return record.requestId !== undefined ||
+        record.mdiPatientId !== undefined ||
+        record.mdiCaseId !== undefined;
+    case "stripe_payment_method_collected":
+      return record.stripeCustomerId !== undefined;
+    case "stripe_billing_activated":
+    case "stripe_billing_status_changed":
+      return record.stripeCustomerId !== undefined &&
+        record.stripeSubscriptionId !== undefined;
+    case "webhook_claimed":
+    case "webhook_processed":
+    case "webhook_failed":
+      return record.webhookProvider !== undefined && record.webhookEventId !== undefined;
+    case "webhook_side_effect_applied":
+      if (record.webhookProvider === undefined || record.webhookEventId === undefined) {
+        return false;
+      }
+      if (record.metadata?.side_effect === undefined) {
+        return false;
+      }
+      if (record.metadata?.side_effect === "billing_status_update") {
+        return record.stripeCustomerId !== undefined &&
+          record.stripeSubscriptionId !== undefined;
+      }
+      if (record.metadata?.side_effect === "mdi_status_update") {
+        return record.mdiPatientId !== undefined && record.mdiCaseId !== undefined;
+      }
+      return true;
+    default:
+      return true;
+  }
+}
+
+function validateEvidenceEventUniqueness(
+  record: EvidenceEventUniquenessRecord,
+): AppDataResult<AppDataRecord> {
+  return typeof record.cognitoSub === "string" &&
+    isCognitoSub(record.cognitoSub) &&
+    isEvidenceEventIdValue(record.eventId) &&
+    typeof record.evidencePk === "string" &&
+    typeof record.evidenceSk === "string" &&
+    record.evidencePk === `PATIENT#${record.cognitoSub}` &&
+    isEvidenceEventPointer(record) &&
+    (
+      keysMatch(record, evidenceEventUniquenessKey(record.eventId)) ||
+      keysMatch(record, patientEvidenceEventUniquenessKey(record.cognitoSub, record.eventId))
+    )
+    ? ok(record)
+    : err("validation_failed", "Invalid evidence event uniqueness record");
+}
+
+function isEvidenceEventPointer(record: EvidenceEventUniquenessRecord) {
+  const suffix = `#${record.eventId}`;
+  if (!record.evidenceSk.startsWith("EVIDENCE#") || !record.evidenceSk.endsWith(suffix)) {
+    return false;
+  }
+
+  const occurredAt = record.evidenceSk.slice("EVIDENCE#".length, -suffix.length);
+  return isIsoTimestamp(occurredAt) &&
+    record.evidenceSk === evidenceEventKey(
+      record.cognitoSub,
+      occurredAt,
+      record.eventId,
+    ).sk;
+}
+
+function isIdempotentEvidenceReplay(
+  incoming: EvidenceEventRecord,
+  existing: EvidenceEventRecord,
+) {
+  return incoming.cognitoSub === existing.cognitoSub &&
+    incoming.eventId === existing.eventId &&
+    incoming.eventType === existing.eventType &&
+    incoming.eventCategory === existing.eventCategory &&
+    incoming.actorType === existing.actorType &&
+    incoming.status === existing.status &&
+    incoming.summaryCode === existing.summaryCode &&
+    incoming.mdiPatientId === existing.mdiPatientId &&
+    incoming.mdiCaseId === existing.mdiCaseId &&
+    incoming.stripeCustomerId === existing.stripeCustomerId &&
+    incoming.stripeSubscriptionId === existing.stripeSubscriptionId &&
+    incoming.webhookProvider === existing.webhookProvider &&
+    incoming.webhookEventId === existing.webhookEventId &&
+    incoming.adminActorId === existing.adminActorId &&
+    incoming.source === existing.source &&
+    metadataEqual(incoming.metadata, existing.metadata);
+}
+
+function metadataEqual(
+  left: EvidenceEventMetadata | undefined,
+  right: EvidenceEventMetadata | undefined,
+) {
+  const leftEntries = Object.entries(left ?? {});
+  const rightEntries = Object.entries(right ?? {});
+  if (leftEntries.length !== rightEntries.length) {
+    return false;
+  }
+
+  return leftEntries.every(([key, value]) => right?.[key] === value);
 }
 
 function findPatientByReverseKey(
@@ -975,6 +1554,9 @@ function compoundKey(key: AppDataKey) {
 }
 
 function cloneRecord<T extends AppDataRecord>(record: T): T {
+  if (record.recordType === "evidenceEvent" && record.metadata) {
+    return { ...record, metadata: { ...record.metadata } } as T;
+  }
   return { ...record };
 }
 
@@ -1015,6 +1597,153 @@ function optionalHash(value: unknown) {
   return value === undefined || (typeof value === "string" && value.startsWith("sha256:"));
 }
 
+function optionalSource(value: unknown) {
+  return value === undefined || (typeof value === "string" && evidenceSources.has(value));
+}
+
+function optionalMdiPatientId(value: unknown) {
+  return value === undefined || (typeof value === "string" && isMdiPatientId(value));
+}
+
+function optionalMdiCaseId(value: unknown) {
+  return value === undefined || (typeof value === "string" && isMdiCaseId(value));
+}
+
+function optionalStripeCustomerId(value: unknown) {
+  return value === undefined || (typeof value === "string" && isStripeCustomerId(value));
+}
+
+function optionalStripeSubscriptionId(value: unknown) {
+  return value === undefined ||
+    (typeof value === "string" && isStripeSubscriptionId(value));
+}
+
+function optionalWebhookEventId(value: unknown) {
+  return value === undefined || (typeof value === "string" && isWebhookEventId(value));
+}
+
+function optionalRequestId(value: unknown) {
+  return value === undefined || (typeof value === "string" && isRequestId(value));
+}
+
+function optionalAdminActorId(value: unknown) {
+  return value === undefined || (typeof value === "string" && isAdminActorId(value));
+}
+
+function isSafeIdentifier(value: string, pattern: RegExp) {
+  return pattern.test(value) &&
+    !unsafeOpaqueIdentifierPatterns.some((pattern) => pattern.test(value)) &&
+    !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(value));
+}
+
+function isCognitoSub(value: string) {
+  return isSafeIdentifier(
+    value,
+    /^(?:cognito-sub-[A-Za-z0-9]+|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i,
+  );
+}
+
+function isMdiPatientId(value: string) {
+  return isSafeIdentifier(value, /^mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isMdiCaseId(value: string) {
+  return isSafeIdentifier(value, /^mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isStripeCustomerId(value: string) {
+  return isSafeIdentifier(value, /^cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isStripeSubscriptionId(value: string) {
+  return isSafeIdentifier(value, /^sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isWebhookEventId(value: string) {
+  return isSafeIdentifier(value, /^(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isRequestId(value: string) {
+  return isSafeIdentifier(value, /^req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isAdminActorId(value: string) {
+  return isSafeIdentifier(value, /^admin_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isEvidenceEventId(record: EvidenceEventRecord) {
+  switch (record.eventType) {
+    case "consent_granted":
+    case "consent_reprompted":
+      return /^consent:terms-\d{4}-\d{2}-\d{2}$/.test(record.eventId);
+    case "mdi_handoff_submitted":
+      return record.mdiCaseId !== undefined &&
+        record.eventId === `mdi:handoff:${record.mdiCaseId}`;
+    case "mdi_handoff_failed":
+      return /^mdi:handoff:failed:(?:req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*|mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*)$/.test(record.eventId) &&
+        !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
+    case "mdi_status_updated":
+      return record.mdiCaseId !== undefined &&
+        typeof record.metadata?.status === "string" &&
+        record.eventId === `mdi:status:${record.mdiCaseId}:${record.metadata.status}`;
+    case "stripe_payment_method_collected":
+      return record.stripeCustomerId !== undefined &&
+        record.eventId === `stripe:payment-method:${record.stripeCustomerId}:collected`;
+    case "stripe_billing_activated":
+      return record.stripeSubscriptionId !== undefined &&
+        record.eventId === `stripe:billing:${record.stripeSubscriptionId}:active`;
+    case "stripe_billing_status_changed":
+      return record.stripeSubscriptionId !== undefined &&
+        typeof record.metadata?.status === "string" &&
+        record.eventId === `stripe:billing:${record.stripeSubscriptionId}:${record.metadata.status}`;
+    case "webhook_claimed":
+    case "webhook_processed":
+    case "webhook_failed":
+    case "webhook_side_effect_applied":
+      return isEvidenceEventIdValue(record.eventId);
+    case "support_action_recorded":
+      return /^support:case-review:\d{3,12}$/.test(record.eventId);
+    case "admin_action_recorded":
+      return /^admin:action:\d{3,12}$/.test(record.eventId);
+    case "auth_sign_in":
+    case "auth_sign_up":
+    case "auth_mfa_changed":
+    case "auth_password_reset":
+      return /^auth:(?:sign-in|sign-up|mfa-changed|password-reset):req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/.test(record.eventId) &&
+        !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
+    default:
+      return false;
+  }
+}
+
+function isEvidenceEventIdValue(value: string) {
+  return evidenceEventIdPatterns.some((pattern) => pattern.test(value)) &&
+    !unsafeOpaqueIdentifierPatterns.some((pattern) => pattern.test(value)) &&
+    !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(value));
+}
+
+function isIsoTimestamp(value: unknown) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
+    return false;
+  }
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value;
+}
+
+function isSummaryCode(value: unknown) {
+  return typeof value === "string" && /^[A-Z][A-Z0-9_]{1,79}$/.test(value);
+}
+
+function normalizeEvidenceEventLimit(value: number | undefined): AppDataResult<number> {
+  if (value === undefined) {
+    return ok(defaultEvidenceEventPageLimit);
+  }
+  if (!Number.isInteger(value) || value < 1) {
+    return err("validation_failed", "Invalid evidence event page limit");
+  }
+  return ok(Math.min(value, maxEvidenceEventPageLimit));
+}
+
 function isOnboardingStatus(value: unknown): value is OnboardingStatus {
   return onboardingStatuses.has(value as OnboardingStatus);
 }
@@ -1025,6 +1754,69 @@ function isBillingStatus(value: unknown): value is BillingStatus {
 
 function isWebhookStatus(value: unknown): value is WebhookProcessingStatus {
   return webhookStatuses.has(value as WebhookProcessingStatus);
+}
+
+function isEvidenceEventCategory(value: unknown): value is EvidenceEventCategory {
+  return evidenceEventCategories.has(value as EvidenceEventCategory);
+}
+
+function isEvidenceEventType(value: unknown): value is EvidenceEventType {
+  return evidenceEventTypes.has(value as EvidenceEventType);
+}
+
+function isEvidenceActorType(value: unknown): value is EvidenceActorType {
+  return evidenceActorTypes.has(value as EvidenceActorType);
+}
+
+function isEvidenceEventStatus(value: unknown): value is EvidenceEventStatus {
+  return evidenceEventStatuses.has(value as EvidenceEventStatus);
+}
+
+function validateEvidenceMetadata(eventType: EvidenceEventType, value: unknown) {
+  if (value === undefined) {
+    return true;
+  }
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  const allowedKeys = evidenceMetadataKeysByType[eventType];
+  let count = 0;
+  for (const key in value) {
+    if (!Object.prototype.hasOwnProperty.call(value, key)) {
+      continue;
+    }
+    count += 1;
+    if (count > 12) {
+      return false;
+    }
+
+    const child = value[key];
+    if (
+      !allowedKeys.has(key) ||
+      !/^[a-z][a-z0-9_]{0,39}$/.test(key) ||
+      unsafeEvidenceMetadataKeys.some((pattern) => pattern.test(key)) ||
+      typeof child !== "string" ||
+      !isEvidenceMetadataValue(eventType, key, child)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function isEvidenceMetadataValue(
+  eventType: EvidenceEventType,
+  key: string,
+  value: string,
+) {
+  const allowedValues = evidenceMetadataValuesByType[eventType][key];
+  return allowedValues !== undefined &&
+    allowedValues.has(value) &&
+    /^[A-Za-z0-9._:-]{1,160}$/.test(value) &&
+    !unsafeOpaqueIdentifierPatterns.some((pattern) => pattern.test(value)) &&
+    !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(value));
 }
 
 const onboardingStatuses = new Set<OnboardingStatus>([
@@ -1049,6 +1841,268 @@ const webhookStatuses = new Set<WebhookProcessingStatus>([
   "processed",
   "failed",
 ]);
+
+const defaultEvidenceEventPageLimit = 25;
+const maxEvidenceEventPageLimit = 100;
+const maxEvidenceCaseQueryPages = 5;
+
+const evidenceEventCategories = new Set<EvidenceEventCategory>([
+  "consent",
+  "mdi_handoff",
+  "stripe_billing",
+  "webhook",
+  "support_admin",
+  "auth",
+]);
+
+const evidenceEventTypes = new Set<EvidenceEventType>([
+  "consent_granted",
+  "consent_reprompted",
+  "mdi_handoff_submitted",
+  "mdi_handoff_failed",
+  "mdi_status_updated",
+  "stripe_payment_method_collected",
+  "stripe_billing_activated",
+  "stripe_billing_status_changed",
+  "webhook_claimed",
+  "webhook_processed",
+  "webhook_failed",
+  "webhook_side_effect_applied",
+  "support_action_recorded",
+  "admin_action_recorded",
+  "auth_sign_in",
+  "auth_sign_up",
+  "auth_mfa_changed",
+  "auth_password_reset",
+]);
+
+const evidenceTypeCategory: Record<EvidenceEventType, EvidenceEventCategory> = {
+  consent_granted: "consent",
+  consent_reprompted: "consent",
+  mdi_handoff_submitted: "mdi_handoff",
+  mdi_handoff_failed: "mdi_handoff",
+  mdi_status_updated: "mdi_handoff",
+  stripe_payment_method_collected: "stripe_billing",
+  stripe_billing_activated: "stripe_billing",
+  stripe_billing_status_changed: "stripe_billing",
+  webhook_claimed: "webhook",
+  webhook_processed: "webhook",
+  webhook_failed: "webhook",
+  webhook_side_effect_applied: "webhook",
+  support_action_recorded: "support_admin",
+  admin_action_recorded: "support_admin",
+  auth_sign_in: "auth",
+  auth_sign_up: "auth",
+  auth_mfa_changed: "auth",
+  auth_password_reset: "auth",
+};
+
+const evidenceTypeSummaryCode: Record<EvidenceEventType, string> = {
+  consent_granted: "CONSENT_GRANTED",
+  consent_reprompted: "CONSENT_REPROMPTED",
+  mdi_handoff_submitted: "MDI_HANDOFF_SUBMITTED",
+  mdi_handoff_failed: "MDI_HANDOFF_FAILED",
+  mdi_status_updated: "MDI_STATUS_UPDATED",
+  stripe_payment_method_collected: "STRIPE_PAYMENT_METHOD_COLLECTED",
+  stripe_billing_activated: "STRIPE_BILLING_ACTIVATED",
+  stripe_billing_status_changed: "STRIPE_BILLING_STATUS_CHANGED",
+  webhook_claimed: "WEBHOOK_CLAIMED",
+  webhook_processed: "WEBHOOK_PROCESSED",
+  webhook_failed: "WEBHOOK_FAILED",
+  webhook_side_effect_applied: "WEBHOOK_SIDE_EFFECT_APPLIED",
+  support_action_recorded: "SUPPORT_ACTION_RECORDED",
+  admin_action_recorded: "ADMIN_ACTION_RECORDED",
+  auth_sign_in: "AUTH_SIGN_IN",
+  auth_sign_up: "AUTH_SIGN_UP",
+  auth_mfa_changed: "AUTH_MFA_CHANGED",
+  auth_password_reset: "AUTH_PASSWORD_RESET",
+};
+
+const evidenceTypeStatuses: Record<EvidenceEventType, Set<EvidenceEventStatus>> = {
+  consent_granted: new Set(["succeeded"]),
+  consent_reprompted: new Set(["recorded"]),
+  mdi_handoff_submitted: new Set(["succeeded"]),
+  mdi_handoff_failed: new Set(["failed"]),
+  mdi_status_updated: new Set(["recorded"]),
+  stripe_payment_method_collected: new Set(["succeeded"]),
+  stripe_billing_activated: new Set(["succeeded"]),
+  stripe_billing_status_changed: new Set(["recorded"]),
+  webhook_claimed: new Set(["recorded"]),
+  webhook_processed: new Set(["succeeded"]),
+  webhook_failed: new Set(["failed"]),
+  webhook_side_effect_applied: new Set(["succeeded", "skipped"]),
+  support_action_recorded: new Set(["recorded"]),
+  admin_action_recorded: new Set(["recorded"]),
+  auth_sign_in: new Set(["succeeded", "failed"]),
+  auth_sign_up: new Set(["succeeded", "failed"]),
+  auth_mfa_changed: new Set(["recorded"]),
+  auth_password_reset: new Set(["recorded", "succeeded"]),
+};
+
+const evidenceMetadataKeysByType: Record<EvidenceEventType, Set<string>> = {
+  consent_granted: new Set(["version"]),
+  consent_reprompted: new Set(["version"]),
+  mdi_handoff_submitted: new Set(["status"]),
+  mdi_handoff_failed: new Set(["status", "reason_code"]),
+  mdi_status_updated: new Set(["status"]),
+  stripe_payment_method_collected: new Set(["status"]),
+  stripe_billing_activated: new Set(["status"]),
+  stripe_billing_status_changed: new Set(["status", "previous_status"]),
+  webhook_claimed: new Set(["outcome"]),
+  webhook_processed: new Set(["outcome"]),
+  webhook_failed: new Set(["reason_code"]),
+  webhook_side_effect_applied: new Set(["side_effect"]),
+  support_action_recorded: new Set(["action_code"]),
+  admin_action_recorded: new Set(["action_code"]),
+  auth_sign_in: new Set(["outcome"]),
+  auth_sign_up: new Set(["outcome"]),
+  auth_mfa_changed: new Set(["outcome"]),
+  auth_password_reset: new Set(["outcome"]),
+};
+
+const evidenceMetadataValuesByType: Record<EvidenceEventType, Record<string, Set<string>>> = {
+  consent_granted: {
+    version: new Set(["terms-2026-06-04"]),
+  },
+  consent_reprompted: {
+    version: new Set(["terms-2026-06-04"]),
+  },
+  mdi_handoff_submitted: {
+    status: new Set(["submitted"]),
+  },
+  mdi_handoff_failed: {
+    status: new Set(["failed"]),
+    reason_code: new Set(["MDI_UNAVAILABLE", "MDI_TIMEOUT", "MDI_VALIDATION_FAILED"]),
+  },
+  mdi_status_updated: {
+    status: new Set(["clinical_review", "completed", "declined", "cancelled"]),
+  },
+  stripe_payment_method_collected: {
+    status: new Set(["payment_method_collected"]),
+  },
+  stripe_billing_activated: {
+    status: new Set(["active"]),
+  },
+  stripe_billing_status_changed: {
+    status: new Set(["payment_method_pending", "payment_method_collected", "active", "past_due", "canceled"]),
+    previous_status: new Set(["not_started", "payment_method_pending", "payment_method_collected", "active", "past_due", "canceled"]),
+  },
+  webhook_claimed: {
+    outcome: new Set(["claimed", "already_processing", "already_processed", "failed_retryable", "conflict"]),
+  },
+  webhook_processed: {
+    outcome: new Set(["processed", "skipped_duplicate"]),
+  },
+  webhook_failed: {
+    reason_code: new Set(["SIGNATURE_INVALID", "HANDLER_FAILED", "RETRYABLE_FAILURE", "TERMINAL_FAILURE"]),
+  },
+  webhook_side_effect_applied: {
+    side_effect: new Set([
+      "billing_status_update",
+      "mdi_status_update",
+      "consent_status_update",
+      "webhook_idempotency_update",
+    ]),
+  },
+  support_action_recorded: {
+    action_code: new Set(["case_lookup", "status_review", "consent_export"]),
+  },
+  admin_action_recorded: {
+    action_code: new Set(["status_override", "linkage_review", "safe_replay"]),
+  },
+  auth_sign_in: {
+    outcome: new Set(["succeeded", "failed"]),
+  },
+  auth_sign_up: {
+    outcome: new Set(["succeeded", "failed"]),
+  },
+  auth_mfa_changed: {
+    outcome: new Set(["enabled", "disabled"]),
+  },
+  auth_password_reset: {
+    outcome: new Set(["requested", "completed"]),
+  },
+};
+
+const evidenceActorTypes = new Set<EvidenceActorType>([
+  "patient",
+  "system",
+  "admin",
+  "vendor",
+  "cognito",
+]);
+
+const evidenceEventStatuses = new Set<EvidenceEventStatus>([
+  "recorded",
+  "succeeded",
+  "failed",
+  "skipped",
+]);
+
+const evidenceSources = new Set([
+  "app",
+  "mdi",
+  "stripe",
+  "webhook",
+  "support",
+  "admin",
+  "cognito",
+]);
+
+const evidenceEventIdPatterns = [
+  /^consent:terms-\d{4}-\d{2}-\d{2}$/,
+  /^mdi:handoff:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
+  /^mdi:handoff:failed:(?:req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*|mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*)$/,
+  /^mdi:status:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:clinical_review|completed|declined|cancelled)$/,
+  /^stripe:payment-method:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:collected$/,
+  /^stripe:billing:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:payment_method_pending|payment_method_collected|active|past_due|canceled)$/,
+  /^webhook:(?:stripe|mdi):(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:[A-Z][A-Z0-9_]{1,79}(?::[a-z][a-z0-9_]{0,39})?$/,
+  /^support:case-review:\d{3,12}$/,
+  /^admin:action:\d{3,12}$/,
+  /^auth:(?:sign-in|sign-up|mfa-changed|password-reset):req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
+];
+
+const unsafeEvidenceMetadataKeys = [
+  /answer/,
+  /questionnaire/,
+  /symptom/,
+  /diagnosis/,
+  /medication/,
+  /clinical/,
+  /payload/,
+  /body/,
+  /message/,
+  /file/,
+  /content/,
+  /note/,
+  /email/,
+  /(^|_)name($|_)/,
+  /(^|_)ip($|_)/,
+  /ip_address/,
+  /raw_ip/,
+  /user_agent/,
+  /useragent/,
+];
+
+const unsafeEvidenceValuePatterns = [
+  /\b(symptom|diagnosis|medication|clinical|questionnaire|answer)\b/i,
+  /\b(chest[_-]?pain|shortness[_-]?of[_-]?breath|pregnan|allerg|dosage|prescription|diabetes|lab[_-]?a1c|weight|hiv|opioid|substance|addiction|mental[_-]?health|depression|anxiety|ozempic|wegovy|mounjaro|zepbound|semaglutide|tirzepatide)\b/i,
+  /(?:^|[:._-])(hiv|opioid|substance|addiction|depression|anxiety|ozempic|wegovy|mounjaro|zepbound|semaglutide|tirzepatide)(?:$|[:._-])/i,
+  /\s/,
+];
+
+const unsafeOpaqueIdentifierPatterns = [
+  /\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?/,
+  /(?:^|[^A-Za-z0-9])(?:[0-9a-f]{0,4}:){2,}[0-9a-f]{0,4}(?:$|[^A-Za-z0-9])/i,
+  /\[[0-9a-f:]+\](?::\d+)?/i,
+  /^[^@\s]+@[^@\s]+\.[^@\s]+$/,
+  /sk_(?:live|test)_/i,
+  /rk_(?:live|test)_/i,
+  /whsec_/i,
+  /AKIA[0-9A-Z]{16}/,
+  /-----BEGIN/i,
+  /bearer[:_-]/i,
+];
 
 const forbiddenClinicalFields = new Set([
   "answers",
@@ -1122,6 +2176,33 @@ const allowedFields: Record<string, Set<string>> = {
     "status",
     "retryable",
     "attempts",
+  ),
+  evidenceEvent: allow(
+    "cognitoSub",
+    "eventId",
+    "eventType",
+    "eventCategory",
+    "occurredAt",
+    "recordedAt",
+    "actorType",
+    "status",
+    "summaryCode",
+    "mdiPatientId",
+    "mdiCaseId",
+    "stripeCustomerId",
+    "stripeSubscriptionId",
+    "webhookProvider",
+    "webhookEventId",
+    "requestId",
+    "adminActorId",
+    "source",
+    "metadata",
+  ),
+  evidenceEventUniqueness: allow(
+    "cognitoSub",
+    "eventId",
+    "evidencePk",
+    "evidenceSk",
   ),
   operationalStatus: allow("name", "status"),
 };

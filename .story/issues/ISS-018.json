@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-018",
+  "impact": "OccurredAt-ordered keyset pagination may miss late-arriving older occurredAt records under concurrent writes; document refresh/read consistency posture.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[concurrency] OccurredAt-ordered keyset pagination may miss late-arriving older occurredAt rec"
+}
