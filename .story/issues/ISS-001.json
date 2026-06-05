@@ -1,0 +1,22 @@
+{
+  "components": [
+    "dependencies",
+    "security"
+  ],
+  "discoveredDate": "2026-06-04",
+  "id": "ISS-001",
+  "impact": "npm audit --omit=dev reports GHSA-qx2v-qp2m-jg93 through next/node_modules/postcss for the current Next 16 dependency range. The npm suggested audit fix --force would install an inappropriate breaking Next version, so this needs a deliberate Next/PostCSS remediation path rather than an automatic audit fix.",
+  "location": [
+    "package.json",
+    "package-lock.json"
+  ],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-017"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "Production npm audit flags Next bundled PostCSS advisory"
+}
