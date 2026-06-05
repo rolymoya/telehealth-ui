@@ -1,0 +1,23 @@
+{
+  "components": [
+    "infra",
+    "secrets",
+    "maintainability"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-007",
+  "impact": "The infra stack imports the pure secret contract from src/lib. It works today because the module is type/pure-data only, but it couples CDK synthesis to the app source tree and could accidentally pull app-only dependencies into infra builds if the contract grows. Consider moving shared infra/app contracts to a neutral package or shared directory.",
+  "location": [
+    "infra/src/serverless-platform-stack.ts",
+    "src/lib/secrets/contracts.ts"
+  ],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-041"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "CDK imports secret contract from app source tree"
+}

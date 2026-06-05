@@ -2,13 +2,14 @@
   "blockedBy": [
     "T-039"
   ],
-  "completedDate": null,
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-05",
   "createdDate": "2026-05-19",
   "description": "Manage external credentials and environment-specific configuration without leaking secrets or mixing staging/prod data.\n\n**Scope**\n- Store Cognito, MDI, Stripe, webhook, and app secrets in AWS Secrets Manager or the chosen hosting secret store.\n- Add environment sentinels for secrets that can be accidentally copied across environments.\n- Document rotation expectations for MDI client credentials, Stripe webhook signing secrets, and app-level signing material.\n- Ensure logs and test fixtures never print secret values.\n\n**Acceptance**\n- App startup fails clearly if a required secret is missing or tagged for the wrong environment.\n- Secret names and rotation runbook are documented.\n- Test fixtures use fake values and do not resemble production credentials.",
   "id": "T-041",
   "order": 50,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "complete",
   "title": "Secrets Manager + environment isolation",
   "type": "task"
 }

@@ -72,7 +72,95 @@ The stack outputs identifiers needed by app configuration:
 - DynamoDB table name.
 - API endpoint.
 - Webhook queue and DLQ URLs/ARNs.
-- MDI and Stripe secret ARNs.
+- MDI, Stripe, and app signing secret ARNs.
 
 Do not paste secret values into docs, GitHub Actions variables, or logs. Store
 real credentials in Secrets Manager only.
+
+## Secrets Manager
+
+Secrets are stage-scoped and must stay under `/apoth/{stage}/...`. Each payload
+contains a non-secret `apothStage` sentinel, `secretKind`, and
+`schemaVersion: 1`; app startup must reject secrets whose sentinel does not
+match the active stage. CDK creates the secret containers and metadata only; it
+must not manage live secret values because stack updates could overwrite
+manually populated credentials. Populate values in AWS with the JSON shapes
+below before enabling routes or jobs that depend on them.
+
+| Secret | Kind | Required fields | Rotation |
+| --- | --- | --- | --- |
+| `/apoth/{stage}/mdi/api` | `mdiApi` | `clientId`, `clientSecret`, `apiBaseUrl` | Engineering plus MDI account owner; at least every 180 days or sooner if MDI requires it |
+| `/apoth/{stage}/stripe/api` | `stripeApi` | `secretKey`, `webhookSigningSecret` | Engineering plus Stripe admin; API keys at least every 180 days, webhook secrets after endpoint changes or exposure |
+| `/apoth/{stage}/app/signing` | `appSigning` | `signingSecret` | Engineering; at least annually and after suspected exposure |
+
+Example payloads:
+
+```json
+{
+  "apothStage": "staging",
+  "secretKind": "mdiApi",
+  "schemaVersion": 1,
+  "clientId": "<mdi-client-id>",
+  "clientSecret": "<mdi-client-secret>",
+  "apiBaseUrl": "https://api.vendor.example"
+}
+```
+
+```json
+{
+  "apothStage": "staging",
+  "secretKind": "stripeApi",
+  "schemaVersion": 1,
+  "secretKey": "<stripe-secret-key>",
+  "webhookSigningSecret": "<stripe-webhook-signing-secret>"
+}
+```
+
+```json
+{
+  "apothStage": "staging",
+  "secretKind": "appSigning",
+  "schemaVersion": 1,
+  "signingSecret": "<random-application-signing-secret>"
+}
+```
+
+Server startup validates public environment variables on every render process.
+Production runtime processes must set `APOTH_STAGE=production`. In production,
+or when `APOTH_REQUIRE_SERVER_SECRETS=true`, startup also requires all three
+secret payloads to be present and valid. Next production builds still require
+the stage sentinel but do not require live secret payloads during prerendering.
+Until a dedicated AWS Secrets Manager runtime client is added, hosting must
+provide the secret payloads through the server-only environment bindings
+`APOTH_SECRET_MDI_API_JSON`, `APOTH_SECRET_STRIPE_API_JSON`, and
+`APOTH_SECRET_APP_SIGNING_JSON`. `APOTH_REQUIRED_SERVER_SECRETS` can narrow the
+required comma-separated set for a specific server process, for example
+`stripeApi,appSigning`. `APOTH_REQUIRE_SERVER_SECRETS` accepts only `true` or
+`false` when set.
+
+Public Cognito and client configuration, including user pool IDs, app client
+IDs, hosted domains, and public app URLs, is not secret material and should stay
+in stack outputs or client-safe config. Do not place those values in Secrets
+Manager unless a future integration introduces actual confidential client
+material.
+
+### Rotation Steps
+
+1. Create replacement credentials in the vendor console or trusted internal
+   key-generation process.
+2. Update only the affected stage secret in AWS Secrets Manager.
+3. Deploy or restart the consumers that cache the secret.
+4. Run a stage-appropriate smoke test against the new credential.
+5. Revoke the old credential after the maximum overlap window has passed.
+
+For Stripe webhook signing secrets and app signing material, prefer a
+current/previous validation window when vendor or protocol behavior allows
+in-flight callbacks or tokens. For MDI credentials, coordinate a maintenance
+window if MDI cannot support parallel credentials.
+
+If startup reports a wrong-stage sentinel, stop the deploy or rollback the
+release. Do not edit logs to include secret values while diagnosing; inspect the
+secret metadata, name, and `apothStage` sentinel in AWS instead.
+
+Local tests may use `fake_` placeholders from the shared secret contract, but
+runtime validation rejects those placeholder values.

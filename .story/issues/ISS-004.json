@@ -1,0 +1,23 @@
+{
+  "components": [
+    "workers",
+    "logging",
+    "security"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-004",
+  "impact": "Untracked legacy worker artifact `workers/dist/consumer.js` logs the first 200 characters of malformed queue bodies, which could expose PHI, identifiers, or secret material if the stale worker is reused before T-080 removes superseded artifacts.",
+  "location": [
+    "workers/dist/consumer.js"
+  ],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-041",
+    "T-080"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "Superseded worker artifact logs raw malformed queue bodies"
+}

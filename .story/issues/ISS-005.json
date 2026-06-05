@@ -1,0 +1,23 @@
+{
+  "components": [
+    "secrets",
+    "aws",
+    "runtime"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-005",
+  "impact": "Runtime validation currently reads full MDI, Stripe, and app-signing payloads from server-only JSON environment variables. That is an interim bridge until a runtime AWS Secrets Manager client can fetch values by secret identifier with least-privilege IAM, avoiding duplicated live credentials in hosting env configuration.",
+  "location": [
+    "src/lib/secrets/startup.ts",
+    "docs/runbooks/serverless-iac.md"
+  ],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-041"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "Runtime secret loading still uses interim JSON env bindings"
+}

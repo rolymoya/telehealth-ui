@@ -34,8 +34,14 @@ import {
 import { Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
 import { LogGroup } from "aws-cdk-lib/aws-logs";
 import { Queue, QueueEncryption } from "aws-cdk-lib/aws-sqs";
-import { Secret } from "aws-cdk-lib/aws-secretsmanager";
+import { CfnSecret } from "aws-cdk-lib/aws-secretsmanager";
 import type { Construct } from "constructs";
+import {
+  secretContracts,
+  secretName,
+  secretPurposeTag,
+  type SecretKind,
+} from "../../src/lib/secrets/contracts";
 import type { StageConfig } from "./config";
 
 export type ServerlessPlatformStackProps = StackProps & {
@@ -96,17 +102,11 @@ export class ServerlessPlatformStack extends Stack {
       removalPolicy: props.config.removalPolicy,
     });
 
-    const mdiSecret = new Secret(this, "MdiApiSecret", {
-      secretName: `/apoth/${props.config.stage}/mdi/api`,
-      description: "MDI API credentials. Populate the real value in AWS only.",
-      removalPolicy: props.config.removalPolicy,
-    });
-
-    const stripeSecret = new Secret(this, "StripeSecret", {
-      secretName: `/apoth/${props.config.stage}/stripe/api`,
-      description: "Stripe API and webhook credentials. Populate the real value in AWS only.",
-      removalPolicy: props.config.removalPolicy,
-    });
+    const secrets = {
+      mdiApi: this.createStageSecret("MdiApiSecret", props.config, "mdiApi"),
+      stripeApi: this.createStageSecret("StripeSecret", props.config, "stripeApi"),
+      appSigning: this.createStageSecret("AppSigningSecret", props.config, "appSigning"),
+    };
 
     const webhookDlq = new Queue(this, "WebhookDeadLetterQueue", {
       queueName: `apoth-${props.config.stage}-webhook-dlq`,
@@ -253,7 +253,36 @@ exports.handler = async () => ({
     new CfnOutput(this, "WebhookDeadLetterQueueArn", {
       value: webhookDlq.queueArn,
     });
-    new CfnOutput(this, "MdiApiSecretArn", { value: mdiSecret.secretArn });
-    new CfnOutput(this, "StripeSecretArn", { value: stripeSecret.secretArn });
+    new CfnOutput(this, "MdiApiSecretArn", { value: secrets.mdiApi.attrId });
+    new CfnOutput(this, "StripeSecretArn", { value: secrets.stripeApi.attrId });
+    new CfnOutput(this, "AppSigningSecretArn", {
+      value: secrets.appSigning.attrId,
+    });
+  }
+
+  private createStageSecret(
+    id: string,
+    config: StageConfig,
+    kind: SecretKind,
+  ) {
+    const secret = new CfnSecret(this, id, {
+      name: secretName(config.stage, kind),
+      description: `${secretContracts[kind].purpose}. Populate the real value in AWS only.`,
+    });
+    const priorLogicalId = priorSecretLogicalIds[kind];
+    if (priorLogicalId) {
+      secret.overrideLogicalId(priorLogicalId);
+    }
+    secret.applyRemovalPolicy(config.removalPolicy);
+
+    Tags.of(secret).add("apoth:secret-purpose", secretPurposeTag(kind));
+    Tags.of(secret).add("apoth:secret-kind", kind);
+
+    return secret;
   }
 }
+
+const priorSecretLogicalIds: Partial<Record<SecretKind, string>> = {
+  mdiApi: "MdiApiSecretAC9EE82C",
+  stripeApi: "StripeSecret80A38A68",
+};

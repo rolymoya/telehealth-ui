@@ -25,7 +25,7 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Cognito::UserPool", 1);
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
     template.resourceCountIs("AWS::DynamoDB::Table", 1);
-    template.resourceCountIs("AWS::SecretsManager::Secret", 2);
+    template.resourceCountIs("AWS::SecretsManager::Secret", 3);
     template.resourceCountIs("AWS::Lambda::Function", 2);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
@@ -124,6 +124,35 @@ describe("ServerlessPlatformStack", () => {
     }
   });
 
+  it("creates stage-isolated Secrets Manager entries", () => {
+    const template = synthesizeTemplate();
+
+    for (const secret of expectedStagingSecrets) {
+      template.hasResourceProperties("AWS::SecretsManager::Secret", {
+        Name: secret.name,
+        Description: Match.stringLikeRegexp(secret.purpose),
+        SecretString: Match.absent(),
+        Tags: Match.arrayWith([
+          { Key: "apoth:secret-kind", Value: secret.kind },
+          { Key: "apoth:secret-purpose", Value: secret.purpose },
+          { Key: "apoth:stage", Value: "staging" },
+        ]),
+      });
+    }
+  });
+
+  it("does not synthesize managed secret values", () => {
+    const template = synthesizeTemplate();
+    const rendered = JSON.stringify(template.toJSON());
+
+    expect(rendered).not.toContain("SecretString");
+    expect(rendered).not.toContain("fake_stripe_secret_key");
+    expect(rendered).not.toContain("fake_mdi_client_secret");
+    expect(rendered).not.toContain(secretTokenPrefix("sk", "live"));
+    expect(rendered).not.toContain(["whsec", ""].join("_"));
+    expect(rendered).not.toContain(secretTokenPrefix("pk", "live"));
+  });
+
   it("omits superseded launch infrastructure", () => {
     const template = synthesizeTemplate();
 
@@ -157,9 +186,40 @@ describe("ServerlessPlatformStack", () => {
       "WebhookDeadLetterQueueArn",
       "MdiApiSecretArn",
       "StripeSecretArn",
+      "AppSigningSecretArn",
     ]) {
       template.hasOutput(outputName, {});
     }
+  });
+
+  it("points secret outputs at the expected secret resources", () => {
+    const templateJson = synthesizeTemplate().toJSON();
+    const resources = templateJson.Resources as Record<string, SynthResource>;
+    expect(resources.MdiApiSecretAC9EE82C.Properties.Name).toBe(
+      "/apoth/staging/mdi/api",
+    );
+    expect(resources.StripeSecret80A38A68.Properties.Name).toBe(
+      "/apoth/staging/stripe/api",
+    );
+
+    const secretLogicalIds = Object.entries(resources)
+      .filter(([, resource]) => resource.Type === "AWS::SecretsManager::Secret")
+      .reduce<Record<string, string>>((accumulator, [logicalId, resource]) => {
+        if (resource.Properties.Name) {
+          accumulator[resource.Properties.Name] = logicalId;
+        }
+        return accumulator;
+      }, {});
+
+    expect(templateJson.Outputs.MdiApiSecretArn.Value).toEqual({
+      "Fn::GetAtt": ["MdiApiSecretAC9EE82C", "Id"],
+    });
+    expect(templateJson.Outputs.StripeSecretArn.Value).toEqual({
+      "Fn::GetAtt": ["StripeSecret80A38A68", "Id"],
+    });
+    expect(templateJson.Outputs.AppSigningSecretArn.Value).toEqual({
+      "Fn::GetAtt": [secretLogicalIds["/apoth/staging/app/signing"], "Id"],
+    });
   });
 
   it("uses retain-oriented defaults for production stateful resources", () => {
@@ -244,3 +304,32 @@ describe("ServerlessPlatformStack", () => {
     });
   });
 });
+
+type SynthResource = {
+  Type: string;
+  Properties: {
+    Name?: string;
+  };
+};
+
+const expectedStagingSecrets = [
+  {
+    name: "/apoth/staging/mdi/api",
+    kind: "mdiApi",
+    purpose: "MDI API client credentials",
+  },
+  {
+    name: "/apoth/staging/stripe/api",
+    kind: "stripeApi",
+    purpose: "Stripe API key and webhook signing secret",
+  },
+  {
+    name: "/apoth/staging/app/signing",
+    kind: "appSigning",
+    purpose: "Application-level signing material",
+  },
+] as const;
+
+function secretTokenPrefix(prefix: "pk" | "sk", mode: "live") {
+  return [prefix, mode, ""].join("_");
+}

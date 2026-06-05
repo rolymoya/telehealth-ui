@@ -1,0 +1,24 @@
+{
+  "components": [
+    "secrets",
+    "stripe",
+    "runtime"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-006",
+  "impact": "The Stripe webhook and app signing contracts currently model one active secret. Future consumers may need a current/previous validation window during Stripe webhook secret rotation, app signing material rotation, and rolling deploys so in-flight callbacks or tokens remain verifiable until their overlap expires.",
+  "location": [
+    "src/lib/secrets/contracts.ts",
+    "src/lib/secrets/index.ts",
+    "docs/runbooks/serverless-iac.md"
+  ],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-041"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "Signing secret contracts need current/previous rotation window"
+}

@@ -1,0 +1,23 @@
+{
+  "components": [
+    "startup",
+    "accessibility",
+    "secrets"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-008",
+  "impact": "The root layout currently runs startup secret validation, so a missing required runtime secret can block public/static/legal pages as well as secret-dependent workflows. This matches the current startup-fail acceptance, but future route handlers or runtime clients may need route-scoped validation or an accessible maintenance/error boundary to keep unaffected public pages available.",
+  "location": [
+    "src/app/layout.tsx",
+    "src/lib/secrets/startup.ts"
+  ],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-041"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "Root startup secret gate can block public pages"
+}
