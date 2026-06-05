@@ -2,13 +2,14 @@
   "blockedBy": [
     "T-039"
   ],
-  "completedDate": null,
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-05",
   "createdDate": "2026-05-19",
   "description": "Create a launch-appropriate observability baseline without Datadog or a heavy OTEL stack.\n\n**Scope**\n- Use CloudWatch logs, metrics, dashboards, and alarms for API errors, webhook signature failures, DLQ depth, MDI failures, Stripe webhook lag, and onboarding failure rates.\n- Define PHI-safe structured logging rules and redaction helpers.\n- Keep retention short by default unless legal/compliance requires longer evidence retention for a specific log group.\n- Do not add Datadog, Metabase, external analytics, or PHI-bearing logs without BAA/compliance approval.\n\n**Acceptance**\n- Core alarms exist for webhook failure, DLQ depth, MDI outage/error rate, and Stripe signature failures.\n- A redaction test proves questionnaire answers, condition-specific health context, and Stripe secrets do not appear in logs.\n- Runbook explains where to look during a launch incident.",
   "id": "T-042",
   "order": 60,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "complete",
   "title": "CloudWatch observability + PHI-safe logging baseline",
   "type": "task"
 }

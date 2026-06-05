@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-011",
+  "impact": "Dashboard assertions check titles and metric-name substrings but not full namespace/dimension/statistic wiring per widget.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[test-quality] Dashboard assertions check titles and metric-name substrings but not full namesp"
+}

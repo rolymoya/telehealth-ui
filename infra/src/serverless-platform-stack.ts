@@ -29,7 +29,12 @@ import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations
 import {
   Alarm,
   ComparisonOperator,
+  Dashboard,
+  GraphWidget,
+  Metric,
+  SingleValueWidget,
   TreatMissingData,
+  Unit,
 } from "aws-cdk-lib/aws-cloudwatch";
 import { Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
 import { LogGroup } from "aws-cdk-lib/aws-logs";
@@ -165,11 +170,17 @@ exports.handler = async () => ({
 `),
     });
 
+    const webhookDlqVisibleMetric = webhookDlq.metricApproximateNumberOfMessagesVisible({
+      period: Duration.minutes(5),
+    });
+    const webhookOldestMessageAgeMetric = webhookQueue.metricApproximateAgeOfOldestMessage({
+      period: Duration.minutes(5),
+    });
+
     new Alarm(this, "WebhookDlqMessagesAlarm", {
       alarmName: `apoth-${props.config.stage}-webhook-dlq-visible-messages`,
-      metric: webhookDlq.metricApproximateNumberOfMessagesVisible({
-        period: Duration.minutes(5),
-      }),
+      alarmDescription: "Active alarm: webhook DLQ contains messages that need triage before replay.",
+      metric: webhookDlqVisibleMetric,
       threshold: 0,
       evaluationPeriods: 1,
       datapointsToAlarm: 1,
@@ -179,13 +190,12 @@ exports.handler = async () => ({
 
     new Alarm(this, "WebhookQueueOldestMessageAgeAlarm", {
       alarmName: `apoth-${props.config.stage}-webhook-oldest-message-age`,
-      metric: webhookQueue.metricApproximateAgeOfOldestMessage({
-        period: Duration.minutes(5),
-      }),
+      alarmDescription: "Active alarm: webhook processing queue is falling behind.",
+      metric: webhookOldestMessageAgeMetric,
       threshold: Duration.minutes(15).toSeconds(),
       evaluationPeriods: 1,
       datapointsToAlarm: 1,
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       treatMissingData: TreatMissingData.NOT_BREACHING,
     });
 
@@ -206,13 +216,52 @@ exports.handler = async () => ({
       },
     });
 
-    api.addStage("DefaultStage", {
+    const apiStage = api.addStage("DefaultStage", {
       stageName: "$default",
       autoDeploy: true,
       accessLogSettings: {
         destination: new LogGroupLogDestination(apiAccessLogGroup),
-        format: AccessLogFormat.jsonWithStandardFields(),
+        format: AccessLogFormat.custom(
+          JSON.stringify({
+            requestId: "$context.requestId",
+            routeKey: "$context.routeKey",
+            status: "$context.status",
+            integrationStatus: "$context.integrationStatus",
+            responseLength: "$context.responseLength",
+          }),
+        ),
       },
+    });
+
+    const apiServerErrorMetric = apiStage.metricServerError({
+      period: Duration.minutes(5),
+      statistic: "Sum",
+    });
+    const apiClientErrorMetric = apiStage.metricClientError({
+      period: Duration.minutes(5),
+      statistic: "Sum",
+    });
+
+    new Alarm(this, "ApiServerErrorsAlarm", {
+      alarmName: `apoth-${props.config.stage}-api-5xx-errors`,
+      alarmDescription: "Active alarm: API Gateway returned elevated 5xx responses.",
+      metric: apiServerErrorMetric,
+      threshold: 5,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    });
+
+    new Alarm(this, "ApiClientErrorsAlarm", {
+      alarmName: `apoth-${props.config.stage}-api-4xx-errors`,
+      alarmDescription: "Active alarm: API Gateway returned elevated 4xx responses.",
+      metric: apiClientErrorMetric,
+      threshold: 50,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
     });
 
     const jwtAuthorizer = new HttpJwtAuthorizer(
@@ -228,6 +277,16 @@ exports.handler = async () => ({
       methods: [HttpMethod.GET],
       integration: new HttpLambdaIntegration("HealthIntegration", healthFunction),
     });
+
+    const dashboard = this.createLaunchObservability(
+      props.config.stage,
+      {
+        apiClientError: apiClientErrorMetric,
+        apiServerError: apiServerErrorMetric,
+        webhookDlqVisible: webhookDlqVisibleMetric,
+        webhookOldestMessageAge: webhookOldestMessageAgeMetric,
+      },
+    );
 
     api.addRoutes({
       path: "/app/bootstrap",
@@ -258,6 +317,68 @@ exports.handler = async () => ({
     new CfnOutput(this, "AppSigningSecretArn", {
       value: secrets.appSigning.attrId,
     });
+    new CfnOutput(this, "ObservabilityDashboardName", {
+      value: dashboard.dashboardName,
+    });
+  }
+
+  private createLaunchObservability(
+    stage: StageConfig["stage"],
+    activeMetrics: ActiveObservabilityMetrics,
+  ) {
+    const customMetrics = createObservabilityMetricContracts(stage);
+    for (const contract of customMetrics) {
+      new Alarm(this, contract.id, {
+        alarmName: contract.alarmName,
+        alarmDescription: `${contract.status} alarm: ${contract.description}`,
+        metric: contract.metric,
+        threshold: contract.threshold,
+        evaluationPeriods: 1,
+        datapointsToAlarm: 1,
+        comparisonOperator: contract.comparisonOperator,
+        treatMissingData: contract.treatMissingData,
+      });
+    }
+
+    const dashboard = new Dashboard(this, "LaunchObservabilityDashboard", {
+      dashboardName: `apoth-${stage}-launch-observability`,
+    });
+    dashboard.addWidgets(
+      new GraphWidget({
+        title: "API errors",
+        left: [activeMetrics.apiServerError, activeMetrics.apiClientError],
+      }),
+      new GraphWidget({
+        title: "Webhook queue health",
+        left: [
+          activeMetrics.webhookDlqVisible,
+          activeMetrics.webhookOldestMessageAge,
+        ],
+      }),
+      new GraphWidget({
+        title: "Stripe webhook failures and lag",
+        left: [
+          customMetricsByName(customMetrics, "StripeSignatureFailures").metric,
+          customMetricsByName(customMetrics, "StripeWebhookLagSeconds").metric,
+        ],
+      }),
+    );
+    dashboard.addWidgets(
+      new SingleValueWidget({
+        title: "MDI failures",
+        metrics: [customMetricsByName(customMetrics, "MdiOutboundFailures").metric],
+      }),
+      new SingleValueWidget({
+        title: "Onboarding failures",
+        metrics: [customMetricsByName(customMetrics, "OnboardingFailures").metric],
+      }),
+      new SingleValueWidget({
+        title: "Webhook processing failures",
+        metrics: [customMetricsByName(customMetrics, "WebhookProcessingFailures").metric],
+      }),
+    );
+
+    return dashboard;
   }
 
   private createStageSecret(
@@ -286,3 +407,175 @@ const priorSecretLogicalIds: Partial<Record<SecretKind, string>> = {
   mdiApi: "MdiApiSecretAC9EE82C",
   stripeApi: "StripeSecret80A38A68",
 };
+
+type ObservabilityMetricContract = {
+  id: string;
+  metricName: string;
+  alarmName: string;
+  description: string;
+  threshold: number;
+  comparisonOperator: ComparisonOperator;
+  status: "Contract-only" | "Active";
+  treatMissingData: TreatMissingData;
+  metric: Metric;
+};
+
+type ActiveObservabilityMetrics = {
+  apiClientError: Metric;
+  apiServerError: Metric;
+  webhookDlqVisible: Metric;
+  webhookOldestMessageAge: Metric;
+};
+
+const observabilityNamespace = "Apoth/Application";
+
+const observabilityDimensions = {
+  Stage: "",
+  Provider: "",
+  Outcome: "",
+  ReasonCode: "",
+  RouteGroup: "",
+} satisfies Record<string, string>;
+
+function createObservabilityMetricContracts(
+  stage: StageConfig["stage"],
+): ObservabilityMetricContract[] {
+  const baseDimensions = {
+    ...observabilityDimensions,
+    Stage: stage,
+  };
+
+  return [
+    {
+      id: "StripeSignatureFailuresAlarm",
+      metricName: "StripeSignatureFailures",
+      alarmName: `apoth-${stage}-stripe-signature-failures`,
+      description: "Stripe webhook signature verification failures. Emitter owner: T-045.",
+      threshold: 0,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      status: "Contract-only",
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+      metric: new Metric({
+        namespace: observabilityNamespace,
+        metricName: "StripeSignatureFailures",
+        dimensionsMap: {
+          ...baseDimensions,
+          Provider: "stripe",
+          Outcome: "rejected",
+          ReasonCode: "signature_failed",
+          RouteGroup: "webhook",
+        },
+        unit: Unit.COUNT,
+        statistic: "Sum",
+        period: Duration.minutes(5),
+      }),
+    },
+    {
+      id: "WebhookProcessingFailuresAlarm",
+      metricName: "WebhookProcessingFailures",
+      alarmName: `apoth-${stage}-webhook-processing-failures`,
+      description: "Webhook handler processing failures. Emitter owner: T-045.",
+      threshold: 0,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      status: "Contract-only",
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+      metric: new Metric({
+        namespace: observabilityNamespace,
+        metricName: "WebhookProcessingFailures",
+        dimensionsMap: {
+          ...baseDimensions,
+          Provider: "apoth",
+          Outcome: "failure",
+          ReasonCode: "processing_failed",
+          RouteGroup: "webhook",
+        },
+        unit: Unit.COUNT,
+        statistic: "Sum",
+        period: Duration.minutes(5),
+      }),
+    },
+    {
+      id: "MdiOutboundFailuresAlarm",
+      metricName: "MdiOutboundFailures",
+      alarmName: `apoth-${stage}-mdi-outbound-failures`,
+      description: "MDI outbound request failures or outage symptoms. Emitter owner: intake/dashboard MDI clients.",
+      threshold: 2,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      status: "Contract-only",
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+      metric: new Metric({
+        namespace: observabilityNamespace,
+        metricName: "MdiOutboundFailures",
+        dimensionsMap: {
+          ...baseDimensions,
+          Provider: "mdi",
+          Outcome: "failure",
+          ReasonCode: "provider_unavailable",
+          RouteGroup: "authenticated_api",
+        },
+        unit: Unit.COUNT,
+        statistic: "Sum",
+        period: Duration.minutes(5),
+      }),
+    },
+    {
+      id: "OnboardingFailuresAlarm",
+      metricName: "OnboardingFailures",
+      alarmName: `apoth-${stage}-onboarding-failures`,
+      description: "Patient onboarding failures. Emitter owner: intake/onboarding routes.",
+      threshold: 2,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      status: "Contract-only",
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+      metric: new Metric({
+        namespace: observabilityNamespace,
+        metricName: "OnboardingFailures",
+        dimensionsMap: {
+          ...baseDimensions,
+          Provider: "apoth",
+          Outcome: "failure",
+          ReasonCode: "validation_failed",
+          RouteGroup: "authenticated_api",
+        },
+        unit: Unit.COUNT,
+        statistic: "Sum",
+        period: Duration.minutes(5),
+      }),
+    },
+    {
+      id: "StripeWebhookLagAlarm",
+      metricName: "StripeWebhookLagSeconds",
+      alarmName: `apoth-${stage}-stripe-webhook-lag-seconds`,
+      description: "Stripe webhook age at processing time. Emitter owner: T-045.",
+      threshold: Duration.minutes(5).toSeconds(),
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      status: "Contract-only",
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+      metric: new Metric({
+        namespace: observabilityNamespace,
+        metricName: "StripeWebhookLagSeconds",
+        dimensionsMap: {
+          ...baseDimensions,
+          Provider: "stripe",
+          Outcome: "retry",
+          ReasonCode: "delayed",
+          RouteGroup: "webhook",
+        },
+        unit: Unit.SECONDS,
+        statistic: "Maximum",
+        period: Duration.minutes(5),
+      }),
+    },
+  ];
+}
+
+function customMetricsByName(
+  metrics: ObservabilityMetricContract[],
+  metricName: ObservabilityMetricContract["metricName"],
+) {
+  const contract = metrics.find((metric) => metric.metricName === metricName);
+  if (!contract) {
+    throw new Error(`Missing observability metric contract: ${metricName}`);
+  }
+  return contract;
+}

@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-013",
+  "impact": ".story/tickets/T-011.json unrelated state remains in working tree and will not be staged for T-042.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[scope/commit-hygiene] .story/tickets/T-011.json unrelated state remains in working tree and will not b"
+}

@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-010",
+  "impact": "String union types and runtime allowlist sets are duplicated.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": "Resolved in T-042 by deriving log union types from readonly const arrays and building runtime allowlist sets from the same arrays.",
+  "resolvedDate": "2026-06-05",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "[clean-code] String union types and runtime allowlist sets are duplicated."
+}

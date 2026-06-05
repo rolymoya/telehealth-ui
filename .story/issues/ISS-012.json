@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-012",
+  "impact": "infra/src/serverless-platform-stack.ts and src/lib/observability/logging.ts: custom observability metric names are repeated across infra contracts, logging allowlist, docs, and tests; shared cross-package contract cleanup is better handled as a follow-up rather than changing package boundaries in T-042.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[maintainability/drift-risk] infra/src/serverless-platform-stack.ts and src/lib/observability/logging.ts: cus"
+}

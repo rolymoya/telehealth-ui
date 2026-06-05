@@ -29,7 +29,8 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Lambda::Function", 2);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
-    template.resourceCountIs("AWS::CloudWatch::Alarm", 2);
+    template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
+    template.resourceCountIs("AWS::CloudWatch::Dashboard", 1);
     template.resourceCountIs("AWS::SQS::Queue", 2);
   });
 
@@ -81,26 +82,157 @@ describe("ServerlessPlatformStack", () => {
     });
   });
 
-  it("captures API access logs and webhook queue alarms", () => {
+  it("captures API access logs and launch observability alarms", () => {
     const template = synthesizeTemplate();
+    const templateJson = template.toJSON();
+    const resources = templateJson.Resources as Record<string, SynthResource>;
+    const stage = Object.values(resources).find(
+      (resource) => resource.Type === "AWS::ApiGatewayV2::Stage",
+    );
+    expect(stage?.Properties.AccessLogSettings).toBeDefined();
+    const accessLogSettings = stage?.Properties.AccessLogSettings as {
+      Format: string;
+    };
+    expect(accessLogSettings.Format).toBe(
+      JSON.stringify({
+        requestId: "$context.requestId",
+        routeKey: "$context.routeKey",
+        status: "$context.status",
+        integrationStatus: "$context.integrationStatus",
+        responseLength: "$context.responseLength",
+      }),
+    );
 
     template.hasResourceProperties("AWS::ApiGatewayV2::Stage", {
       StageName: "$default",
       AccessLogSettings: {
         DestinationArn: Match.anyValue(),
-        Format: Match.serializedJson(Match.objectLike({
-          requestId: Match.anyValue(),
-        })),
       },
     });
 
-    template.resourceCountIs("AWS::CloudWatch::Alarm", 2);
-    template.hasResourceProperties("AWS::CloudWatch::Alarm", {
-      AlarmName: "apoth-staging-webhook-dlq-visible-messages",
-    });
-    template.hasResourceProperties("AWS::CloudWatch::Alarm", {
-      AlarmName: "apoth-staging-webhook-oldest-message-age",
-    });
+    for (const alarmName of expectedAlarmNames) {
+      template.hasResourceProperties("AWS::CloudWatch::Alarm", {
+        AlarmName: alarmName,
+        TreatMissingData: "notBreaching",
+      });
+    }
+    const alarms = Object.values(resources).filter(
+      (resource) => resource.Type === "AWS::CloudWatch::Alarm",
+    );
+    for (const alarm of alarms) {
+      expect(alarm.Properties.AlarmActions).toBeUndefined();
+      expect(alarm.Properties.OKActions).toBeUndefined();
+      expect(alarm.Properties.InsufficientDataActions).toBeUndefined();
+      expect(alarm.Properties.ActionsEnabled).not.toBe(true);
+    }
+    for (const contract of expectedActiveAlarmContracts) {
+      template.hasResourceProperties("AWS::CloudWatch::Alarm", contract);
+    }
+
+    const accessLogFormat = accessLogSettings.Format;
+    for (const forbidden of accessLogForbiddenFragments) {
+      expect(accessLogFormat).not.toContain(forbidden);
+    }
+  });
+
+  it("keeps custom observability metric dimensions bounded and PHI-safe", () => {
+    const resources = synthesizeTemplate().toJSON().Resources as Record<
+      string,
+      SynthResource
+    >;
+    const customAlarms = Object.fromEntries(
+      Object.values(resources)
+        .filter(
+          (resource) =>
+            resource.Type === "AWS::CloudWatch::Alarm" &&
+            resource.Properties.Namespace === "Apoth/Application",
+        )
+        .map((resource) => [
+          resource.Properties.MetricName as ExpectedCustomMetricName,
+          resource,
+        ]),
+    ) as Record<ExpectedCustomMetricName, SynthResource>;
+
+    expect(Object.keys(customAlarms).sort()).toEqual(
+      [...expectedCustomMetricNames].sort(),
+    );
+    for (const contract of expectedCustomMetricContracts) {
+      const alarm = customAlarms[contract.metricName];
+      expect(alarm.Properties).toMatchObject({
+        MetricName: contract.metricName,
+        Namespace: "Apoth/Application",
+        Threshold: contract.threshold,
+        ComparisonOperator: contract.comparisonOperator,
+        EvaluationPeriods: 1,
+        DatapointsToAlarm: 1,
+        Period: 300,
+        Statistic: contract.statistic,
+        Unit: contract.unit,
+      });
+      expect(alarm.Properties.AlarmDescription).toMatch(/^Contract-only alarm:/);
+      const dimensions = (alarm.Properties.Dimensions ?? []) as Array<{
+        Name: string;
+        Value: string;
+      }>;
+      expect(Object.fromEntries(
+        dimensions.map((dimension) => [dimension.Name, dimension.Value]),
+      )).toEqual(contract.dimensions);
+      expect(dimensions.map((dimension) => dimension.Name).sort()).toEqual(
+        allowedCustomMetricDimensions,
+      );
+      for (const dimension of dimensions) {
+        expect(dimension.Value).not.toMatch(
+          /patient|cognito|mdi_(patient|case)|stripe_(customer|subscription)|evt_|condition|medication|diagnosis|symptom|request/i,
+        );
+      }
+    }
+  });
+
+  it("creates a launch observability dashboard", () => {
+    const templateJson = synthesizeTemplate().toJSON();
+    const resources = templateJson.Resources as Record<string, SynthResource>;
+    const dashboard = Object.values(resources).find(
+      (resource) => resource.Type === "AWS::CloudWatch::Dashboard",
+    );
+
+    expect(dashboard?.Properties.DashboardName).toBe(
+      "apoth-staging-launch-observability",
+    );
+    const renderedDashboard = JSON.stringify(dashboard?.Properties.DashboardBody);
+    for (const title of [
+      "API errors",
+      "Webhook queue health",
+      "Stripe webhook failures and lag",
+      "MDI failures",
+      "Onboarding failures",
+      "Webhook processing failures",
+    ]) {
+      expect(renderedDashboard).toContain(title);
+    }
+    for (const metricName of [
+      "4xx",
+      "5xx",
+      "ApproximateAgeOfOldestMessage",
+      "ApproximateNumberOfMessagesVisible",
+      ...expectedCustomMetricNames,
+    ]) {
+      expect(renderedDashboard).toContain(metricName);
+    }
+  });
+
+  it("uses stage log retention for API and Lambda log groups", () => {
+    const template = synthesizeTemplate();
+
+    for (const logGroupName of [
+      "/aws/lambda/apoth-staging-health",
+      "/aws/lambda/apoth-staging-authenticated-bootstrap",
+      "/aws/apigateway/apoth-staging-api-access",
+    ]) {
+      template.hasResourceProperties("AWS::Logs::LogGroup", {
+        LogGroupName: logGroupName,
+        RetentionInDays: 7,
+      });
+    }
   });
 
   it("does not grant data permissions to the bootstrap stub", () => {
@@ -187,6 +319,7 @@ describe("ServerlessPlatformStack", () => {
       "MdiApiSecretArn",
       "StripeSecretArn",
       "AppSigningSecretArn",
+      "ObservabilityDashboardName",
     ]) {
       template.hasOutput(outputName, {});
     }
@@ -308,9 +441,228 @@ describe("ServerlessPlatformStack", () => {
 type SynthResource = {
   Type: string;
   Properties: {
+    AccessLogSettings?: {
+      Format: string;
+    };
+    AlarmDescription?: string;
+    AlarmName?: string;
+    ActionsEnabled?: boolean;
+    AlarmActions?: unknown;
+    ComparisonOperator?: string;
+    DashboardBody?: unknown;
+    DashboardName?: string;
+    DatapointsToAlarm?: number;
+    Dimensions?: unknown;
+    EvaluationPeriods?: number;
+    InsufficientDataActions?: unknown;
+    MetricName?: string;
     Name?: string;
+    Namespace?: string;
+    OKActions?: unknown;
+    Period?: number;
+    Statistic?: string;
+    Threshold?: number;
+    TreatMissingData?: string;
   };
 };
+
+const expectedAlarmNames = [
+  "apoth-staging-webhook-dlq-visible-messages",
+  "apoth-staging-webhook-oldest-message-age",
+  "apoth-staging-api-5xx-errors",
+  "apoth-staging-api-4xx-errors",
+  "apoth-staging-stripe-signature-failures",
+  "apoth-staging-webhook-processing-failures",
+  "apoth-staging-mdi-outbound-failures",
+  "apoth-staging-onboarding-failures",
+  "apoth-staging-stripe-webhook-lag-seconds",
+] as const;
+
+const expectedCustomMetricNames = [
+  "StripeSignatureFailures",
+  "WebhookProcessingFailures",
+  "MdiOutboundFailures",
+  "OnboardingFailures",
+  "StripeWebhookLagSeconds",
+] as const;
+
+const expectedActiveAlarmContracts = [
+  {
+    AlarmName: "apoth-staging-webhook-dlq-visible-messages",
+    MetricName: "ApproximateNumberOfMessagesVisible",
+    Namespace: "AWS/SQS",
+    Threshold: 0,
+    ComparisonOperator: "GreaterThanThreshold",
+    EvaluationPeriods: 1,
+    DatapointsToAlarm: 1,
+    Period: 300,
+    Statistic: "Maximum",
+    TreatMissingData: "notBreaching",
+    Dimensions: Match.arrayWith([
+      {
+        Name: "QueueName",
+        Value: Match.anyValue(),
+      },
+    ]),
+  },
+  {
+    AlarmName: "apoth-staging-webhook-oldest-message-age",
+    MetricName: "ApproximateAgeOfOldestMessage",
+    Namespace: "AWS/SQS",
+    Threshold: 900,
+    ComparisonOperator: "GreaterThanOrEqualToThreshold",
+    EvaluationPeriods: 1,
+    DatapointsToAlarm: 1,
+    Period: 300,
+    Statistic: "Maximum",
+    TreatMissingData: "notBreaching",
+    Dimensions: Match.arrayWith([
+      {
+        Name: "QueueName",
+        Value: Match.anyValue(),
+      },
+    ]),
+  },
+  {
+    AlarmName: "apoth-staging-api-5xx-errors",
+    MetricName: "5xx",
+    Namespace: "AWS/ApiGateway",
+    Threshold: 5,
+    ComparisonOperator: "GreaterThanOrEqualToThreshold",
+    EvaluationPeriods: 1,
+    DatapointsToAlarm: 1,
+    Period: 300,
+    Statistic: "Sum",
+    TreatMissingData: "notBreaching",
+    Dimensions: Match.arrayWith([
+      { Name: "ApiId", Value: Match.anyValue() },
+      { Name: "Stage", Value: "$default" },
+    ]),
+  },
+  {
+    AlarmName: "apoth-staging-api-4xx-errors",
+    MetricName: "4xx",
+    Namespace: "AWS/ApiGateway",
+    Threshold: 50,
+    ComparisonOperator: "GreaterThanOrEqualToThreshold",
+    EvaluationPeriods: 1,
+    DatapointsToAlarm: 1,
+    Period: 300,
+    Statistic: "Sum",
+    TreatMissingData: "notBreaching",
+    Dimensions: Match.arrayWith([
+      { Name: "ApiId", Value: Match.anyValue() },
+      { Name: "Stage", Value: "$default" },
+    ]),
+  },
+] as const;
+
+const allowedCustomMetricDimensions = [
+  "Outcome",
+  "Provider",
+  "ReasonCode",
+  "RouteGroup",
+  "Stage",
+] as const;
+
+type ExpectedCustomMetricName = (typeof expectedCustomMetricNames)[number];
+
+const expectedCustomMetricContracts = [
+  {
+    metricName: "StripeSignatureFailures",
+    threshold: 0,
+    comparisonOperator: "GreaterThanThreshold",
+    statistic: "Sum",
+    unit: "Count",
+    dimensions: {
+      Outcome: "rejected",
+      Provider: "stripe",
+      ReasonCode: "signature_failed",
+      RouteGroup: "webhook",
+      Stage: "staging",
+    },
+  },
+  {
+    metricName: "WebhookProcessingFailures",
+    threshold: 0,
+    comparisonOperator: "GreaterThanThreshold",
+    statistic: "Sum",
+    unit: "Count",
+    dimensions: {
+      Outcome: "failure",
+      Provider: "apoth",
+      ReasonCode: "processing_failed",
+      RouteGroup: "webhook",
+      Stage: "staging",
+    },
+  },
+  {
+    metricName: "MdiOutboundFailures",
+    threshold: 2,
+    comparisonOperator: "GreaterThanOrEqualToThreshold",
+    statistic: "Sum",
+    unit: "Count",
+    dimensions: {
+      Outcome: "failure",
+      Provider: "mdi",
+      ReasonCode: "provider_unavailable",
+      RouteGroup: "authenticated_api",
+      Stage: "staging",
+    },
+  },
+  {
+    metricName: "OnboardingFailures",
+    threshold: 2,
+    comparisonOperator: "GreaterThanOrEqualToThreshold",
+    statistic: "Sum",
+    unit: "Count",
+    dimensions: {
+      Outcome: "failure",
+      Provider: "apoth",
+      ReasonCode: "validation_failed",
+      RouteGroup: "authenticated_api",
+      Stage: "staging",
+    },
+  },
+  {
+    metricName: "StripeWebhookLagSeconds",
+    threshold: 300,
+    comparisonOperator: "GreaterThanOrEqualToThreshold",
+    statistic: "Maximum",
+    unit: "Seconds",
+    dimensions: {
+      Outcome: "retry",
+      Provider: "stripe",
+      ReasonCode: "delayed",
+      RouteGroup: "webhook",
+      Stage: "staging",
+    },
+  },
+] as const satisfies Array<{
+  metricName: ExpectedCustomMetricName;
+  threshold: number;
+  comparisonOperator: string;
+  statistic: string;
+  unit: string;
+  dimensions: Record<(typeof allowedCustomMetricDimensions)[number], string>;
+}>;
+
+const accessLogForbiddenFragments = [
+  "authorizer",
+  "body",
+  "claims",
+  "email",
+  "header",
+  "identity",
+  "ip",
+  "name",
+  "path",
+  "query",
+  "requestOverride",
+  "responseOverride",
+  "source",
+  "user",
+] as const;
 
 const expectedStagingSecrets = [
   {
