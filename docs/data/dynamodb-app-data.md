@@ -5,6 +5,9 @@ webhook idempotency records. MDI remains the clinical system of record.
 Questionnaire answers are submitted to MDI and must not be persisted in Apoth
 DynamoDB after submission.
 
+Use `docs/data/data-classification.md` as the cross-system classification map
+for Cognito, DynamoDB, MDI, Stripe, logs, queues, secrets, and test fixtures.
+
 ## Table
 
 T-039 defines one table per stage: `apoth-{stage}-app`.

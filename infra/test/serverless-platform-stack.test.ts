@@ -285,6 +285,33 @@ describe("ServerlessPlatformStack", () => {
     expect(rendered).not.toContain(secretTokenPrefix("pk", "live"));
   });
 
+  it("uses managed encryption for launch stateful services", () => {
+    const template = synthesizeTemplate();
+    const templateJson = template.toJSON();
+    const resources = templateJson.Resources as Record<string, SynthResource>;
+
+    template.hasResourceProperties("AWS::DynamoDB::Table", {
+      SSESpecification: {
+        SSEEnabled: true,
+      },
+    });
+
+    for (const resource of Object.values(resources)) {
+      if (resource.Type === "AWS::DynamoDB::Table") {
+        expect(resource.Properties.SSESpecification?.SSEEnabled).toBe(true);
+        expect(resource.Properties.SSESpecification?.KMSMasterKeyId).toBeUndefined();
+        expect(resource.Properties.SSESpecification?.SSEType).toBeUndefined();
+      }
+      if (resource.Type === "AWS::SQS::Queue") {
+        expect(resource.Properties.SqsManagedSseEnabled).toBe(true);
+        expect(resource.Properties.KmsMasterKeyId).toBeUndefined();
+      }
+      if (resource.Type === "AWS::SecretsManager::Secret") {
+        expect(resource.Properties.KmsKeyId).toBeUndefined();
+      }
+    }
+  });
+
   it("omits superseded launch infrastructure", () => {
     const template = synthesizeTemplate();
 
@@ -455,11 +482,19 @@ type SynthResource = {
     Dimensions?: unknown;
     EvaluationPeriods?: number;
     InsufficientDataActions?: unknown;
+    KmsKeyId?: string;
+    KmsMasterKeyId?: string;
     MetricName?: string;
     Name?: string;
     Namespace?: string;
     OKActions?: unknown;
     Period?: number;
+    SqsManagedSseEnabled?: boolean;
+    SSESpecification?: {
+      KMSMasterKeyId?: string;
+      SSEEnabled?: boolean;
+      SSEType?: string;
+    };
     Statistic?: string;
     Threshold?: number;
     TreatMissingData?: string;

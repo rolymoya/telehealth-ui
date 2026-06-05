@@ -78,6 +78,40 @@ The stack outputs identifiers needed by app configuration:
 Do not paste secret values into docs, GitHub Actions variables, or logs. Store
 real credentials in Secrets Manager only.
 
+## Managed Encryption Baseline
+
+Launch uses AWS-managed service encryption and minimized data storage rather
+than application-level envelope encryption or encrypted column wrappers. The
+cross-system data-classification map lives in
+`docs/data/data-classification.md`; review it before intake, webhook, billing,
+or dashboard work expands the data surface.
+
+| Service | Launch encryption posture | Data class | Notes |
+| --- | --- | --- | --- |
+| Cognito user pool | AWS service-managed encryption | PHI-adjacent identity linkage | Stores identity/session/MFA state only; no clinical questionnaire content |
+| API Gateway | AWS service-managed encryption for service data and CloudWatch access logs | PHI-adjacent transit | Security boundary for authenticated APIs and webhooks; keep patient data out of URLs and logs |
+| Lambda | AWS service-managed encryption for runtime/service state and CloudWatch Logs | PHI-adjacent runtime | May transiently process intake or webhook payloads; persist only minimized records and never log bodies, headers, or raw provider payloads |
+| DynamoDB app table | AWS-managed DynamoDB encryption (`TableEncryption.AWS_MANAGED`) | PHI-adjacent linkage/status/evidence | Stores opaque pointers, statuses, consent evidence, and webhook idempotency records only |
+| Secrets Manager | AWS-managed Secrets Manager encryption, no custom `KmsKeyId` by default | Restricted secret | CDK creates secret containers/metadata only; live values are populated in AWS |
+| SQS webhook queue and DLQ | SQS-managed server-side encryption (`QueueEncryption.SQS_MANAGED`) | PHI-adjacent retry metadata | Payloads must be minimized; no raw questionnaire bodies or raw webhook archives |
+| Lambda log groups and API access log group | CloudWatch Logs service-managed encryption | Confidential operational, possibly PHI-adjacent by correlation | Retention is stage-scoped and logs must use PHI-safe structured logging |
+| CloudWatch metrics, alarms, dashboards | CloudWatch service-managed encryption | Confidential operational aggregates | Metric dimensions are bounded and must not include patient IDs, event IDs, routes, error text, or clinical terms |
+| Future S3/CloudFront static hosting | S3-managed encryption for static public assets | Public by default | Do not store authenticated patient data, raw webhook archives, or PHI-bearing exports in the static hosting bucket |
+
+AWS-managed keys are sufficient for launch while Apoth stores only the minimal
+thin-PHI records named above. A customer-managed KMS key is required only after
+a documented architecture/compliance decision, such as counsel or BAA evidence
+requiring key separation, cross-account key grants, explicit key rotation/audit
+evidence, PHI-bearing object storage, or any future local storage of clinical
+content. Do not introduce custom KMS envelope encryption for launch records.
+
+Any future customer-managed KMS decision must include an operational
+failure-mode plan before production traffic: validate every runtime role can use
+the key in the correct account/stage, define rollback or data migration steps,
+monitor disabled keys and keys pending deletion, name the owner/escalation path,
+and run service-specific smoke tests for DynamoDB, SQS, Secrets Manager, Lambda,
+and any object storage that depends on the key.
+
 ## Observability And Launch Incidents
 
 The launch baseline uses CloudWatch only: log groups, API access logs, metrics,

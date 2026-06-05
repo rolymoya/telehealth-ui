@@ -39,7 +39,7 @@ The `infra` branch contains useful implementation ideas, but most should not be 
 | Consent versioning concepts | Maybe | Keep if launch requires explicit consent audit. Store minimal consent version/timestamp in DynamoDB. |
 | MDI/Stripe webhook fixtures | Yes | Useful test fixtures. Drop Persona fixtures. |
 | Audit log hash chain | No for launch | Too heavy unless counsel or certification requires it. |
-| KMS envelope encryption module | Probably no | DynamoDB/S3 managed encryption is enough for launch unless we store sensitive custom fields. |
+| KMS envelope encryption module | No for launch | Managed AWS service encryption is the launch baseline. Revisit customer-managed KMS only if a future legal/compliance decision requires key separation or Apoth starts storing approved clinical content locally. |
 
 ## Drop Or Rewrite
 
