@@ -2,13 +2,14 @@
   "blockedBy": [
     "T-038"
   ],
-  "completedDate": null,
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-04",
   "createdDate": "2026-05-19",
   "description": "Create the lean infrastructure-as-code baseline for launch.\n\n**Scope**\n- Define infrastructure for Cognito user pool/app client, DynamoDB tables, Secrets Manager secrets, Lambda/API Gateway or Next-compatible serverless route handlers, and SQS/DLQ only where retries are needed.\n- Include environment tagging and staging/prod separation.\n- Keep the stack outside VPC unless a specific service requires it.\n- Do not provision RDS/Postgres, Redis, App Runner, ECS/Fargate workers, NAT gateways, VPC endpoints, ECR app images, or raw webhook-payload S3 archives for launch.\n\n**Acceptance**\n- A staging deploy creates the serverless primitives and outputs the required IDs/URLs.\n- `cdk diff` or the chosen IaC equivalent is readable and environment-specific differences are intentional.\n- Monthly launch-scale cost estimate remains under the reset target unless explicitly approved.",
   "id": "T-039",
   "order": 30,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "complete",
   "title": "Serverless IaC skeleton: Cognito, DynamoDB, Lambda/API routes, SQS/DLQ",
   "type": "task"
 }
