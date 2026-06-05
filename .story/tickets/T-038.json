@@ -1,12 +1,13 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-04",
   "createdDate": "2026-05-19",
   "description": "Establish the AWS account baseline for a lean serverless launch.\n\n**Scope**\n- Create or confirm dedicated AWS account structure for staging/prod as appropriate for launch scale.\n- Execute and record the AWS BAA in `docs/compliance/baa-register.md`.\n- Configure IAM Identity Center/SSO, least-privilege deploy roles, and GitHub Actions OIDC where applicable.\n- Enable CloudTrail, GuardDuty, and basic security findings routing at a launch-appropriate scope.\n- Avoid VPC, NAT gateways, private RDS, Redis, ECS, App Runner, and VPC endpoints unless the architecture decision changes.\n\n**Acceptance**\n- BAA effective date and account IDs are recorded.\n- A developer can assume the staging/deploy role without long-lived IAM user keys.\n- Security baseline is documented in a lean AWS account runbook.",
   "id": "T-038",
   "order": 20,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "complete",
   "title": "AWS account + BAA + IAM baseline",
   "type": "chore"
 }

@@ -1,0 +1,24 @@
+{
+  "components": [
+    "aws",
+    "compliance",
+    "iam"
+  ],
+  "discoveredDate": "2026-06-04",
+  "id": "ISS-002",
+  "impact": "The repo now has the BAA register and AWS account baseline runbook, but production readiness still depends on filling real AWS staging/production account IDs, AWS BAA effective date, evidence path, IAM Identity Center state, and GitHub OIDC deploy role ARNs from the actual AWS account. T-039 can proceed with local IaC skeleton work, but production deployment must not treat these TODO evidence fields as complete.",
+  "location": [
+    "docs/compliance/baa-register.md",
+    "docs/runbooks/aws-account-baseline.md"
+  ],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-038",
+    "T-039"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "high",
+  "status": "open",
+  "title": "AWS account IDs and BAA evidence still need real source values"
+}
