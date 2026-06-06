@@ -3,13 +3,14 @@
     "T-039",
     "T-042"
   ],
-  "completedDate": null,
+  "claimedBySession": "220bd46b-5f01-41f5-bb04-8fa488cee765",
+  "completedDate": "2026-06-05",
   "createdDate": "2026-05-19",
   "description": "Provide the lightweight scheduled-job substrate for reconciliation and maintenance tasks.\n\n**Scope**\n- Use EventBridge schedules plus Lambda handlers for MDI reconciliation, Stripe/MDI billing reconciliation, retention sweeps, and periodic health checks as needed.\n- Keep handlers bounded and idempotent.\n- Register alarms for repeated failures.\n- Do not create an ECS/Fargate worker service or always-on background process for launch.\n\n**Acceptance**\n- A sample scheduled Lambda runs in staging and writes a harmless heartbeat/status record.\n- Job retry/failure behavior is documented.\n- Reconciliation tickets can depend on this without introducing ECS/App Runner workers.",
   "id": "T-046",
   "order": 100,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "complete",
   "title": "Scheduled Lambda jobs + EventBridge",
   "type": "task"
 }

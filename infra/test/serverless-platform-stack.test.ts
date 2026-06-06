@@ -27,11 +27,12 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
     template.resourceCountIs("AWS::DynamoDB::Table", 1);
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 2);
+    template.resourceCountIs("AWS::Lambda::Function", 3);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
     template.resourceCountIs("AWS::CloudWatch::Dashboard", 1);
+    template.resourceCountIs("AWS::Events::Rule", 1);
     template.resourceCountIs("AWS::SQS::Queue", 2);
 
     const queues = Object.values(resources).filter(
@@ -70,6 +71,49 @@ describe("ServerlessPlatformStack", () => {
       RouteKey: "GET /app/bootstrap",
       AuthorizationType: "JWT",
       AuthorizerId: Match.anyValue(),
+    });
+  });
+
+  it("creates a bounded scheduled heartbeat job", () => {
+    const template = synthesizeTemplate();
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-scheduled-heartbeat",
+      Runtime: "nodejs20.x",
+      Handler: "index.handler",
+      Timeout: 10,
+      Environment: {
+        Variables: {
+          APOTH_STAGE: "staging",
+          APP_TABLE_NAME: Match.anyValue(),
+          JOB_NAME: "scheduled-heartbeat",
+        },
+      },
+    });
+
+    template.hasResourceProperties("AWS::Events::Rule", {
+      Name: "apoth-staging-scheduled-heartbeat",
+      ScheduleExpression: "rate(15 minutes)",
+      State: "ENABLED",
+      Targets: Match.arrayWith([
+        Match.objectLike({
+          RetryPolicy: {
+            MaximumEventAgeInSeconds: 3600,
+            MaximumRetryAttempts: 1,
+          },
+        }),
+      ]),
+    });
+
+    template.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: "dynamodb:UpdateItem",
+            Effect: "Allow",
+          }),
+        ]),
+      },
     });
   });
 
@@ -226,6 +270,7 @@ describe("ServerlessPlatformStack", () => {
     for (const title of [
       "API errors",
       "Webhook queue health",
+      "Scheduled job failures",
       "Stripe webhook failures and lag",
       "MDI failures",
       "Onboarding failures",
@@ -236,6 +281,7 @@ describe("ServerlessPlatformStack", () => {
     for (const metricName of [
       "4xx",
       "5xx",
+      "Errors",
       "ApproximateAgeOfOldestMessage",
       "ApproximateNumberOfMessagesVisible",
       ...expectedCustomMetricNames,
@@ -250,6 +296,7 @@ describe("ServerlessPlatformStack", () => {
     for (const logGroupName of [
       "/aws/lambda/apoth-staging-health",
       "/aws/lambda/apoth-staging-authenticated-bootstrap",
+      "/aws/lambda/apoth-staging-scheduled-heartbeat",
       "/aws/apigateway/apoth-staging-api-access",
     ]) {
       template.hasResourceProperties("AWS::Logs::LogGroup", {
@@ -259,10 +306,26 @@ describe("ServerlessPlatformStack", () => {
     }
   });
 
-  it("does not grant data permissions to the bootstrap stub", () => {
-    const template = synthesizeTemplate();
+  it("grants data permissions only to the scheduled heartbeat job", () => {
+    const resources = synthesizeTemplate().toJSON().Resources as Record<
+      string,
+      SynthResource
+    >;
+    const policies = Object.values(resources).filter(
+      (resource) => resource.Type === "AWS::IAM::Policy",
+    );
 
-    template.resourceCountIs("AWS::IAM::Policy", 0);
+    expect(policies).toHaveLength(1);
+    const statements = policies.flatMap((policy) =>
+      Array.isArray(policy.Properties.PolicyDocument?.Statement)
+        ? policy.Properties.PolicyDocument.Statement
+        : [],
+    );
+    expect(statements).toHaveLength(1);
+    expect(statements[0]).toMatchObject({
+      Action: "dynamodb:UpdateItem",
+      Effect: "Allow",
+    });
   });
 
   it("applies Apoth environment tags", () => {
@@ -367,6 +430,7 @@ describe("ServerlessPlatformStack", () => {
       "WebhookQueueArn",
       "WebhookDeadLetterQueueUrl",
       "WebhookDeadLetterQueueArn",
+      "ScheduledHeartbeatFunctionName",
       "MdiApiSecretArn",
       "StripeSecretArn",
       "AppSigningSecretArn",
@@ -504,7 +568,12 @@ type SynthResource = {
     DashboardName?: string;
     DatapointsToAlarm?: number;
     Dimensions?: unknown;
+    Environment?: {
+      Variables?: Record<string, unknown>;
+    };
     EvaluationPeriods?: number;
+    FunctionName?: string;
+    Handler?: string;
     InsufficientDataActions?: unknown;
     KmsKeyId?: string;
     KmsMasterKeyId?: string;
@@ -513,6 +582,9 @@ type SynthResource = {
     Namespace?: string;
     OKActions?: unknown;
     Period?: number;
+    PolicyDocument?: {
+      Statement?: Array<Record<string, unknown>>;
+    };
     QueueName?: string;
     RedrivePolicy?: {
       deadLetterTargetArn?: unknown;
@@ -524,6 +596,8 @@ type SynthResource = {
       SSEEnabled?: boolean;
       SSEType?: string;
     };
+    Runtime?: string;
+    ScheduleExpression?: string;
     Statistic?: string;
     Threshold?: number;
     TreatMissingData?: string;
@@ -540,6 +614,7 @@ const expectedAlarmNames = [
   "apoth-staging-mdi-outbound-failures",
   "apoth-staging-onboarding-failures",
   "apoth-staging-stripe-webhook-lag-seconds",
+  "apoth-staging-scheduled-heartbeat-errors",
 ] as const;
 
 const expectedCustomMetricNames = [
@@ -617,6 +692,24 @@ const expectedActiveAlarmContracts = [
     Dimensions: Match.arrayWith([
       { Name: "ApiId", Value: Match.anyValue() },
       { Name: "Stage", Value: "$default" },
+    ]),
+  },
+  {
+    AlarmName: "apoth-staging-scheduled-heartbeat-errors",
+    MetricName: "Errors",
+    Namespace: "AWS/Lambda",
+    Threshold: 0,
+    ComparisonOperator: "GreaterThanThreshold",
+    EvaluationPeriods: 1,
+    DatapointsToAlarm: 1,
+    Period: 300,
+    Statistic: "Sum",
+    TreatMissingData: "notBreaching",
+    Dimensions: Match.arrayWith([
+      {
+        Name: "FunctionName",
+        Value: Match.anyValue(),
+      },
     ]),
   },
 ] as const;

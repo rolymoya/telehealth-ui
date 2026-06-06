@@ -15,6 +15,7 @@ import {
   linkStripeCustomer,
   markWebhookEventStatus,
   mdiPatientReverseKey,
+  operationalStatusKey,
   patientEvidenceEventUniquenessKey,
   patientProfileKey,
   recordConsentEvidence,
@@ -41,6 +42,30 @@ describe("DynamoDB app-data helpers", () => {
     expect(repository.get(patientProfileKey("cognito-sub-001"))).toEqual({
       ok: true,
       value: profile,
+    });
+  });
+
+  it("accepts bounded scheduled-job operational heartbeat records", () => {
+    const repository: AppDataRepository = createInMemoryAppDataRepository();
+    const record = {
+      ...operationalStatusKey("scheduled-heartbeat"),
+      recordType: "operationalStatus",
+      schemaVersion: 1,
+      createdAt: now,
+      updatedAt: "2026-06-04T18:15:00.000Z",
+      name: "scheduled-heartbeat",
+      status: "ok",
+      stage: "staging",
+      jobName: "scheduled-heartbeat",
+      lastHeartbeatAt: "2026-06-04T18:15:00.000Z",
+      lastScheduledAt: "2026-06-04T18:15:00.000Z",
+      lastRequestId: "job_request_001",
+    } as const;
+
+    expect(repository.put(record)).toEqual({ ok: true, value: record });
+    expect(repository.get(operationalStatusKey("scheduled-heartbeat"))).toEqual({
+      ok: true,
+      value: record,
     });
   });
 

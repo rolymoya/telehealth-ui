@@ -2,7 +2,7 @@
 
 This runbook covers the CDK package that defines Apoth's lean serverless launch
 baseline. It is intentionally small: Cognito, DynamoDB, Lambda/API Gateway,
-Secrets Manager, SQS/DLQ, EventBridge later, CloudWatch, and static
+Secrets Manager, SQS/DLQ, EventBridge schedules, CloudWatch, and static
 S3/CloudFront hosting in a later deploy ticket.
 
 Production deploy is not ready while `ISS-002` remains open. Real AWS account
@@ -55,6 +55,8 @@ Launch-scale defaults are selected to stay low-cost:
 - DynamoDB is on-demand, with one table for minimal app/linkage records.
 - Lambda/API Gateway scale to zero between requests.
 - SQS/DLQ exists only for webhook retry durability.
+- EventBridge invokes bounded scheduled Lambda jobs only; there is no
+  always-on worker process.
 - Secrets Manager stores vendor credentials without duplicating them in CI.
 - No VPC, NAT gateways, RDS/Postgres, Redis, ECS, App Runner, ECR app images,
   or VPC endpoints are part of launch infrastructure.
@@ -72,6 +74,7 @@ The stack outputs identifiers needed by app configuration:
 - DynamoDB table name.
 - API endpoint.
 - Webhook queue and DLQ URLs/ARNs.
+- Scheduled heartbeat Lambda name.
 - MDI, Stripe, and app signing secret ARNs.
 - CloudWatch launch observability dashboard name.
 
@@ -94,6 +97,7 @@ or dashboard work expands the data surface.
 | DynamoDB app table | AWS-managed DynamoDB encryption (`TableEncryption.AWS_MANAGED`) | PHI-adjacent linkage/status/evidence | Stores opaque pointers, statuses, consent evidence, evidence events, and webhook idempotency records only |
 | Secrets Manager | AWS-managed Secrets Manager encryption, no custom `KmsKeyId` by default | Restricted secret | CDK creates secret containers/metadata only; live values are populated in AWS |
 | SQS webhook queue and DLQ | SQS-managed server-side encryption (`QueueEncryption.SQS_MANAGED`) | PHI-adjacent retry metadata | Payloads must be minimized; no raw questionnaire bodies or raw webhook archives |
+| EventBridge schedules | AWS service-managed encryption for service state | Confidential operational | Invokes bounded Lambda jobs only; event payloads must stay operational and PHI-free |
 | Lambda log groups and API access log group | CloudWatch Logs service-managed encryption | Confidential operational, possibly PHI-adjacent by correlation | Retention is stage-scoped and logs must use PHI-safe structured logging |
 | CloudWatch metrics, alarms, dashboards | CloudWatch service-managed encryption | Confidential operational aggregates | Metric dimensions are bounded and must not include patient IDs, event IDs, routes, error text, or clinical terms |
 | Future S3/CloudFront static hosting | S3-managed encryption for static public assets | Public by default | Do not store authenticated patient data, raw webhook archives, or PHI-bearing exports in the static hosting bucket |
@@ -176,6 +180,34 @@ must come from an MDI-scoped Secrets Manager or SSM reference. Missing secrets
 fail closed, and secret values must never appear in thrown errors, logs,
 metrics, snapshots, tickets, or DLQ messages.
 
+### Scheduled Job Contract
+
+Scheduled launch work uses EventBridge rules that invoke bounded Lambda
+handlers. The baseline creates `apoth-{stage}-scheduled-heartbeat`, which runs
+every 15 minutes and updates one DynamoDB operational status item:
+`STATUS#scheduled-heartbeat` / `CURRENT`.
+
+The heartbeat Lambda stores only operational metadata: record type, schema
+version, job name, stage, `ok` status, latest heartbeat timestamp, latest
+scheduled timestamp, and the Lambda request ID. It must not write patient IDs,
+vendor IDs, request/response bodies, clinical context, payment details, headers,
+IP addresses, or user-agent values.
+
+The EventBridge target has bounded retry behavior: at most one retry and a
+maximum event age of one hour. Duplicate, delayed, or retried invocations are
+safe because the handler overwrites the fixed status key with the latest
+successful heartbeat instead of appending records. Future MDI reconciliation,
+Stripe/MDI billing reconciliation, retention sweep, and health-check jobs
+should follow the same pattern unless their ticket documents a stricter bound:
+single-purpose Lambda handler, fixed or deterministic idempotency key, explicit
+EventBridge retry policy, short timeout, PHI-safe logs, and no always-on worker
+service.
+
+Repeated heartbeat failures alarm on
+`apoth-{stage}-scheduled-heartbeat-errors`. Check the Lambda log group and the
+`Scheduled job failures` dashboard widget first. Do not add SNS/email/pager
+actions until the launch ops contact path is approved.
+
 ### Support Evidence Triage
 
 Use DynamoDB evidence events for patient/case timelines, CloudWatch for
@@ -203,10 +235,10 @@ Open CloudWatch Dashboards and select:
 - `apoth-staging-launch-observability`
 - `apoth-production-launch-observability` after production is approved
 
-The dashboard groups API errors, webhook queue health, Stripe webhook
-failures/lag, MDI failures, onboarding failures, and webhook processing
-failures. Custom application metrics are contract-only until the owning route or
-job ticket emits them.
+The dashboard groups API errors, webhook queue health, scheduled job failures,
+Stripe webhook failures/lag, MDI failures, onboarding failures, and webhook
+processing failures. Custom application metrics are contract-only until the
+owning route or job ticket emits them.
 
 This baseline creates CloudWatch alarm state and dashboard widgets, but it does
 not configure SNS, email, pager, or external notification actions. Launch
@@ -222,6 +254,7 @@ review are approved.
 | `apoth-{stage}-webhook-oldest-message-age` | Active | Webhook processing is falling behind | Oldest message age `>= 15m` | SQS queue age, Lambda errors, API Gateway 5xx | Scale or fix consumer before replay; preserve idempotency records | Oldest age below threshold for two periods |
 | `apoth-{stage}-api-5xx-errors` | Active | API is returning server errors | `>= 5` 5xx responses in 5 minutes | API errors widget, Lambda log groups, recent deploys | Roll back the route change if deploy-related; otherwise isolate failing integration | 5xx count below threshold for two periods |
 | `apoth-{stage}-api-4xx-errors` | Active | API is receiving elevated rejected requests | `>= 50` 4xx responses in 5 minutes | API errors widget and route-level deployment notes | Check auth/CORS/config rollout; avoid logging request bodies while debugging | 4xx count returns to expected launch baseline |
+| `apoth-{stage}-scheduled-heartbeat-errors` | Active | Scheduled heartbeat Lambda failed | `> 0` errors in 5 minutes | Scheduled job failures widget and Lambda log group | Fix configuration or DynamoDB write permission before treating scheduled jobs as healthy | Next scheduled invocation writes the heartbeat successfully and alarm clears |
 | `apoth-{stage}-stripe-signature-failures` | Contract-only | Stripe webhook signature verification failed | `> 0` failures in 5 minutes once T-045 emits metrics | Stripe webhook endpoint config and sanitized webhook logs | Rotate/reconfigure webhook secret only through Secrets Manager; escalate in Stripe dashboard | No new failures after endpoint/secret fix |
 | `apoth-{stage}-webhook-processing-failures` | Contract-only | Webhook handler rejected or failed after verification | `> 0` failures in 5 minutes once T-045 emits metrics | Webhook processing widget, idempotency records, DLQ | Fix handler before replay; replay only minimized payloads with idempotency in place | Failed events processed or safely terminal |
 | `apoth-{stage}-mdi-outbound-failures` | Contract-only | MDI API outage, timeout, or integration failure | `>= 2` failures in 5 minutes once MDI clients emit metrics | MDI failures widget and MDI status/account contact | Degrade MDI-backed workflows; escalate through MDI support/account owner | MDI calls succeed for two periods |

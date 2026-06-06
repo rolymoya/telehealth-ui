@@ -5,6 +5,7 @@ import {
   Tags,
   type StackProps,
 } from "aws-cdk-lib";
+import path from "node:path";
 import {
   AccountRecovery,
   Mfa,
@@ -17,6 +18,8 @@ import {
   Table,
   TableEncryption,
 } from "aws-cdk-lib/aws-dynamodb";
+import { Rule, Schedule } from "aws-cdk-lib/aws-events";
+import { LambdaFunction } from "aws-cdk-lib/aws-events-targets";
 import {
   CorsHttpMethod,
   HttpApi,
@@ -37,6 +40,7 @@ import {
   Unit,
 } from "aws-cdk-lib/aws-cloudwatch";
 import { Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
+import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { LogGroup } from "aws-cdk-lib/aws-logs";
 import { Queue, QueueEncryption } from "aws-cdk-lib/aws-sqs";
 import { CfnSecret } from "aws-cdk-lib/aws-secretsmanager";
@@ -170,11 +174,54 @@ exports.handler = async () => ({
 `),
     });
 
+    const scheduledHeartbeatFunction = new NodejsFunction(
+      this,
+      "ScheduledHeartbeatFunction",
+      {
+        functionName: `apoth-${props.config.stage}-scheduled-heartbeat`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "handler",
+        entry: path.join(__dirname, "lambda", "scheduled-heartbeat.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_STAGE: props.config.stage,
+          JOB_NAME: "scheduled-heartbeat",
+        },
+        logGroup: new LogGroup(this, "ScheduledHeartbeatFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-scheduled-heartbeat`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(scheduledHeartbeatFunction, "dynamodb:UpdateItem");
+
+    new Rule(this, "ScheduledHeartbeatRule", {
+      ruleName: `apoth-${props.config.stage}-scheduled-heartbeat`,
+      schedule: Schedule.rate(Duration.minutes(15)),
+      targets: [
+        new LambdaFunction(scheduledHeartbeatFunction, {
+          retryAttempts: 1,
+          maxEventAge: Duration.hours(1),
+        }),
+      ],
+    });
+
     const webhookDlqVisibleMetric = webhookDlq.metricApproximateNumberOfMessagesVisible({
       period: Duration.minutes(5),
     });
     const webhookOldestMessageAgeMetric = webhookQueue.metricApproximateAgeOfOldestMessage({
       period: Duration.minutes(5),
+    });
+    const scheduledHeartbeatErrorsMetric = scheduledHeartbeatFunction.metricErrors({
+      period: Duration.minutes(5),
+      statistic: "Sum",
     });
 
     new Alarm(this, "WebhookDlqMessagesAlarm", {
@@ -196,6 +243,17 @@ exports.handler = async () => ({
       evaluationPeriods: 1,
       datapointsToAlarm: 1,
       comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    });
+
+    new Alarm(this, "ScheduledHeartbeatFailuresAlarm", {
+      alarmName: `apoth-${props.config.stage}-scheduled-heartbeat-errors`,
+      alarmDescription: "Active alarm: scheduled heartbeat Lambda is failing.",
+      metric: scheduledHeartbeatErrorsMetric,
+      threshold: 0,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
       treatMissingData: TreatMissingData.NOT_BREACHING,
     });
 
@@ -283,6 +341,7 @@ exports.handler = async () => ({
       {
         apiClientError: apiClientErrorMetric,
         apiServerError: apiServerErrorMetric,
+        scheduledHeartbeatErrors: scheduledHeartbeatErrorsMetric,
         webhookDlqVisible: webhookDlqVisibleMetric,
         webhookOldestMessageAge: webhookOldestMessageAgeMetric,
       },
@@ -311,6 +370,9 @@ exports.handler = async () => ({
     });
     new CfnOutput(this, "WebhookDeadLetterQueueArn", {
       value: webhookDlq.queueArn,
+    });
+    new CfnOutput(this, "ScheduledHeartbeatFunctionName", {
+      value: scheduledHeartbeatFunction.functionName,
     });
     new CfnOutput(this, "MdiApiSecretArn", { value: secrets.mdiApi.attrId });
     new CfnOutput(this, "StripeSecretArn", { value: secrets.stripeApi.attrId });
@@ -354,6 +416,10 @@ exports.handler = async () => ({
           activeMetrics.webhookDlqVisible,
           activeMetrics.webhookOldestMessageAge,
         ],
+      }),
+      new GraphWidget({
+        title: "Scheduled job failures",
+        left: [activeMetrics.scheduledHeartbeatErrors],
       }),
       new GraphWidget({
         title: "Stripe webhook failures and lag",
@@ -423,6 +489,7 @@ type ObservabilityMetricContract = {
 type ActiveObservabilityMetrics = {
   apiClientError: Metric;
   apiServerError: Metric;
+  scheduledHeartbeatErrors: Metric;
   webhookDlqVisible: Metric;
   webhookOldestMessageAge: Metric;
 };

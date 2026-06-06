@@ -9,12 +9,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1063.0",
     "aws-cdk-lib": "^2.257.0",
     "constructs": "^10.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
     "aws-cdk": "^2.1124.1",
+    "esbuild": "^0.28.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3",
     "vitest": "^4.1.8"

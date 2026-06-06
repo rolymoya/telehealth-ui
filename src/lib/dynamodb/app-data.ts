@@ -198,6 +198,11 @@ export type OperationalStatusRecord = BaseRecord & {
   recordType: "operationalStatus";
   name: string;
   status: string;
+  stage?: string;
+  jobName?: string;
+  lastHeartbeatAt?: string;
+  lastScheduledAt?: string;
+  lastRequestId?: string;
 };
 
 export type AppDataRecord =
@@ -1367,6 +1372,11 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
     case "operationalStatus":
       return typeof record.name === "string" &&
         typeof record.status === "string" &&
+        optionalString(record.stage) &&
+        optionalString(record.jobName) &&
+        optionalIsoDate(record.lastHeartbeatAt) &&
+        optionalIsoDate(record.lastScheduledAt) &&
+        optionalString(record.lastRequestId) &&
         keysMatch(record, operationalStatusKey(record.name))
         ? ok(record)
         : err("validation_failed", "Invalid operational status record");
@@ -2422,7 +2432,15 @@ const allowedFields: Record<string, Set<string>> = {
     "evidencePk",
     "evidenceSk",
   ),
-  operationalStatus: allow("name", "status"),
+  operationalStatus: allow(
+    "name",
+    "status",
+    "stage",
+    "jobName",
+    "lastHeartbeatAt",
+    "lastScheduledAt",
+    "lastRequestId",
+  ),
 };
 
 function allow(...fields: string[]) {
