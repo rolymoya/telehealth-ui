@@ -15,9 +15,9 @@
     "T-041",
     "T-080"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Resolved by T-080: removed the superseded untracked workers directory and added /workers/ to .gitignore so the old ECS worker artifact cannot be accidentally revived from this branch.",
+  "resolvedDate": "2026-06-05",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "Superseded worker artifact logs raw malformed queue bodies"
 }

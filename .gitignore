@@ -18,6 +18,7 @@ yarn-error.log*
 # Build output
 /tmp
 /dist
+/workers/
 /out-tsc
 /.next
 /out
