@@ -156,7 +156,22 @@ Claiming an event returns one typed outcome:
 | `alreadyProcessing` | Duplicate while work is in flight; do not double-process. |
 | `alreadyProcessed` | Duplicate already completed; acknowledge safely. |
 | `failedRetryable` | Previous attempt was atomically reclaimed for another processing try. |
+| `retryNotDue` | Retryable failure is not claimable by this delivery yet; do not enqueue or process again. |
+| `queueOwnedRetry` | Provider delivery hit a queue-owned retry; acknowledge without processing so SQS/DLQ remains the owner. |
+| `staleQueueDelivery` | Queue delivery attempt does not match the current queue-owned retry generation; acknowledge without processing. |
+| `processingLeaseExpired` | Prior processing lease timed out; reclaim atomically and retry with an incremented attempt count. |
+| `retryExhausted` | Max attempts were reached; mark terminal/DLQ-bound rather than continuing inline retries. |
 | `conflict` | Previous terminal failure or invalid state; do not process silently. |
+
+Idempotency records store status, retryability, attempt count, optional
+`retryOwner` (`provider`, `handoff`, or `queue`), optional
+`processingExpiresAt`, optional `nextAttemptAfter`, optional `maxAttempts`, and
+optional `retryExhaustedAt`.
+These fields are control metadata only; they must
+not contain raw provider payloads, raw event labels, clinical context, patient
+contact data, request headers, IP addresses, user agents, or payment instrument
+details. Durable retry queues carry only minimized provider/event pointers and
+canonical non-PHI route codes.
 
 Reverse-link records map inbound MDI or Stripe identifiers back to Cognito
 subjects without table scans. They must be created with conditional uniqueness

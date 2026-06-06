@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-020",
+  "impact": "processVerifiedWebhook exposes both now and clock, which can be wired inconsistently by future adapters.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[clean-code] processVerifiedWebhook exposes both now and clock, which can be wired inconsiste"
+}

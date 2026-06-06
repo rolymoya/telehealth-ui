@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-021",
+  "impact": "WebhookProcessingRepository.claim does not expose processingLeaseSeconds although claimWebhookEvent supports it.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[clean-code] WebhookProcessingRepository.claim does not expose processingLeaseSeconds althoug"
+}

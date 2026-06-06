@@ -125,6 +125,57 @@ active in `docs/compliance/baa-register.md`. CloudWatch, SQS, and DLQs may still
 hold PHI-adjacent linkage identifiers even when application logging is
 redacted.
 
+### Webhook Lambda Contract
+
+Future Stripe and MDI webhook routes must use the shared webhook helpers before
+touching DynamoDB, SQS, logs, metrics, or evidence records. The raw request body
+is passed only to signature verification and envelope parsing. After
+verification, handlers operate on the minimized envelope: provider, opaque event
+ID, canonical non-PHI event category, canonical route code, received timestamp,
+and safe provider timestamp when available.
+
+The route sequence is fixed: verify signature, validate freshness/replay window,
+claim the DynamoDB idempotency record with a processing lease, run the handler
+only for first-seen/retry-due/expired-lease events, enqueue any required durable
+retry message, then return provider success only after required state and queue
+writes succeed. Duplicate processed events return success without repeating side
+effects. In-flight duplicates return retry while the processing lease is active
+so provider redelivery continues until a terminal state is durably recorded.
+Retryable failures that need durable queue ownership are
+marked as `handoff` with a retry timestamp before enqueue; provider
+redeliveries for handoff retries remain provider-reclaimable unless ownership is
+successfully promoted. If queue send fails, ownership is returned to the provider
+retry path. Durable retry messages move retry ownership to SQS/DLQ only after
+enqueue succeeds and the idempotency record is promoted to queue-owned. Provider
+redeliveries for queue-owned retries return success without processing. Queue deliveries
+reclaim the event when SQS delivers the message; app-level retry timestamps are
+advisory for provider redeliveries so SQS receive counts are not spent waiting
+for a future `notBefore`. Queue-sourced retryable failures return a retry result
+so SQS redrive/DLQ remains in charge. Terminal
+records, including exhausted retries and non-retryable handler failures, return
+provider success after the terminal state is recorded.
+
+Stripe replay freshness is based on the signed Stripe timestamp tolerance. MDI
+does not currently have an equivalent signed timestamp in the launch contract,
+so MDI payloads must include a provider timestamp. Past timestamps are checked
+against the documented provider retry window, currently 24 hours, while
+future-dated payloads are limited to the short clock-skew tolerance.
+
+Queue and DLQ bodies must contain only the minimized retry message: provider,
+opaque event ID, canonical event category, canonical route code, received
+timestamp, optional `notBefore` retry timestamp, attempt, and deterministic
+correlation ID. Do not include raw provider event names, request bodies,
+headers, emails, names, IP addresses, user-agents, clinical terms,
+medication/condition descriptors, payment instrument details, or secret values.
+Consumers must refetch provider state or use provider delivery logs for
+debugging rather than relying on a local raw payload archive.
+
+Webhook secrets are provider- and stage-scoped. Stripe webhook signing material
+comes from the stage Stripe secret payload; future MDI webhook signing material
+must come from an MDI-scoped Secrets Manager or SSM reference. Missing secrets
+fail closed, and secret values must never appear in thrown errors, logs,
+metrics, snapshots, tickets, or DLQ messages.
+
 ### Support Evidence Triage
 
 Use DynamoDB evidence events for patient/case timelines, CloudWatch for

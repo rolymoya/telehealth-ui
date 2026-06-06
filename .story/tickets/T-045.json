@@ -4,13 +4,14 @@
     "T-041",
     "T-042"
   ],
-  "completedDate": null,
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-05",
   "createdDate": "2026-05-19",
   "description": "Build shared webhook plumbing for Stripe and MDI under the serverless architecture.\n\n**Scope**\n- Receiver routes or Lambda handlers verify provider signatures before touching state.\n- Record provider, event ID, received/processed timestamps, status, and attempt counts in DynamoDB for idempotency.\n- Process simple idempotent events inline when safe; enqueue to SQS with DLQ only for events that need retry durability or downstream vendor calls.\n- Avoid raw webhook payload archives by default. If a payload must be retained for debugging/evidence, sanitize and document the retention/compliance basis.\n\n**Acceptance**\n- Invalid signature returns failure and produces no side effects.\n- Duplicate event ID returns success without duplicate processing.\n- A retryable handler failure lands in DLQ after configured attempts and triggers an alarm.",
   "id": "T-045",
   "order": 90,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "complete",
   "title": "Webhook ingestion: verified routes + DynamoDB idempotency + optional SQS/DLQ",
   "type": "task"
 }

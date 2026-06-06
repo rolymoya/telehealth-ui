@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-019",
+  "impact": "Adapter-level route/queue tests are not present yet; existing tests cover shared helpers rather than a production receiver/consumer boundary.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[test-quality] Adapter-level route/queue tests are not present yet; existing tests cover shared"
+}

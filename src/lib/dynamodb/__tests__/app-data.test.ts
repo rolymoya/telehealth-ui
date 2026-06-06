@@ -251,19 +251,40 @@ describe("DynamoDB app-data helpers", () => {
       provider: "stripe",
       eventId: "evt_opaque_001",
       now,
+      processingLeaseSeconds: 60,
     });
 
     expect(first.ok && first.value.outcome).toBe("claimed");
+    expect(first.ok && first.value.record.processingExpiresAt).toBe(
+      "2026-06-04T18:01:00.000Z",
+    );
 
     const duplicateProcessing = claimWebhookEvent(repository, {
       provider: "stripe",
       eventId: "evt_opaque_001",
-      now,
+      now: "2026-06-04T18:00:30.000Z",
     });
 
     expect(duplicateProcessing.ok && duplicateProcessing.value.outcome).toBe(
       "alreadyProcessing",
     );
+
+    const expiredLease = claimWebhookEvent(repository, {
+      provider: "stripe",
+      eventId: "evt_opaque_001",
+      now: "2026-06-04T18:01:01.000Z",
+      processingLeaseSeconds: 60,
+    });
+
+    expect(expiredLease.ok && expiredLease.value).toMatchObject({
+      outcome: "processingLeaseExpired",
+      record: {
+        status: "processing",
+        retryable: false,
+        attempts: 2,
+        processingExpiresAt: "2026-06-04T18:02:01.000Z",
+      },
+    });
 
     expect(
       markWebhookEventStatus(repository, {
@@ -271,21 +292,33 @@ describe("DynamoDB app-data helpers", () => {
         eventId: "evt_opaque_001",
         status: "failed",
         retryable: true,
-        now: "2026-06-04T18:05:00.000Z",
+        now: "2026-06-04T18:01:30.000Z",
+        expectedAttempts: 2,
+        nextAttemptAfter: "2026-06-04T18:02:00.000Z",
+        maxAttempts: 3,
       }).ok,
     ).toBe(true);
+
+    const notDue = claimWebhookEvent(repository, {
+      provider: "stripe",
+      eventId: "evt_opaque_001",
+      now: "2026-06-04T18:01:45.000Z",
+    });
+
+    expect(notDue.ok && notDue.value.outcome).toBe("retryNotDue");
 
     const retry = claimWebhookEvent(repository, {
       provider: "stripe",
       eventId: "evt_opaque_001",
-      now: "2026-06-04T18:06:00.000Z",
+      now: "2026-06-04T18:02:00.000Z",
     });
 
     expect(retry.ok && retry.value.outcome).toBe("failedRetryable");
     expect(retry.ok && retry.value.record).toMatchObject({
       status: "processing",
       retryable: false,
-      attempts: 2,
+      attempts: 3,
+      maxAttempts: 3,
     });
 
     expect(
@@ -294,7 +327,8 @@ describe("DynamoDB app-data helpers", () => {
         eventId: "evt_opaque_001",
         status: "processed",
         retryable: false,
-        now: "2026-06-04T18:10:00.000Z",
+        now: "2026-06-04T18:03:00.000Z",
+        expectedAttempts: 3,
       }).ok,
     ).toBe(true);
 
@@ -384,6 +418,345 @@ describe("DynamoDB app-data helpers", () => {
       },
     });
     expect(duplicate.ok && duplicate.value.outcome).toBe("alreadyProcessing");
+  });
+
+  it("marks retryable webhook failures exhausted after max attempts", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(
+      claimWebhookEvent(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_002",
+        now,
+        maxAttempts: 1,
+      }).ok,
+    ).toBe(true);
+    expect(
+      markWebhookEventStatus(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_002",
+        status: "failed",
+        retryable: true,
+        now: "2026-06-04T18:01:00.000Z",
+        nextAttemptAfter: "2026-06-04T18:02:00.000Z",
+        maxAttempts: 1,
+      }).ok,
+    ).toBe(true);
+
+    const exhausted = claimWebhookEvent(repository, {
+      provider: "stripe",
+      eventId: "evt_opaque_002",
+      now: "2026-06-04T18:02:00.000Z",
+    });
+
+    expect(exhausted.ok && exhausted.value).toMatchObject({
+      outcome: "retryExhausted",
+      record: {
+        status: "failed",
+        retryable: false,
+        attempts: 1,
+        retryExhaustedAt: "2026-06-04T18:02:00.000Z",
+      },
+    });
+  });
+
+  it("rejects unsafe webhook event IDs at the idempotency boundary", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    for (const eventId of [
+      "evt_patient_email_name@test.com",
+      "evt_hiv_positive_001",
+      "evt_bearer_token_001",
+      "evt_" + "a".repeat(140),
+      "mdi_evt_case_created_001",
+    ]) {
+      expect(
+        claimWebhookEvent(repository, {
+          provider: "stripe",
+          eventId,
+          now,
+        }),
+      ).toEqual({
+        ok: false,
+        error: {
+          kind: "validation_failed",
+          message: "Invalid webhook event ID",
+        },
+      });
+    }
+
+    expect(
+      validateAppDataRecord({
+        ...webhookIdempotencyKey("mdi", "mdi_evt_diabetes_001"),
+        recordType: "webhookIdempotency",
+        schemaVersion: 1,
+        provider: "mdi",
+        eventId: "mdi_evt_diabetes_001",
+        status: "processing",
+        retryable: false,
+        attempts: 1,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "validation_failed",
+        message: "Invalid webhook idempotency record",
+      },
+    });
+  });
+
+  it("rejects stale webhook status marks from expired claims", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(
+      claimWebhookEvent(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_003",
+        now,
+        processingLeaseSeconds: 60,
+      }).ok,
+    ).toBe(true);
+    expect(
+      claimWebhookEvent(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_003",
+        now: "2026-06-04T18:01:01.000Z",
+      }).ok,
+    ).toBe(true);
+
+    expect(
+      markWebhookEventStatus(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_003",
+        status: "processed",
+        retryable: false,
+        now: "2026-06-04T18:01:02.000Z",
+        expectedAttempts: 1,
+      }),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "stale_webhook_claim",
+        message: "Webhook claim is no longer current",
+      },
+    });
+  });
+
+  it("rejects webhook status marks after the processing lease expires", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(
+      claimWebhookEvent(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_004",
+        now,
+        processingLeaseSeconds: 60,
+      }).ok,
+    ).toBe(true);
+
+    expect(
+      markWebhookEventStatus(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_004",
+        status: "processed",
+        retryable: false,
+        now: "2026-06-04T18:01:00.000Z",
+        expectedAttempts: 1,
+        expectedProcessingExpiresAt: "2026-06-04T18:01:00.000Z",
+      }),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "stale_webhook_claim",
+        message: "Webhook claim is no longer current",
+      },
+    });
+  });
+
+  it("keeps provider deliveries from reclaiming queue-owned retries", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(
+      claimWebhookEvent(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_queue_001",
+        now,
+        maxAttempts: 1,
+      }).ok,
+    ).toBe(true);
+    expect(
+      markWebhookEventStatus(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_queue_001",
+        status: "failed",
+        retryable: true,
+        retryOwner: "provider",
+        now: "2026-06-04T18:01:00.000Z",
+        expectedAttempts: 1,
+        maxAttempts: 1,
+      }).ok,
+    ).toBe(true);
+    expect(
+      markWebhookEventStatus(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_queue_001",
+        status: "failed",
+        retryable: true,
+        retryOwner: "queue",
+        now: "2026-06-04T18:01:01.000Z",
+        expectedAttempts: 1,
+        nextAttemptAfter: "2026-06-04T18:05:00.000Z",
+        maxAttempts: 1,
+      }).ok,
+    ).toBe(true);
+
+    const providerDelivery = claimWebhookEvent(repository, {
+      provider: "stripe",
+      eventId: "evt_opaque_queue_001",
+      now: "2026-06-04T18:06:00.000Z",
+      deliverySource: "provider",
+    });
+    const queueDelivery = claimWebhookEvent(repository, {
+      provider: "stripe",
+      eventId: "evt_opaque_queue_001",
+      now: "2026-06-04T18:06:00.000Z",
+      deliverySource: "queue",
+      expectedAttempts: 1,
+    });
+
+    expect(providerDelivery.ok && providerDelivery.value).toMatchObject({
+      outcome: "queueOwnedRetry",
+      record: {
+        retryOwner: "queue",
+      },
+    });
+    expect(queueDelivery.ok && queueDelivery.value).toMatchObject({
+      outcome: "failedRetryable",
+      record: {
+        status: "processing",
+        retryable: false,
+        attempts: 2,
+        retryOwner: undefined,
+      },
+    });
+  });
+
+  it("lets queue deliveries reclaim queue-owned retries before app not-before time", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(
+      claimWebhookEvent(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_queue_early_001",
+        now,
+        maxAttempts: 3,
+      }).ok,
+    ).toBe(true);
+    expect(
+      markWebhookEventStatus(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_queue_early_001",
+        status: "failed",
+        retryable: true,
+        retryOwner: "queue",
+        now: "2026-06-04T18:01:00.000Z",
+        expectedAttempts: 1,
+        nextAttemptAfter: "2026-06-04T18:10:00.000Z",
+        maxAttempts: 3,
+      }).ok,
+    ).toBe(true);
+
+    const queueDelivery = claimWebhookEvent(repository, {
+      provider: "stripe",
+      eventId: "evt_opaque_queue_early_001",
+      now: "2026-06-04T18:02:00.000Z",
+      deliverySource: "queue",
+      expectedAttempts: 1,
+    });
+
+    expect(queueDelivery.ok && queueDelivery.value).toMatchObject({
+      outcome: "failedRetryable",
+      record: {
+        status: "processing",
+        retryable: false,
+        attempts: 2,
+        retryOwner: undefined,
+      },
+    });
+  });
+
+  it("skips stale queue deliveries with mismatched retry generations", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(
+      claimWebhookEvent(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_queue_stale_001",
+        now,
+      }).ok,
+    ).toBe(true);
+    expect(
+      markWebhookEventStatus(repository, {
+        provider: "stripe",
+        eventId: "evt_opaque_queue_stale_001",
+        status: "failed",
+        retryable: true,
+        retryOwner: "queue",
+        now: "2026-06-04T18:01:00.000Z",
+        expectedAttempts: 1,
+        maxAttempts: 3,
+      }).ok,
+    ).toBe(true);
+
+    const stale = claimWebhookEvent(repository, {
+      provider: "stripe",
+      eventId: "evt_opaque_queue_stale_001",
+      now: "2026-06-04T18:02:00.000Z",
+      deliverySource: "queue",
+      expectedAttempts: 0,
+    });
+
+    expect(stale.ok && stale.value).toMatchObject({
+      outcome: "staleQueueDelivery",
+      record: {
+        status: "failed",
+        retryable: true,
+        attempts: 1,
+        retryOwner: "queue",
+      },
+    });
+  });
+
+  it("does not reclaim an expired processing lease after max attempts", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(
+      claimWebhookEvent(repository, {
+        provider: "mdi",
+        eventId: "mdi_evt_exhaust_001",
+        now,
+        processingLeaseSeconds: 60,
+        maxAttempts: 1,
+      }).ok,
+    ).toBe(true);
+
+    const exhausted = claimWebhookEvent(repository, {
+      provider: "mdi",
+      eventId: "mdi_evt_exhaust_001",
+      now: "2026-06-04T18:01:01.000Z",
+    });
+
+    expect(exhausted.ok && exhausted.value).toMatchObject({
+      outcome: "retryExhausted",
+      record: {
+        status: "failed",
+        retryable: false,
+        attempts: 1,
+        retryExhaustedAt: "2026-06-04T18:01:01.000Z",
+      },
+    });
   });
 
   it("records launch-critical evidence events with opaque IDs and statuses", () => {

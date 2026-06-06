@@ -21,6 +21,7 @@ function synthesizeTemplate(stage: StageName = "staging") {
 describe("ServerlessPlatformStack", () => {
   it("creates the required lean serverless resources", () => {
     const template = synthesizeTemplate();
+    const resources = template.toJSON().Resources as Record<string, SynthResource>;
 
     template.resourceCountIs("AWS::Cognito::UserPool", 1);
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
@@ -32,6 +33,29 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
     template.resourceCountIs("AWS::CloudWatch::Dashboard", 1);
     template.resourceCountIs("AWS::SQS::Queue", 2);
+
+    const queues = Object.values(resources).filter(
+      (resource) => resource.Type === "AWS::SQS::Queue",
+    );
+    const redriveQueues = queues.filter(
+      (resource) => resource.Properties.RedrivePolicy !== undefined,
+    );
+    const processingQueue = queues.find(
+      (resource) => resource.Properties.QueueName === "apoth-staging-webhook-processing",
+    );
+    const dlqEntry = Object.entries(resources).find(([, resource]) =>
+      resource.Type === "AWS::SQS::Queue" &&
+      resource.Properties.QueueName === "apoth-staging-webhook-dlq"
+    );
+    const dlq = dlqEntry?.[1];
+
+    expect(redriveQueues).toHaveLength(1);
+    expect(processingQueue).toBeDefined();
+    expect(dlq).toBeDefined();
+    expect(processingQueue?.Properties.RedrivePolicy?.maxReceiveCount).toBe(3);
+    expect(JSON.stringify(processingQueue?.Properties.RedrivePolicy?.deadLetterTargetArn))
+      .toContain(dlqEntry?.[0]);
+    expect(dlq?.Properties.RedrivePolicy).toBeUndefined();
   });
 
   it("keeps health public and protects the authenticated bootstrap route", () => {
@@ -489,6 +513,11 @@ type SynthResource = {
     Namespace?: string;
     OKActions?: unknown;
     Period?: number;
+    QueueName?: string;
+    RedrivePolicy?: {
+      deadLetterTargetArn?: unknown;
+      maxReceiveCount?: number;
+    };
     SqsManagedSseEnabled?: boolean;
     SSESpecification?: {
       KMSMasterKeyId?: string;

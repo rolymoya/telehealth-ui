@@ -10,6 +10,7 @@ export type AppDataErrorKind =
   | "conditional_conflict"
   | "stale_transition"
   | "duplicate_webhook_claim"
+  | "stale_webhook_claim"
   | "retryable_client_failure"
   | "unexpected_client_failure"
   | "not_found";
@@ -155,6 +156,11 @@ export type WebhookIdempotencyRecord = BaseRecord & {
   status: WebhookProcessingStatus;
   retryable: boolean;
   attempts: number;
+  retryOwner?: "provider" | "queue" | "handoff";
+  processingExpiresAt?: string;
+  nextAttemptAfter?: string;
+  maxAttempts?: number;
+  retryExhaustedAt?: string;
 };
 
 export type EvidenceEventRecord = BaseRecord & {
@@ -230,6 +236,11 @@ export type WebhookClaimOutcome =
   | { outcome: "alreadyProcessing"; record: WebhookIdempotencyRecord }
   | { outcome: "alreadyProcessed"; record: WebhookIdempotencyRecord }
   | { outcome: "failedRetryable"; record: WebhookIdempotencyRecord }
+  | { outcome: "retryNotDue"; record: WebhookIdempotencyRecord }
+  | { outcome: "queueOwnedRetry"; record: WebhookIdempotencyRecord }
+  | { outcome: "staleQueueDelivery"; record: WebhookIdempotencyRecord }
+  | { outcome: "processingLeaseExpired"; record: WebhookIdempotencyRecord }
+  | { outcome: "retryExhausted"; record: WebhookIdempotencyRecord }
   | { outcome: "conflict"; record: WebhookIdempotencyRecord };
 
 export function patientProfileKey(cognitoSub: string): AppDataKey {
@@ -902,9 +913,18 @@ export function claimWebhookEvent(
     provider: WebhookProvider;
     eventId: string;
     now: string;
+    deliverySource?: "provider" | "queue";
+    expectedAttempts?: number;
+    processingLeaseSeconds?: number;
+    maxAttempts?: number;
   },
 ): AppDataResult<WebhookClaimOutcome> {
+  if (!isWebhookEventIdForProvider(input.provider, input.eventId)) {
+    return err("validation_failed", "Invalid webhook event ID");
+  }
+
   const key = webhookIdempotencyKey(input.provider, input.eventId);
+  const processingExpiresAt = addSecondsIso(input.now, input.processingLeaseSeconds ?? 300);
   const existing = repository.get(key);
   if (!existing.ok) {
     return existing;
@@ -913,17 +933,101 @@ export function claimWebhookEvent(
   if (existing.value) {
     const record = existing.value as WebhookIdempotencyRecord;
     if (record.status === "processing") {
+      if (record.processingExpiresAt && isAtOrBefore(record.processingExpiresAt, input.now)) {
+        if (record.maxAttempts !== undefined && record.attempts >= record.maxAttempts) {
+          const exhaustedRecord: WebhookIdempotencyRecord = {
+            ...record,
+            status: "failed",
+            retryable: false,
+            retryOwner: undefined,
+            processingExpiresAt: undefined,
+            nextAttemptAfter: undefined,
+            retryExhaustedAt: record.retryExhaustedAt ?? input.now,
+            updatedAt: input.now,
+          };
+          const exhausted = repository.update(exhaustedRecord, { expected: record });
+          if (!exhausted.ok) {
+            return exhausted.error.kind === "conditional_conflict"
+              ? err("duplicate_webhook_claim", "Webhook event was claimed concurrently")
+              : exhausted;
+          }
+          return ok({ outcome: "retryExhausted", record: exhausted.value });
+        }
+        const retryRecord: WebhookIdempotencyRecord = {
+          ...record,
+          status: "processing",
+          retryable: false,
+          retryOwner: undefined,
+          attempts: record.attempts + 1,
+          processingExpiresAt,
+          nextAttemptAfter: undefined,
+          maxAttempts: record.maxAttempts ?? input.maxAttempts,
+          updatedAt: input.now,
+        };
+        const claimed = repository.update(retryRecord, { expected: record });
+        if (!claimed.ok) {
+          return claimed.error.kind === "conditional_conflict"
+            ? err("duplicate_webhook_claim", "Webhook event was claimed concurrently")
+            : claimed;
+        }
+        return ok({ outcome: "processingLeaseExpired", record: claimed.value });
+      }
       return ok({ outcome: "alreadyProcessing", record });
     }
     if (record.status === "processed") {
       return ok({ outcome: "alreadyProcessed", record });
     }
     if (record.retryable) {
+      if (
+        input.deliverySource === "queue" &&
+        (record.retryOwner !== "queue" ||
+          input.expectedAttempts === undefined ||
+          record.attempts !== input.expectedAttempts)
+      ) {
+        return ok({ outcome: "staleQueueDelivery", record });
+      }
+      if (record.retryOwner === "queue" && input.deliverySource !== "queue") {
+        return ok({ outcome: "queueOwnedRetry", record });
+      }
+      if (
+        record.retryOwner !== "queue" &&
+        record.maxAttempts !== undefined &&
+        record.attempts >= record.maxAttempts
+      ) {
+        const exhaustedRecord: WebhookIdempotencyRecord = {
+          ...record,
+          status: "failed",
+          retryable: false,
+          retryOwner: undefined,
+          processingExpiresAt: undefined,
+          nextAttemptAfter: undefined,
+          retryExhaustedAt: record.retryExhaustedAt ?? input.now,
+          updatedAt: input.now,
+        };
+        const exhausted = repository.update(exhaustedRecord, { expected: record });
+        if (!exhausted.ok) {
+          return exhausted.error.kind === "conditional_conflict"
+            ? err("duplicate_webhook_claim", "Webhook event was claimed concurrently")
+            : exhausted;
+        }
+        return ok({ outcome: "retryExhausted", record: exhausted.value });
+      }
+      if (
+        record.nextAttemptAfter &&
+        input.deliverySource !== "queue" &&
+        isAfter(record.nextAttemptAfter, input.now)
+      ) {
+        return ok({ outcome: "retryNotDue", record });
+      }
       const retryRecord: WebhookIdempotencyRecord = {
         ...record,
         status: "processing",
         retryable: false,
+        retryOwner: undefined,
         attempts: record.attempts + 1,
+        processingExpiresAt,
+        nextAttemptAfter: undefined,
+        maxAttempts: record.maxAttempts ?? input.maxAttempts,
         updatedAt: input.now,
       };
       const claimed = repository.update(retryRecord, { expected: record });
@@ -946,6 +1050,8 @@ export function claimWebhookEvent(
     status: "processing",
     retryable: false,
     attempts: 1,
+    processingExpiresAt,
+    maxAttempts: input.maxAttempts,
     createdAt: input.now,
     updatedAt: input.now,
   };
@@ -968,6 +1074,11 @@ export function markWebhookEventStatus(
     status: WebhookProcessingStatus;
     retryable: boolean;
     now: string;
+    expectedAttempts?: number;
+    expectedProcessingExpiresAt?: string;
+    retryOwner?: "provider" | "queue" | "handoff";
+    nextAttemptAfter?: string;
+    maxAttempts?: number;
   },
 ): AppDataResult<WebhookIdempotencyRecord> {
   const existing = repository.get(webhookIdempotencyKey(input.provider, input.eventId));
@@ -977,11 +1088,39 @@ export function markWebhookEventStatus(
   if (!existing.value || existing.value.recordType !== "webhookIdempotency") {
     return err("not_found", "Webhook event has not been claimed");
   }
+  const isCurrentProcessingClaim = existing.value.status === "processing";
+  const isRetryOwnerTransition =
+    existing.value.status === "failed" &&
+    existing.value.retryable &&
+    (existing.value.retryOwner === "provider" || existing.value.retryOwner === "handoff") &&
+    input.status === "failed" &&
+    input.retryable &&
+    (input.retryOwner === "queue" || input.retryOwner === "provider");
+
+  if (
+    (!isCurrentProcessingClaim && !isRetryOwnerTransition) ||
+    (isCurrentProcessingClaim &&
+      existing.value.processingExpiresAt !== undefined &&
+      isAtOrBefore(existing.value.processingExpiresAt, input.now)) ||
+    (input.expectedAttempts !== undefined &&
+      existing.value.attempts !== input.expectedAttempts) ||
+    (isCurrentProcessingClaim &&
+      input.expectedProcessingExpiresAt !== undefined &&
+      existing.value.processingExpiresAt !== input.expectedProcessingExpiresAt)
+  ) {
+    return err("stale_webhook_claim", "Webhook claim is no longer current");
+  }
 
   const record: WebhookIdempotencyRecord = {
     ...existing.value,
     status: input.status,
     retryable: input.retryable,
+    retryOwner: input.retryable ? (input.retryOwner ?? "provider") : undefined,
+    processingExpiresAt: input.status === "processing"
+      ? existing.value.processingExpiresAt
+      : undefined,
+    nextAttemptAfter: input.nextAttemptAfter,
+    maxAttempts: input.maxAttempts ?? existing.value.maxAttempts,
     updatedAt: input.now,
   };
 
@@ -1208,11 +1347,16 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         : err("validation_failed", "Invalid consent evidence record");
     case "webhookIdempotency":
       return (record.provider === "stripe" || record.provider === "mdi") &&
-        typeof record.eventId === "string" &&
+        isWebhookEventIdForProvider(record.provider, record.eventId) &&
         isWebhookStatus(record.status) &&
         typeof record.retryable === "boolean" &&
         Number.isInteger(record.attempts) &&
         record.attempts >= 0 &&
+        optionalRetryOwner(record.retryOwner) &&
+        optionalIsoDate(record.processingExpiresAt) &&
+        optionalIsoDate(record.nextAttemptAfter) &&
+        optionalPositiveInteger(record.maxAttempts) &&
+        optionalIsoDate(record.retryExhaustedAt) &&
         keysMatch(record, webhookIdempotencyKey(record.provider, record.eventId))
         ? ok(record)
         : err("validation_failed", "Invalid webhook idempotency record");
@@ -1660,7 +1804,19 @@ function isStripeSubscriptionId(value: string) {
 }
 
 function isWebhookEventId(value: string) {
-  return isSafeIdentifier(value, /^(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+  return value.length <= maxWebhookEventIdLength &&
+    isSafeIdentifier(value, /^(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isWebhookEventIdForProvider(provider: WebhookProvider, value: unknown) {
+  if (typeof value !== "string" || value.length > maxWebhookEventIdLength) {
+    return false;
+  }
+  const pattern = provider === "stripe"
+    ? /^evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/
+    : /^mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/;
+  return isSafeIdentifier(value, pattern) &&
+    !unsafeWebhookEventIdPatterns.some((pattern) => pattern.test(value));
 }
 
 function isRequestId(value: string) {
@@ -1752,8 +1908,45 @@ function isBillingStatus(value: unknown): value is BillingStatus {
   return billingStatuses.has(value as BillingStatus);
 }
 
+function addSecondsIso(isoTimestamp: string, seconds: number) {
+  return new Date(Date.parse(isoTimestamp) + seconds * 1000).toISOString();
+}
+
 function isWebhookStatus(value: unknown): value is WebhookProcessingStatus {
   return webhookStatuses.has(value as WebhookProcessingStatus);
+}
+
+function isAtOrBefore(leftIso: string, rightIso: string) {
+  return compareIso(leftIso, rightIso, (left, right) => left <= right);
+}
+
+function isAfter(leftIso: string, rightIso: string) {
+  return compareIso(leftIso, rightIso, (left, right) => left > right);
+}
+
+function compareIso(
+  leftIso: string,
+  rightIso: string,
+  compare: (left: number, right: number) => boolean,
+) {
+  const left = Date.parse(leftIso);
+  const right = Date.parse(rightIso);
+  return Number.isFinite(left) && Number.isFinite(right) && compare(left, right);
+}
+
+function optionalIsoDate(value: unknown) {
+  return value === undefined || isIsoTimestamp(value);
+}
+
+function optionalPositiveInteger(value: unknown) {
+  return value === undefined || (typeof value === "number" && Number.isInteger(value) && value > 0);
+}
+
+function optionalRetryOwner(value: unknown) {
+  return value === undefined ||
+    value === "provider" ||
+    value === "queue" ||
+    value === "handoff";
 }
 
 function isEvidenceEventCategory(value: unknown): value is EvidenceEventCategory {
@@ -1844,6 +2037,7 @@ const webhookStatuses = new Set<WebhookProcessingStatus>([
 
 const defaultEvidenceEventPageLimit = 25;
 const maxEvidenceEventPageLimit = 100;
+const maxWebhookEventIdLength = 128;
 const maxEvidenceCaseQueryPages = 5;
 
 const evidenceEventCategories = new Set<EvidenceEventCategory>([
@@ -1988,7 +2182,18 @@ const evidenceMetadataValuesByType: Record<EvidenceEventType, Record<string, Set
     previous_status: new Set(["not_started", "payment_method_pending", "payment_method_collected", "active", "past_due", "canceled"]),
   },
   webhook_claimed: {
-    outcome: new Set(["claimed", "already_processing", "already_processed", "failed_retryable", "conflict"]),
+    outcome: new Set([
+      "claimed",
+      "already_processing",
+      "already_processed",
+      "failed_retryable",
+      "retry_not_due",
+      "queue_owned_retry",
+      "stale_queue_delivery",
+      "processing_lease_expired",
+      "retry_exhausted",
+      "conflict",
+    ]),
   },
   webhook_processed: {
     outcome: new Set(["processed", "skipped_duplicate"]),
@@ -2104,6 +2309,14 @@ const unsafeOpaqueIdentifierPatterns = [
   /bearer[:_-]/i,
 ];
 
+const unsafeWebhookEventIdPatterns = [
+  /@/,
+  /(?:^|[_-])(email|first[_-]?name|last[_-]?name|phone|address|dob|birth|ssn)(?:$|[_-])/i,
+  /(?:^|[_-])(questionnaire|question|answer|diagnosis|symptom|clinical|clinician|medication|condition|note)(?:$|[_-])/i,
+  /(?:^|[_-])(asthma|cancer|diabetes|diabetic|hiv|hypertension|opioid|substance|addiction|depression|anxiety)(?:$|[_-])/i,
+  /(?:^|[_-])(secret|token|authorization|bearer|api[_-]?key|payload|metadata)(?:$|[_-])/i,
+];
+
 const forbiddenClinicalFields = new Set([
   "answers",
   "questionnaire",
@@ -2176,6 +2389,11 @@ const allowedFields: Record<string, Set<string>> = {
     "status",
     "retryable",
     "attempts",
+    "retryOwner",
+    "processingExpiresAt",
+    "nextAttemptAfter",
+    "maxAttempts",
+    "retryExhaustedAt",
   ),
   evidenceEvent: allow(
     "cognitoSub",

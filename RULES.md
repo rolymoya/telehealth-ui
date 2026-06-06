@@ -40,6 +40,13 @@
 - App Router conventions; light/dark `Nav` variant by background.
 - Long-form legal pages use the local `Section` helper pattern.
 - Per-branch feature docs in `docs/features/<branch>.md` for non-trivial work.
+- For ticket work, use Storybloq for ticket state, lessons, issues, and
+  handovers, but implement directly by default. Run full multi-lens review only
+  when the ticket or diff touches auth, payments, PHI/privacy/compliance,
+  Stripe/MDI webhooks or intake, DynamoDB schema/idempotency/concurrency,
+  infrastructure, secrets, or deployment security. For low-risk UI, docs,
+  copy, and narrow refactors, use direct self-review plus tests; after a lens
+  revise, re-run only the risk categories touched by fixes.
 - Cognito owns patient authentication. Do not introduce Clerk, Supabase Auth,
   better-auth, or a Postgres-backed auth system without a new architecture
   decision.
