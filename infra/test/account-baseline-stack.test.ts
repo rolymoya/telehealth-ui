@@ -21,6 +21,10 @@ describe("AccountBaselineStack", () => {
     template.resourceCountIs("AWS::S3::Bucket", 1);
     template.resourceCountIs("AWS::CloudTrail::Trail", 1);
     template.resourceCountIs("AWS::GuardDuty::Detector", 1);
+    template.resourceCountIs("AWS::IAM::OIDCProvider", 1);
+    template.resourceCountIs("AWS::IAM::Role", 1);
+    template.resourceCountIs("AWS::IAM::AccessKey", 0);
+    template.resourceCountIs("AWS::IAM::User", 0);
     template.resourceCountIs("AWS::SecurityHub::Hub", 0);
     template.resourceCountIs("AWS::EC2::VPC", 0);
   });
@@ -119,6 +123,69 @@ describe("AccountBaselineStack", () => {
     });
   });
 
+  it("creates a GitHub Actions OIDC deploy role restricted to the main branch", () => {
+    const template = synthesizeTemplate();
+
+    template.hasResourceProperties("AWS::IAM::OIDCProvider", {
+      Url: "https://token.actions.githubusercontent.com",
+      ClientIdList: ["sts.amazonaws.com"],
+    });
+
+    template.hasResourceProperties("AWS::IAM::Role", {
+      RoleName: "apoth-staging-github-oidc-cdk-deploy",
+      AssumeRolePolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: "sts:AssumeRoleWithWebIdentity",
+            Condition: {
+              StringEquals: {
+                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                "token.actions.githubusercontent.com:sub":
+                  "repo:rolymoya/telehealth-ui:ref:refs/heads/main",
+              },
+            },
+            Effect: "Allow",
+          }),
+        ]),
+      },
+    });
+
+    template.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: "sts:AssumeRole",
+            Effect: "Allow",
+          }),
+          Match.objectLike({
+            Action: [
+              "cloudformation:DescribeStacks",
+              "ssm:GetParameter",
+            ],
+            Effect: "Allow",
+          }),
+        ]),
+      },
+    });
+
+    const policies = Object.values(
+      template.findResources("AWS::IAM::Policy"),
+    );
+    const renderedPolicy = JSON.stringify(policies);
+    for (const bootstrapRole of [
+      "cdk-hnb659fds-deploy-role-",
+      "cdk-hnb659fds-file-publishing-role-",
+      "cdk-hnb659fds-image-publishing-role-",
+      "cdk-hnb659fds-lookup-role-",
+      "stack/CDKToolkit/*",
+      "parameter/cdk-bootstrap/hnb659fds/version",
+    ]) {
+      expect(renderedPolicy).toContain(bootstrapRole);
+    }
+    expect(renderedPolicy).not.toContain("AdministratorAccess");
+    expect(renderedPolicy).not.toContain('"Action":"*"');
+  });
+
   it("applies Apoth environment tags", () => {
     const template = synthesizeTemplate();
 
@@ -137,6 +204,9 @@ describe("AccountBaselineStack", () => {
       template.hasResourceProperties("AWS::S3::Bucket", {
         Tags: Match.arrayWith([tag]),
       });
+      template.hasResourceProperties("AWS::IAM::Role", {
+        Tags: Match.arrayWith([tag]),
+      });
     }
   });
 
@@ -147,6 +217,9 @@ describe("AccountBaselineStack", () => {
       "CloudTrailName",
       "CloudTrailLogBucketName",
       "GuardDutyDetectorId",
+      "GithubActionsOidcProviderArn",
+      "GithubActionsDeployRoleArn",
+      "GithubActionsDeployTrustSubject",
     ]) {
       template.hasOutput(outputName, {});
     }

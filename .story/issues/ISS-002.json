@@ -6,7 +6,7 @@
   ],
   "discoveredDate": "2026-06-04",
   "id": "ISS-002",
-  "impact": "The AWS BAA date/evidence location, IAM Identity Center instance, single-account launch decision, successful staging CDK deploy evidence, CloudTrail management-events trail, and GuardDuty detector are now recorded for account 329425487030. Production readiness still depends on creating GitHub OIDC deploy roles, confirming account-wide MFA/key posture, selecting/routing a security findings contact path, and populating live secret values in AWS Secrets Manager. Production deployment must not treat the remaining TODO evidence fields as complete.",
+  "impact": "The AWS BAA date/evidence location, IAM Identity Center instance, single-account launch decision, successful staging CDK deploy evidence, CloudTrail management-events trail, GuardDuty detector, and AWS-side GitHub OIDC provider/deploy role are now recorded for account 329425487030. Production readiness still depends on confirming account-wide MFA/key posture, selecting/routing a security findings contact path, deciding owner-selected GitHub environment/workflow-specific trust restrictions, running the first GitHub Actions OIDC assume-role smoke check, and populating live secret values in AWS Secrets Manager. The current CDK CloudFormation execution bootstrap role has AdministratorAccess and should be narrowed in a future hardening pass before treating deploy permissions as least-privilege. Production deployment must not treat the remaining TODO evidence fields as complete.",
   "location": [
     "docs/compliance/baa-register.md",
     "docs/runbooks/aws-account-baseline.md"

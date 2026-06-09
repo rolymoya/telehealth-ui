@@ -55,8 +55,11 @@ of Git; record only account IDs, role ARNs, evidence paths, and stack outputs.
    - Developer CLI profile name to use locally: `apoth-staging`
    - Staging deploy/admin role ARN, if assuming a role:
      `arn:aws:sts::329425487030:assumed-role/AWSReservedSSO_AdministratorAccess_57fb0260b21e4638/roly-dev-sso`
-   - GitHub Actions OIDC deploy role ARN, if already created: `TODO`
-   - GitHub org/repo/branch/workflow subject restrictions: `TODO`
+   - GitHub Actions OIDC deploy role ARN:
+     `arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy`
+   - GitHub org/repo/branch trust restriction:
+     `repo:rolymoya/telehealth-ui:ref:refs/heads/main`
+   - GitHub environment/workflow-specific restrictions: `TODO` (`T-084`)
 
 7. Fill the repo docs with non-secret values after verification.
    - `docs/runbooks/aws-account-baseline.md`
@@ -76,9 +79,9 @@ PRODUCTION_ACCOUNT_ID=329425487030
 AWS_BAA_EFFECTIVE_DATE=06/08/2026
 AWS_BAA_EVIDENCE_LOCATION=AWS Artifact > Agreements > AWS Business Associate Addendum
 STAGING_DEPLOY_ROLE_ARN=
-GITHUB_OIDC_ROLE_ARN=
-GITHUB_REPOSITORY=
-GITHUB_BRANCH_OR_ENVIRONMENT=
+GITHUB_OIDC_ROLE_ARN=arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy
+GITHUB_REPOSITORY=rolymoya/telehealth-ui
+GITHUB_BRANCH_OR_ENVIRONMENT=main branch trust active; environment/workflow-specific restrictions TODO in T-084
 SECURITY_FINDINGS_CONTACT=
 ```
 
@@ -136,8 +139,23 @@ Remaining staging account-baseline work:
 CloudTrailLogBucketName=apoth-staging-cloudtrail-logs-329425487030-us-east-1-an
 CloudTrailName=apoth-staging-management-events
 GuardDutyDetectorId=a834cce0182642a2884136f8c0f152c0
+GithubActionsOidcProviderArn=arn:aws:iam::329425487030:oidc-provider/token.actions.githubusercontent.com
+GithubActionsDeployRoleArn=arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy
+GithubActionsDeployTrustSubject=repo:rolymoya/telehealth-ui:ref:refs/heads/main
 StackArn=arn:aws:cloudformation:us-east-1:329425487030:stack/Apoth-staging-AccountBaseline/7ec00270-63b1-11f1-8e5c-12bdeb8afd65
 ```
+
+Effective deploy-permission caveat: the GitHub role itself has no managed
+policies and can assume only CDK bootstrap roles, but the CDK CloudFormation
+execution role currently has AWS-managed `AdministratorAccess`. Treat this as
+a temporary broad CDK bootstrap deploy posture until a later hardening ticket
+narrows the execution role.
+
+First GitHub-side OIDC smoke check is still pending. Use a workflow on `main`
+with `permissions: id-token: write` and
+`aws-actions/configure-aws-credentials@v4` against
+`arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy`, then run
+`aws sts get-caller-identity`. Do not add AWS access keys to GitHub Secrets.
 
 ## Tasks Codex Can Do Via CLI
 

@@ -51,7 +51,7 @@ resource names, deploy roles, secrets, and runbook evidence.
 
 | Role | ARN | Trust source | Notes |
 | --- | --- | --- | --- |
-| Staging deploy | TODO: GitHub OIDC staging deploy role ARN | TODO: GitHub org/repo/workflow subject | Not created yet. Initial staging bootstrap/deploy used SSO role `arn:aws:sts::329425487030:assumed-role/AWSReservedSSO_AdministratorAccess_57fb0260b21e4638/roly-dev-sso`. |
+| Staging deploy | `arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy` | `repo:rolymoya/telehealth-ui:ref:refs/heads/main` | AWS-side OIDC provider and role are active. Owner-selected environment/workflow-specific trust tightening remains in `T-084`; first GitHub Actions smoke run is still pending. |
 | Production deploy | TODO: protected same-account production deploy role ARN | TODO: GitHub org/repo/workflow subject | Same AWS account as staging for now. Production deploys should require protected branches/environments and review gates. |
 
 4. CloudTrail
@@ -129,9 +129,14 @@ Complete these before production launch. Use real AWS/account evidence only.
       `arn:aws:sso:::instance/ssoins-7223bfcc3b158a96`.
 - [ ] TODO: Confirm account-wide MFA enforcement for all developer/admin users.
 - [ ] TODO: Remove or disable long-lived developer IAM user keys.
-- [ ] TODO: Create staging deploy role with GitHub OIDC trust.
+- [x] Create staging deploy role with GitHub OIDC trust. Verified role
+      `arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy`
+      trusts `repo:rolymoya/telehealth-ui:ref:refs/heads/main`.
 - [ ] TODO: Create protected production-stage deploy role with GitHub OIDC
       trust in the same AWS account.
+- [ ] TODO: Run the first GitHub Actions OIDC smoke check from `main` and
+      decide any owner-selected environment/workflow trust restrictions in
+      `T-084`.
 - [x] Enable CloudTrail management events. Verified trail
       `apoth-staging-management-events` in `us-east-1`.
 - [x] Enable GuardDuty. Verified detector
@@ -186,6 +191,12 @@ Stack outputs captured from CloudFormation:
   `apoth-staging-cloudtrail-logs-329425487030-us-east-1-an`
 - GuardDuty detector:
   `a834cce0182642a2884136f8c0f152c0`
+- GitHub Actions OIDC provider:
+  `arn:aws:iam::329425487030:oidc-provider/token.actions.githubusercontent.com`
+- GitHub Actions deploy role:
+  `arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy`
+- GitHub Actions deploy trust subject:
+  `repo:rolymoya/telehealth-ui:ref:refs/heads/main`
 
 Account-baseline verification captured on June 8, 2026:
 
@@ -232,6 +243,73 @@ AWS_PROFILE=apoth-staging aws guardduty get-detector \
 
 Result: detector `a834cce0182642a2884136f8c0f152c0` exists with status
 `ENABLED` and finding publishing frequency `FIFTEEN_MINUTES`.
+
+GitHub OIDC deploy-role verification captured on June 8, 2026:
+
+```bash
+AWS_PROFILE=apoth-staging aws iam get-open-id-connect-provider \
+  --open-id-connect-provider-arn \
+  arn:aws:iam::329425487030:oidc-provider/token.actions.githubusercontent.com
+```
+
+Result: provider URL `token.actions.githubusercontent.com`, client ID
+`sts.amazonaws.com`, and CDK tags for `apoth:stage=staging`.
+
+```bash
+AWS_PROFILE=apoth-staging aws iam get-role \
+  --role-name apoth-staging-github-oidc-cdk-deploy
+```
+
+Result: trust policy allows only `sts:AssumeRoleWithWebIdentity` from
+`arn:aws:iam::329425487030:oidc-provider/token.actions.githubusercontent.com`
+when `token.actions.githubusercontent.com:aud` is `sts.amazonaws.com` and
+`token.actions.githubusercontent.com:sub` is
+`repo:rolymoya/telehealth-ui:ref:refs/heads/main`.
+
+```bash
+AWS_PROFILE=apoth-staging aws iam get-role-policy \
+  --role-name apoth-staging-github-oidc-cdk-deploy \
+  --policy-name GithubActionsDeployRoleDefaultPolicy656FD013
+```
+
+Result: inline policy allows `sts:AssumeRole` only into these CDK bootstrap
+roles:
+
+- `cdk-hnb659fds-deploy-role-329425487030-us-east-1`
+- `cdk-hnb659fds-file-publishing-role-329425487030-us-east-1`
+- `cdk-hnb659fds-image-publishing-role-329425487030-us-east-1`
+- `cdk-hnb659fds-lookup-role-329425487030-us-east-1`
+
+It also allows `cloudformation:DescribeStacks` on `CDKToolkit` and
+`ssm:GetParameter` for `/cdk-bootstrap/hnb659fds/version`.
+
+Effective-permission caveat: the GitHub role has no attached managed policies
+and no direct `AdministratorAccess`, but the CDK bootstrap
+`cdk-hnb659fds-cfn-exec-role-329425487030-us-east-1` currently has AWS-managed
+`AdministratorAccess`. Treat this as a temporary broad CDK bootstrap posture
+until a later hardening ticket narrows the CloudFormation execution role to
+the launch resource set.
+
+First GitHub-side OIDC smoke check is pending. Add a temporary workflow on
+`main` or run the first deploy workflow with:
+
+```yaml
+permissions:
+  id-token: write
+  contents: read
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: aws-actions/configure-aws-credentials@v4
+    with:
+      role-to-assume: arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy
+      aws-region: us-east-1
+  - run: aws sts get-caller-identity
+```
+
+Expected smoke result: account `329425487030` with assumed role
+`apoth-staging-github-oidc-cdk-deploy`. Do not add AWS access keys to GitHub
+Secrets.
 
 ## Developer Verification
 

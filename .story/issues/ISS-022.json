@@ -1,0 +1,23 @@
+{
+  "components": [
+    "aws",
+    "iam",
+    "deploy"
+  ],
+  "discoveredDate": "2026-06-08",
+  "id": "ISS-022",
+  "impact": "The GitHub Actions deploy role is restricted to repo/main OIDC trust and can only assume CDK bootstrap roles directly, but the CDK CloudFormation execution role cdk-hnb659fds-cfn-exec-role-329425487030-us-east-1 currently has AWS-managed AdministratorAccess. This is acceptable as a temporary bootstrap posture for early staging, but deploy permissions should be narrowed to the launch resource set before treating the pipeline as least-privilege or production-ready.",
+  "location": [
+    "docs/runbooks/aws-account-baseline.md",
+    "docs/runbooks/staging-cdk-deploy-handoff.md"
+  ],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-083"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "CDK bootstrap execution role still has AdministratorAccess"
+}
