@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
   createBrowserCognitoAuthClient,
+  type BrowserAuthSessionTransport,
   type CognitoClientTransport,
 } from "@/lib/auth/client";
 import {
@@ -48,10 +49,12 @@ describe("browser Cognito auth client", () => {
       {},
       {},
     ]);
+    const sessionTransport = fakeSessionTransport();
     const client = createBrowserCognitoAuthClient({
       config,
       transport,
       idFactory: () => "opaque-challenge-001",
+      sessionTransport,
     });
 
     await expect(
@@ -117,10 +120,12 @@ describe("browser Cognito auth client", () => {
       },
       {},
     ]);
+    const sessionTransport = fakeSessionTransport();
     const client = createBrowserCognitoAuthClient({
       config,
       transport,
       idFactory: () => "opaque-challenge-001",
+      sessionTransport,
     });
 
     const setup = await client.signIn({
@@ -167,11 +172,18 @@ describe("browser Cognito auth client", () => {
     expect(JSON.stringify(signedIn)).not.toContain("patient@example.com");
     expect(JSON.stringify(signedIn)).not.toContain("raw-cognito");
     expect(JSON.stringify(signedIn)).not.toContain(accessToken);
+    expect(sessionTransport.calls).toEqual([
+      { operation: "establish", accessToken },
+    ]);
 
     await expect(client.signOut()).resolves.toEqual({
       ok: true,
       value: { status: "signed_out" },
     });
+    expect(sessionTransport.calls).toEqual([
+      { operation: "establish", accessToken },
+      { operation: "clear" },
+    ]);
     expect(transport.calls.map((call) => call.operation)).toEqual([
       "InitiateAuth",
       "AssociateSoftwareToken",
@@ -202,7 +214,12 @@ describe("browser Cognito auth client", () => {
         name: "NotAuthorizedException",
       }),
     ]);
-    const client = createBrowserCognitoAuthClient({ config, transport });
+    const sessionTransport = fakeSessionTransport();
+    const client = createBrowserCognitoAuthClient({
+      config,
+      transport,
+      sessionTransport,
+    });
 
     await expect(
       client.signIn({ email: "patient@example.com", password: "Password12345" }),
@@ -225,6 +242,9 @@ describe("browser Cognito auth client", () => {
         },
       },
     });
+    expect(sessionTransport.calls).toEqual([
+      { operation: "establish", accessToken },
+    ]);
   });
 
   it("maps Cognito errors to safe messages without returning raw responses", async () => {
@@ -290,6 +310,29 @@ function scriptedTransport(
         throw next;
       }
       return next;
+    },
+  };
+}
+
+function fakeSessionTransport(): BrowserAuthSessionTransport & {
+  calls: Array<
+    | { operation: "clear" }
+    | { operation: "establish"; accessToken: string }
+  >;
+} {
+  const calls: Array<
+    | { operation: "clear" }
+    | { operation: "establish"; accessToken: string }
+  > = [];
+  return {
+    calls,
+    async clear() {
+      calls.push({ operation: "clear" });
+      return { ok: true, value: { status: "session_cleared" } };
+    },
+    async establish(input) {
+      calls.push({ operation: "establish", accessToken: input.accessToken });
+      return { ok: true, value: { status: "session_established" } };
     },
   };
 }

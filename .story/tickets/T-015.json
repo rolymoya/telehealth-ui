@@ -3,13 +3,14 @@
     "T-013",
     "T-040"
   ],
-  "completedDate": null,
+  "claimedBySession": "7f48be35-fd31-451e-beb8-acdd95fee9a9",
+  "completedDate": "2026-06-09",
   "createdDate": "2026-05-18",
   "description": "Protect authenticated product routes and route patients to the correct onboarding step using Cognito identity plus DynamoDB app-status records.\n\n**Scope**\n- Middleware/server helpers enforce authenticated access for dashboard, account, billing, and onboarding routes.\n- Store only step/status pointers in DynamoDB: consent status, intake submitted status, MDI patient/case IDs, and billing status.\n- Redirect users who try to skip ahead to the earliest incomplete required step.\n- Do not add KYC gates for launch. Persona/KYC remains out of scope unless a later decision reintroduces it.\n\n**Acceptance**\n- Unauthenticated users are redirected to sign in and return to the intended route after auth.\n- Skip-ahead tests cover consents, intake submission, MDI handoff, and billing status.\n- Route gating reads DynamoDB status records and never relies on questionnaire answers stored locally.",
   "id": "T-015",
   "order": 30,
   "phase": "auth",
-  "status": "open",
+  "status": "complete",
   "title": "Protected routes + onboarding-step gates",
   "type": "task"
 }

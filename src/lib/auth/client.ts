@@ -24,9 +24,17 @@ export type CognitoClientTransport = {
   send(operation: CognitoOperation, payload: Record<string, unknown>): Promise<Record<string, unknown>>;
 };
 
+export type BrowserAuthSessionTransport = {
+  clear(): Promise<AuthResult<{ status: "session_cleared" }>>;
+  establish(input: {
+    accessToken: string;
+  }): Promise<AuthResult<{ status: "session_established" }>>;
+};
+
 export type BrowserAuthClientOptions = {
   config: CognitoAuthConfig;
   idFactory?: () => string;
+  sessionTransport?: BrowserAuthSessionTransport | null;
   transport?: CognitoClientTransport;
 };
 
@@ -38,6 +46,7 @@ export function createBrowserCognitoAuthClient(
   options: BrowserAuthClientOptions,
 ): PatientAuthAdapter {
   const transport = options.transport ?? createCognitoJsonTransport(options.config);
+  const sessionTransport = options.sessionTransport ?? createBrowserAuthSessionTransport();
   const idFactory = options.idFactory ?? createOpaqueChallengeId;
   const challenges = new Map<string, CognitoChallengeState>();
   let currentSession: PatientAuthSession | null = null;
@@ -90,6 +99,7 @@ export function createBrowserCognitoAuthClient(
         config: options.config,
         transport,
         idFactory,
+        sessionTransport,
         setSession: (session, accessToken) => {
           currentSession = session;
           currentAccessToken = accessToken;
@@ -134,6 +144,7 @@ export function createBrowserCognitoAuthClient(
           config: options.config,
           transport,
           idFactory,
+          sessionTransport,
           setSession: (session, accessToken) => {
             currentSession = session;
             currentAccessToken = accessToken;
@@ -161,6 +172,7 @@ export function createBrowserCognitoAuthClient(
         config: options.config,
         transport,
         idFactory,
+        sessionTransport,
         setSession: (session, accessToken) => {
           currentSession = session;
           currentAccessToken = accessToken;
@@ -199,6 +211,12 @@ export function createBrowserCognitoAuthClient(
         });
         if (!result.ok) {
           return result;
+        }
+      }
+      if (sessionTransport) {
+        const cleared = await sessionTransport.clear();
+        if (!cleared.ok) {
+          return cleared;
         }
       }
       currentSession = null;
@@ -266,6 +284,35 @@ export function createCognitoJsonTransport(
   };
 }
 
+export function createBrowserAuthSessionTransport(
+  fetchImpl: typeof fetch = fetch,
+): BrowserAuthSessionTransport {
+  return {
+    async establish(input) {
+      const response = await fetchImpl("/api/auth/session", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ accessToken: input.accessToken }),
+      });
+      if (!response.ok) {
+        return authErr("invalid_token", "Cognito access token could not be verified");
+      }
+      return authOk({ status: "session_established" });
+    },
+    async clear() {
+      const response = await fetchImpl("/api/auth/session", {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        return authErr("invalid_token", "Browser session could not be cleared");
+      }
+      return authOk({ status: "session_cleared" });
+    },
+  };
+}
+
 async function sendCognito(
   transport: CognitoClientTransport,
   operation: CognitoOperation,
@@ -285,6 +332,7 @@ async function handleAuthResponse(input: {
   config: CognitoAuthConfig;
   transport: CognitoClientTransport;
   idFactory: () => string;
+  sessionTransport: BrowserAuthSessionTransport | null;
   setSession: (session: PatientAuthSession, accessToken: string) => void;
 }): Promise<AuthResult<AuthSignInState>> {
   const authResult = recordField(input.response.AuthenticationResult);
@@ -296,6 +344,12 @@ async function handleAuthResponse(input: {
     const session = clientSessionFromAccessToken(accessToken, input.config);
     if (!session.ok) {
       return session;
+    }
+    if (input.sessionTransport) {
+      const persisted = await input.sessionTransport.establish({ accessToken });
+      if (!persisted.ok) {
+        return persisted;
+      }
     }
     input.setSession(session.value, accessToken);
     return authOk({ status: "signed_in", session: session.value });

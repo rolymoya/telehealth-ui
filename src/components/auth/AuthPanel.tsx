@@ -10,6 +10,7 @@ import type {
 import {
   createDefaultBrowserCognitoAuthClient,
 } from "@/lib/auth/client";
+import { sanitizeReturnToPath } from "@/lib/onboarding-gates";
 import type {
   AuthResult,
   AuthSignInState,
@@ -26,9 +27,11 @@ export type AuthPanelMode =
 export function AuthPanel({
   client,
   mode,
+  returnTo,
 }: {
   client?: PatientAuthAdapter;
   mode: AuthPanelMode;
+  returnTo?: string | null;
 }) {
   const defaultClient = useMemo(() => {
     if (client) {
@@ -49,7 +52,9 @@ export function AuthPanel({
     <AuthFrame mode={mode}>
       {mode === "sign-up" && <SignUpForm client={defaultClient.value} />}
       {mode === "verify-email" && <VerifyEmailForm client={defaultClient.value} />}
-      {mode === "sign-in" && <SignInForm client={defaultClient.value} />}
+      {mode === "sign-in" && (
+        <SignInForm client={defaultClient.value} returnTo={returnTo} />
+      )}
       {mode === "reset-password" && <ResetPasswordForm client={defaultClient.value} />}
       {mode === "sign-out" && <SignOutForm client={defaultClient.value} />}
     </AuthFrame>
@@ -150,7 +155,13 @@ function VerifyEmailForm({ client }: { client: PatientAuthAdapter }) {
   );
 }
 
-function SignInForm({ client }: { client: PatientAuthAdapter }) {
+function SignInForm({
+  client,
+  returnTo,
+}: {
+  client: PatientAuthAdapter;
+  returnTo?: string | null;
+}) {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -165,6 +176,7 @@ function SignInForm({ client }: { client: PatientAuthAdapter }) {
       onSuccess: (value) => {
         setChallenge(value);
         setStatus(value.status === "signed_in" ? "Signed in." : "MFA verification required.");
+        redirectAfterSignIn(value, returnTo);
       },
       action: () =>
         client.signIn({
@@ -186,6 +198,7 @@ function SignInForm({ client }: { client: PatientAuthAdapter }) {
       onSuccess: (value) => {
         setChallenge(value);
         setStatus(value.status === "signed_in" ? "Signed in." : "MFA verification required.");
+        redirectAfterSignIn(value, returnTo);
       },
       action: () =>
         client.completeTotpChallenge({
@@ -436,6 +449,17 @@ function valueFromForm(
     return "";
   }
   return options.trim === false ? value : value.trim();
+}
+
+function redirectAfterSignIn(value: AuthSignInState, returnTo: string | null | undefined) {
+  if (value.status !== "signed_in") {
+    return;
+  }
+  if (returnTo === undefined) {
+    return;
+  }
+  const destination = sanitizeReturnToPath(returnTo) ?? "/dashboard";
+  globalThis.location?.assign?.(destination);
 }
 
 const authContent = {
