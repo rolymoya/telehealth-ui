@@ -67,7 +67,7 @@ describe("Cognito auth config", () => {
       ok: true,
       value: {
         provider: "cognito",
-        authMode: "srp_no_hosted_ui",
+        authMode: "password_auth_no_hosted_ui",
         region: "us-east-1",
         userPoolId: "us-east-1_urOM8PctH",
         userPoolClientId: "2i8kvm8c840gfou4qvlm67u2be",
@@ -250,6 +250,7 @@ describe("Cognito server session facade", () => {
 describe("auth adapter lifecycle contract", () => {
   it("supports sign-up, email verification, MFA sign-in, server lookup, and sign-out through the facade", async () => {
     const adapter = new InMemoryPatientAuthAdapter(authConfig());
+    const opaqueSessionToken = "session-test-token-001";
 
     await expect(
       adapter.signUp({ email: "patient@example.com", password: "Password12345" }),
@@ -286,13 +287,13 @@ describe("auth adapter lifecycle contract", () => {
       ok: true,
       value: {
         status: "totp_setup_required",
-        setupId: "setup:patient@example.com",
+        challengeId: "challenge-setup-001",
         sharedSecret: "fake_totp_secret",
       },
     });
 
     const signedIn = await adapter.completeTotpChallenge({
-      challengeId: "setup:patient@example.com",
+      challengeId: "challenge-setup-001",
       code: "654321",
     });
     expect(signedIn).toMatchObject({
@@ -312,7 +313,7 @@ describe("auth adapter lifecycle contract", () => {
     }
 
     await expect(
-      adapter.getServerSession({ token: "session:patient@example.com" }),
+      adapter.getServerSession({ token: opaqueSessionToken }),
     ).resolves.toEqual({
       ok: true,
       value: signedIn.value.session,
@@ -323,7 +324,7 @@ describe("auth adapter lifecycle contract", () => {
       value: { status: "signed_out" },
     });
     await expect(
-      adapter.getServerSession({ token: "session:patient@example.com" }),
+      adapter.getServerSession({ token: opaqueSessionToken }),
     ).resolves.toEqual({
       ok: false,
       error: {
@@ -379,13 +380,13 @@ class InMemoryPatientAuthAdapter implements PatientAuthAdapter {
     if (!user.totpEnrolled) {
       return ok({
         status: "totp_setup_required",
-        setupId: `setup:${input.email}`,
+        challengeId: "challenge-setup-001",
         sharedSecret: "fake_totp_secret",
       });
     }
     return ok({
       status: "totp_challenge_required",
-      challengeId: `challenge:${input.email}`,
+      challengeId: "challenge-mfa-001",
     });
   }
 
@@ -396,9 +397,12 @@ class InMemoryPatientAuthAdapter implements PatientAuthAdapter {
       return err("invalid_mfa_code", "MFA code is incorrect");
     }
 
-    const [kind, email] = input.challengeId.split(":");
-    const user = this.users.get(email);
-    if (!user || (kind !== "setup" && kind !== "challenge")) {
+    const email = input.challengeId === "challenge-setup-001" ||
+      input.challengeId === "challenge-mfa-001"
+      ? "patient@example.com"
+      : null;
+    const user = email ? this.users.get(email) : null;
+    if (!user) {
       return err("totp_required", "A valid TOTP challenge is required");
     }
 
@@ -414,7 +418,7 @@ class InMemoryPatientAuthAdapter implements PatientAuthAdapter {
       return session;
     }
 
-    this.sessions.set(`session:${user.email}`, session.value);
+    this.sessions.set("session-test-token-001", session.value);
     return ok({ status: "signed_in", session: session.value });
   }
 
@@ -433,6 +437,14 @@ class InMemoryPatientAuthAdapter implements PatientAuthAdapter {
       return err("session_not_found", "Session has been signed out or does not exist");
     }
     return ok(session);
+  }
+
+  async requestPasswordReset() {
+    return ok({ status: "password_reset_code_sent", destination: "email" } as const);
+  }
+
+  async confirmPasswordReset() {
+    return ok({ status: "password_reset_confirmed" } as const);
   }
 }
 

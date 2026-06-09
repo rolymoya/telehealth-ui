@@ -160,7 +160,12 @@ describe("ServerlessPlatformStack", () => {
 
     template.hasResourceProperties("AWS::Cognito::UserPoolClient", {
       AllowedOAuthFlowsUserPoolClient: false,
-      ExplicitAuthFlows: Match.arrayWith(["ALLOW_USER_SRP_AUTH"]),
+      ExplicitAuthFlows: Match.arrayWith([
+        "ALLOW_USER_PASSWORD_AUTH",
+        "ALLOW_USER_SRP_AUTH",
+        "ALLOW_REFRESH_TOKEN_AUTH",
+      ]),
+      GenerateSecret: Match.absent(),
       PreventUserExistenceErrors: "ENABLED",
     });
   });

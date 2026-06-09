@@ -92,7 +92,7 @@ export class ServerlessPlatformStack extends Stack {
       userPoolClientName: `apoth-${props.config.stage}-web`,
       authFlows: {
         userSrp: true,
-        userPassword: false,
+        userPassword: true,
       },
       disableOAuth: true,
       preventUserExistenceErrors: true,

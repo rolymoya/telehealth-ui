@@ -84,12 +84,21 @@ real credentials in Secrets Manager only.
 
 ## Cognito Patient Auth Setup
 
-The launch auth baseline uses a first-party SRP flow against the Cognito app
-client. Cognito owns patient email identity, password state, email
-verification, MFA enrollment/challenges, refresh/session state, and the stable
-subject. Apoth product code must use `src/lib/auth.ts` or a local wrapper built
-on it for session lookup, current-user access, protected-route checks, and
-future sign-up/sign-in calls.
+The launch auth baseline uses a first-party Cognito flow. Cognito owns patient
+email identity, password state, email verification, MFA enrollment/challenges,
+refresh/session state, and the stable subject. Apoth product code must use
+`src/lib/auth.ts`, `src/lib/auth/client.ts`, or a local wrapper built on them
+for session lookup, current-user access, protected-route checks, and
+sign-up/sign-in calls.
+
+SRP remains the preferred browser auth mechanism once the SRP-capable Cognito
+client package can be installed. During T-014, package installation for
+`amazon-cognito-identity-js` was blocked by the environment approval policy, so
+the launch UI uses Cognito's public JSON API with `USER_PASSWORD_AUTH` as an
+explicit fallback. In this fallback, passwords are submitted directly from the
+browser to Cognito over TLS. They must never traverse an Apoth server, route
+handler, log, analytics event, ticket, screenshot, or persisted record. Revisit
+this tradeoff and return to SRP/package auth when dependency policy permits.
 
 Required public app configuration:
 
@@ -106,11 +115,9 @@ addresses, or verification codes in DynamoDB, Stripe metadata, logs, tickets,
 or Secrets Manager.
 
 Launch does not configure a Cognito hosted UI domain, OAuth flow, callback URL,
-or logout URL. The user pool client is intentionally SRP-oriented for the
-first-party UI/API work that follows this baseline. Any future hosted UI,
-social login, OAuth callback, or external identity provider requires a new
-architecture/security decision and stage-specific redirect tests before it can
-ship.
+or logout URL. Any future hosted UI, social login, OAuth callback, or external
+identity provider requires a new architecture/security decision and
+stage-specific redirect tests before it can ship.
 
 The current Cognito launch posture is:
 
@@ -119,8 +126,9 @@ The current Cognito launch posture is:
 - Passwords require at least 12 characters with uppercase, lowercase, and
   digits. Symbols are not required for launch.
 - MFA is required with software-token TOTP only. SMS MFA is disabled.
-- The app client enables SRP auth and prevents user-existence errors. Password
-  auth and hosted UI/OAuth are disabled.
+- The app client enables SRP auth, the T-014 direct-to-Cognito
+  `USER_PASSWORD_AUTH` fallback, refresh-token auth, and user-existence error
+  prevention. Hosted UI/OAuth and client-secret generation are disabled.
 
 ### Staging Test User Smoke Path
 
@@ -134,10 +142,10 @@ Use a dedicated non-clinical test email and synthetic data only.
      --query 'Stacks[0].Outputs[?starts_with(OutputKey, `PatientUserPool`)]'
    ```
 
-2. Run sign-up through the app facade once the T-014 UI/API entry point exists,
-   or use an operator-approved Cognito CLI smoke test while UI is still pending.
-   Do not paste the password, verification code, MFA secret, or token values
-   into logs, tickets, docs, or screenshots.
+2. Run sign-up through `/sign-up` against the app facade. Do not paste the
+   password, verification code, MFA secret, token values, challenge/session
+   identifiers, raw Cognito responses, or screenshots containing those values
+   into logs, tickets, docs, review evidence, or screenshots.
 
 3. If email delivery is not configured, an operator may confirm the synthetic
    staging user in Cognito for the smoke test:
@@ -148,13 +156,15 @@ Use a dedicated non-clinical test email and synthetic data only.
      --username patient-smoke@example.invalid
    ```
 
-4. Complete first sign-in, enroll TOTP, complete the MFA challenge, and retrieve
-   a server-side session through `src/lib/auth.ts`. The session evidence should
-   show only the Cognito subject, issuer, client ID, token use, and expiration.
+4. Complete first sign-in through `/sign-in`, enroll TOTP, and complete the MFA
+   challenge. The facade evidence should show only pass/fail, route names,
+   stage, and if needed the opaque Cognito subject. Session evidence should show
+   only the Cognito subject, issuer, client ID, token use, and expiration.
 
-5. Sign out and verify the facade no longer returns a session for the old
-   token/cookie. If a smoke path emits evidence, store only opaque event IDs and
-   `cognitoSub`; Cognito remains authoritative for auth details.
+5. Request and confirm password reset through `/reset-password`, then sign out
+   through `/sign-out` and verify the facade no longer returns a session for the
+   old browser state. If a smoke path emits evidence, store only opaque event
+   IDs and `cognitoSub`; Cognito remains authoritative for auth details.
 
 ## Managed Encryption Baseline
 
