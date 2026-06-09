@@ -385,8 +385,8 @@ below before enabling routes or jobs that depend on them.
 | Secret | Kind | Required fields | Rotation |
 | --- | --- | --- | --- |
 | `/apoth/{stage}/mdi/api` | `mdiApi` | `clientId`, `clientSecret`, `apiBaseUrl` | Engineering plus MDI account owner; at least every 180 days or sooner if MDI requires it |
-| `/apoth/{stage}/stripe/api` | `stripeApi` | `secretKey`, `webhookSigningSecret` | Engineering plus Stripe admin; API keys at least every 180 days, webhook secrets after endpoint changes or exposure |
-| `/apoth/{stage}/app/signing` | `appSigning` | `signingSecret` | Engineering; at least annually and after suspected exposure |
+| `/apoth/{stage}/stripe/api` | `stripeApi` | `secretKey`, `webhookSigningSecret`; optional `webhookSigningSecretPrevious`, `webhookSigningSecretPreviousExpiresAt` rotation pair | Engineering plus Stripe admin; API keys at least every 180 days, webhook secrets after endpoint changes or exposure |
+| `/apoth/{stage}/app/signing` | `appSigning` | `signingSecret`; optional `signingSecretPrevious`, `signingSecretPreviousExpiresAt` rotation pair | Engineering; at least annually and after suspected exposure |
 
 Example payloads:
 
@@ -407,7 +407,22 @@ Example payloads:
   "secretKind": "stripeApi",
   "schemaVersion": 1,
   "secretKey": "<stripe-secret-key>",
-  "webhookSigningSecret": "<stripe-webhook-signing-secret>"
+  "webhookSigningSecret": "<current-stripe-webhook-signing-secret>"
+}
+```
+
+During webhook signing-secret rotation only, include both previous fields until
+the overlap expires:
+
+```json
+{
+  "apothStage": "staging",
+  "secretKind": "stripeApi",
+  "schemaVersion": 1,
+  "secretKey": "<stripe-secret-key>",
+  "webhookSigningSecret": "<current-stripe-webhook-signing-secret>",
+  "webhookSigningSecretPrevious": "<previous-stripe-webhook-signing-secret>",
+  "webhookSigningSecretPreviousExpiresAt": "2030-01-01T00:00:00.000Z"
 }
 ```
 
@@ -416,7 +431,21 @@ Example payloads:
   "apothStage": "staging",
   "secretKind": "appSigning",
   "schemaVersion": 1,
-  "signingSecret": "<random-application-signing-secret>"
+  "signingSecret": "<current-random-application-signing-secret>"
+}
+```
+
+During app signing rotation only, include both previous fields until the maximum
+token or callback lifetime has elapsed:
+
+```json
+{
+  "apothStage": "staging",
+  "secretKind": "appSigning",
+  "schemaVersion": 1,
+  "signingSecret": "<current-random-application-signing-secret>",
+  "signingSecretPrevious": "<previous-random-application-signing-secret>",
+  "signingSecretPreviousExpiresAt": "2030-01-01T00:00:00.000Z"
 }
 ```
 
@@ -448,10 +477,13 @@ material.
 4. Run a stage-appropriate smoke test against the new credential.
 5. Revoke the old credential after the maximum overlap window has passed.
 
-For Stripe webhook signing secrets and app signing material, prefer a
+For Stripe webhook signing secrets and app signing material, use the
 current/previous validation window when vendor or protocol behavior allows
-in-flight callbacks or tokens. For MDI credentials, coordinate a maintenance
-window if MDI cannot support parallel credentials.
+in-flight callbacks or tokens. The `Previous` value and its `PreviousExpiresAt`
+timestamp must be added together, the timestamp must be a canonical ISO
+timestamp, and the previous value must differ from the current value. Remove the
+previous pair after the overlap expires. For MDI credentials, coordinate a
+maintenance window if MDI cannot support parallel credentials.
 
 If startup reports a wrong-stage sentinel, stop the deploy or rollback the
 release. Do not edit logs to include secret values while diagnosing; inspect the

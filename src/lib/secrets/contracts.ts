@@ -6,6 +6,7 @@ export type SecretField = {
   name: string;
   description: string;
   confidential: boolean;
+  required?: boolean;
 };
 
 export type SecretContract = {
@@ -39,11 +40,15 @@ export type StripeApiSecretPayload = SecretPayloadBase & {
   secretKind: "stripeApi";
   secretKey: string;
   webhookSigningSecret: string;
+  webhookSigningSecretPrevious?: string;
+  webhookSigningSecretPreviousExpiresAt?: string;
 };
 
 export type AppSigningSecretPayload = SecretPayloadBase & {
   secretKind: "appSigning";
   signingSecret: string;
+  signingSecretPrevious?: string;
+  signingSecretPreviousExpiresAt?: string;
 };
 
 export type AppSecretPayload =
@@ -106,8 +111,8 @@ export const secretContracts = {
       owner: "Engineering with Stripe account administrator",
       cadence: "Rotate API keys at least every 180 days and webhook signing secrets after endpoint changes or suspected exposure.",
       emergency: "Create a restricted replacement key and webhook secret, update the stage secret, deploy/restart consumers, then revoke exposed material.",
-      rollout: "Prefer current/previous validation during webhook signing-secret rotation when Stripe endpoint overlap is available.",
-      revocation: "Revoke old API keys and remove old webhook endpoint secrets after successful payment and webhook smoke tests.",
+      rollout: "Publish the replacement as webhookSigningSecret, move the old value to webhookSigningSecretPrevious, set webhookSigningSecretPreviousExpiresAt to the overlap cutoff, then deploy/restart consumers.",
+      revocation: "Revoke old API keys and remove previous webhook endpoint secrets after successful payment and webhook smoke tests plus the configured overlap cutoff.",
     },
     fields: [
       {
@@ -132,8 +137,20 @@ export const secretContracts = {
       },
       {
         name: "webhookSigningSecret",
-        description: "Stripe webhook endpoint signing secret.",
+        description: "Current Stripe webhook endpoint signing secret.",
         confidential: true,
+      },
+      {
+        name: "webhookSigningSecretPrevious",
+        description: "Previous Stripe webhook endpoint signing secret accepted only until the paired expiry.",
+        confidential: true,
+        required: false,
+      },
+      {
+        name: "webhookSigningSecretPreviousExpiresAt",
+        description: "ISO timestamp after which the previous Stripe webhook signing secret must not be accepted.",
+        confidential: false,
+        required: false,
       },
     ],
   },
@@ -145,8 +162,8 @@ export const secretContracts = {
       owner: "Engineering",
       cadence: "Rotate at least annually and after suspected exposure.",
       emergency: "Generate replacement signing material, update the stage secret, deploy/restart consumers, then invalidate old signatures when safe.",
-      rollout: "Prefer current/previous validation windows for signed tokens or callbacks that may still be in flight.",
-      revocation: "Remove old signing material after the maximum token/callback lifetime has elapsed.",
+      rollout: "Publish the replacement as signingSecret, move the old value to signingSecretPrevious, set signingSecretPreviousExpiresAt to the maximum token/callback lifetime cutoff, then deploy/restart consumers.",
+      revocation: "Remove previous signing material after the configured overlap cutoff has elapsed.",
     },
     fields: [
       {
@@ -166,8 +183,20 @@ export const secretContracts = {
       },
       {
         name: "signingSecret",
-        description: "Application signing secret.",
+        description: "Current application signing secret.",
         confidential: true,
+      },
+      {
+        name: "signingSecretPrevious",
+        description: "Previous application signing secret accepted only until the paired expiry.",
+        confidential: true,
+        required: false,
+      },
+      {
+        name: "signingSecretPreviousExpiresAt",
+        description: "ISO timestamp after which the previous application signing secret must not be accepted.",
+        confidential: false,
+        required: false,
       },
     ],
   },

@@ -71,17 +71,21 @@ export function validateSecretPayload(
     }
   }
 
-  const fields = [...allowedFields].filter((field) => {
-    const contractField = secretContracts[options.expectedKind].fields.find(
-      (candidate) => candidate.name === field,
-    );
-    return contractField?.confidential || field === "apiBaseUrl";
-  });
-
   const normalizedPayload = { ...payload };
 
-  for (const field of fields) {
+  for (const contractField of secretContracts[options.expectedKind].fields) {
+    const field = contractField.name;
+    if (!shouldValidateStringField(field, contractField.confidential)) {
+      continue;
+    }
+
     const value = payload[field];
+    if (value === undefined) {
+      if ("required" in contractField && contractField.required === false) {
+        continue;
+      }
+      return err("invalid_secret", `Secret ${options.expectedKind} is missing ${field}`);
+    }
     if (typeof value !== "string" || value.trim().length === 0) {
       return err("invalid_secret", `Secret ${options.expectedKind} is missing ${field}`);
     }
@@ -89,12 +93,17 @@ export function validateSecretPayload(
     normalizedPayload[field] = trimmed;
 
     const isPlaceholder = isPlaceholderValue(trimmed);
-    if (options.allowFakeValues && field !== "apiBaseUrl" && !trimmed.startsWith(fakeSecretPrefix)) {
+    if (options.allowFakeValues && contractField.confidential && !trimmed.startsWith(fakeSecretPrefix)) {
       return err("placeholder_value", `Secret ${options.expectedKind} test value for ${field} must use ${fakeSecretPrefix}`);
     }
     if (!options.allowFakeValues && isPlaceholder) {
       return err("placeholder_value", `Secret ${options.expectedKind} contains an unpopulated placeholder for ${field}`);
     }
+  }
+
+  const rotationWindow = validateRotationWindow(normalizedPayload, options.expectedKind);
+  if (!rotationWindow.ok) {
+    return rotationWindow;
   }
 
   if (options.expectedKind === "mdiApi") {
@@ -125,6 +134,76 @@ export function assertNoPublicSecretConfig(env: Record<string, string | undefine
         `Public environment variable ${key} must not contain secret material`,
       );
     }
+  }
+
+  return ok(undefined);
+}
+
+function shouldValidateStringField(field: string, confidential: boolean) {
+  return confidential || field === "apiBaseUrl" || field.endsWith("ExpiresAt");
+}
+
+function validateRotationWindow(
+  payload: Record<string, unknown>,
+  expectedKind: SecretKind,
+): SecretResult<void> {
+  if (expectedKind === "stripeApi") {
+    return validatePreviousSecretWindow(payload, {
+      currentField: "webhookSigningSecret",
+      previousField: "webhookSigningSecretPrevious",
+      expiresAtField: "webhookSigningSecretPreviousExpiresAt",
+      label: "webhook signing secret",
+      kind: expectedKind,
+    });
+  }
+
+  if (expectedKind === "appSigning") {
+    return validatePreviousSecretWindow(payload, {
+      currentField: "signingSecret",
+      previousField: "signingSecretPrevious",
+      expiresAtField: "signingSecretPreviousExpiresAt",
+      label: "signing secret",
+      kind: expectedKind,
+    });
+  }
+
+  return ok(undefined);
+}
+
+function validatePreviousSecretWindow(
+  payload: Record<string, unknown>,
+  options: {
+    currentField: string;
+    previousField: string;
+    expiresAtField: string;
+    label: string;
+    kind: SecretKind;
+  },
+): SecretResult<void> {
+  const current = payload[options.currentField];
+  const previous = payload[options.previousField];
+  const expiresAt = payload[options.expiresAtField];
+
+  if (previous === undefined && expiresAt === undefined) {
+    return ok(undefined);
+  }
+  if (typeof previous !== "string" || typeof expiresAt !== "string") {
+    return err(
+      "invalid_secret",
+      `Secret ${options.kind} previous ${options.label} window is incomplete`,
+    );
+  }
+  if (typeof current === "string" && current === previous) {
+    return err(
+      "invalid_secret",
+      `Secret ${options.kind} previous ${options.label} must differ from current`,
+    );
+  }
+  if (!isIsoTimestamp(expiresAt)) {
+    return err(
+      "invalid_secret",
+      `Secret ${options.kind} previous ${options.label} expiry must be an ISO timestamp`,
+    );
   }
 
   return ok(undefined);
@@ -166,6 +245,11 @@ function isHttpsUrl(value: string) {
   } catch {
     return false;
   }
+}
+
+function isIsoTimestamp(value: string) {
+  const timestamp = Date.parse(value);
+  return !Number.isNaN(timestamp) && new Date(timestamp).toISOString() === value;
 }
 
 function isPlaceholderValue(value: string) {

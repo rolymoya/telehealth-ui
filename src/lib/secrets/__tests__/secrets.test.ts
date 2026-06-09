@@ -247,6 +247,152 @@ describe("secret validation", () => {
     });
   });
 
+  it("accepts complete current and previous rotation windows", () => {
+    const stripeResult = validateSecretPayload(
+      {
+        ...placeholderSecretPayload("staging", "stripeApi"),
+        webhookSigningSecret: "  fake_current_stripe_webhook_secret  ",
+        webhookSigningSecretPrevious: "  fake_previous_stripe_webhook_secret  ",
+        webhookSigningSecretPreviousExpiresAt: "  2030-01-01T00:00:00.000Z  ",
+      },
+      {
+        expectedStage: "staging",
+        expectedKind: "stripeApi",
+        allowFakeValues: true,
+      },
+    );
+    expect(stripeResult.ok && stripeResult.value).toMatchObject({
+      webhookSigningSecret: "fake_current_stripe_webhook_secret",
+      webhookSigningSecretPrevious: "fake_previous_stripe_webhook_secret",
+      webhookSigningSecretPreviousExpiresAt: "2030-01-01T00:00:00.000Z",
+    });
+
+    const appSigningResult = validateSecretPayload(
+      {
+        ...placeholderSecretPayload("staging", "appSigning"),
+        signingSecret: "fake_current_app_signing_secret",
+        signingSecretPrevious: "fake_previous_app_signing_secret",
+        signingSecretPreviousExpiresAt: "2030-01-01T00:00:00.000Z",
+      },
+      {
+        expectedStage: "staging",
+        expectedKind: "appSigning",
+        allowFakeValues: true,
+      },
+    );
+    expect(appSigningResult.ok && appSigningResult.value).toMatchObject({
+      signingSecretPrevious: "fake_previous_app_signing_secret",
+      signingSecretPreviousExpiresAt: "2030-01-01T00:00:00.000Z",
+    });
+  });
+
+  it("rejects incomplete or invalid previous secret windows", () => {
+    expect(
+      validateSecretPayload(
+        {
+          ...placeholderSecretPayload("staging", "stripeApi"),
+          webhookSigningSecretPrevious: "fake_previous_stripe_webhook_secret",
+        },
+        {
+          expectedStage: "staging",
+          expectedKind: "stripeApi",
+          allowFakeValues: true,
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "invalid_secret",
+        message: "Secret stripeApi previous webhook signing secret window is incomplete",
+      },
+    });
+
+    expect(
+      validateSecretPayload(
+        {
+          ...placeholderSecretPayload("staging", "appSigning"),
+          signingSecretPreviousExpiresAt: "2030-01-01T00:00:00.000Z",
+        },
+        {
+          expectedStage: "staging",
+          expectedKind: "appSigning",
+          allowFakeValues: true,
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "invalid_secret",
+        message: "Secret appSigning previous signing secret window is incomplete",
+      },
+    });
+
+    expect(
+      validateSecretPayload(
+        {
+          ...placeholderSecretPayload("staging", "stripeApi"),
+          webhookSigningSecretPrevious: "fake_previous_stripe_webhook_secret",
+          webhookSigningSecretPreviousExpiresAt: "2030-01-01",
+        },
+        {
+          expectedStage: "staging",
+          expectedKind: "stripeApi",
+          allowFakeValues: true,
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "invalid_secret",
+        message: "Secret stripeApi previous webhook signing secret expiry must be an ISO timestamp",
+      },
+    });
+
+    expect(
+      validateSecretPayload(
+        {
+          ...placeholderSecretPayload("staging", "appSigning"),
+          signingSecretPrevious: `${fakeSecretPrefix}app_signing_secret`,
+          signingSecretPreviousExpiresAt: "2030-01-01T00:00:00.000Z",
+        },
+        {
+          expectedStage: "staging",
+          expectedKind: "appSigning",
+          allowFakeValues: true,
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "invalid_secret",
+        message: "Secret appSigning previous signing secret must differ from current",
+      },
+    });
+  });
+
+  it("requires fake prefixes for optional previous secrets in local fixtures", () => {
+    expect(
+      validateSecretPayload(
+        {
+          ...placeholderSecretPayload("staging", "stripeApi"),
+          webhookSigningSecretPrevious: "whsec_previous",
+          webhookSigningSecretPreviousExpiresAt: "2030-01-01T00:00:00.000Z",
+        },
+        {
+          expectedStage: "staging",
+          expectedKind: "stripeApi",
+          allowFakeValues: true,
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "placeholder_value",
+        message: "Secret stripeApi test value for webhookSigningSecretPrevious must use fake_",
+      },
+    });
+  });
+
 
   it("rejects partially populated MDI placeholder URLs at runtime", () => {
     expect(

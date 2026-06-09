@@ -16,9 +16,9 @@
   "relatedTickets": [
     "T-041"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Added explicit current/previous rotation-window fields for Stripe webhook and app signing secrets, validated the previous secret plus expiry pair, documented the rotation payloads, and added Stripe webhook verification fallback to an unexpired previous secret.",
+  "resolvedDate": "2026-06-09",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "Signing secret contracts need current/previous rotation window"
 }

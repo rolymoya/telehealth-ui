@@ -83,25 +83,52 @@ export function constructStripeWebhookEvent(input: {
   signature: string;
   stripe: Pick<Stripe, "webhooks">;
   webhookSigningSecret: string;
+  webhookSigningSecretPrevious?: string;
+  webhookSigningSecretPreviousExpiresAt?: string;
+  now?: Date;
 }): StripeResult<Stripe.Event> {
-  try {
-    return {
-      ok: true,
-      value: input.stripe.webhooks.constructEvent(
-        input.payload,
-        input.signature,
-        input.webhookSigningSecret,
-      ),
-    };
-  } catch {
-    return {
-      ok: false,
-      error: {
-        code: "invalid_stripe_signature",
-        message: "Stripe webhook signature could not be verified",
-      },
-    };
+  const secrets = activeStripeWebhookSigningSecrets(input);
+
+  for (const secret of secrets) {
+    try {
+      return {
+        ok: true,
+        value: input.stripe.webhooks.constructEvent(
+          input.payload,
+          input.signature,
+          secret,
+        ),
+      };
+    } catch {
+      continue;
+    }
   }
+
+  return {
+    ok: false,
+    error: {
+      code: "invalid_stripe_signature",
+      message: "Stripe webhook signature could not be verified",
+    },
+  };
+}
+
+function activeStripeWebhookSigningSecrets(input: {
+  webhookSigningSecret: string;
+  webhookSigningSecretPrevious?: string;
+  webhookSigningSecretPreviousExpiresAt?: string;
+  now?: Date;
+}) {
+  const secrets = [input.webhookSigningSecret];
+  if (
+    input.webhookSigningSecretPrevious &&
+    input.webhookSigningSecretPreviousExpiresAt &&
+    Date.parse(input.webhookSigningSecretPreviousExpiresAt) > (input.now ?? new Date()).getTime()
+  ) {
+    secrets.push(input.webhookSigningSecretPrevious);
+  }
+
+  return secrets;
 }
 
 function validationErr(

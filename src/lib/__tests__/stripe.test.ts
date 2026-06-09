@@ -124,4 +124,70 @@ describe("Stripe launch helpers", () => {
       "fake_stripe_webhook_signing_secret",
     );
   });
+
+  it("falls back to an unexpired previous webhook signing secret during rotation", () => {
+    const event = { id: "evt_opaque_002", object: "event" } as Stripe.Event;
+    const currentSecret = "fake_current_stripe_webhook_signing_secret";
+    const previousSecret = "fake_previous_stripe_webhook_signing_secret";
+    const constructEvent = vi.fn((_payload: string | Buffer, _signature: string, secret: string) => {
+      if (secret === previousSecret) {
+        return event;
+      }
+      throw new Error("invalid signature");
+    });
+    const stripe = {
+      webhooks: { constructEvent },
+    } as unknown as Pick<Stripe, "webhooks">;
+
+    expect(constructStripeWebhookEvent({
+      payload: "{}",
+      signature: "t=123,v1=signature",
+      stripe,
+      webhookSigningSecret: currentSecret,
+      webhookSigningSecretPrevious: previousSecret,
+      webhookSigningSecretPreviousExpiresAt: "2030-01-01T00:00:00.000Z",
+      now: new Date("2029-12-31T23:59:59.000Z"),
+    })).toEqual({
+      ok: true,
+      value: event,
+    });
+    expect(constructEvent).toHaveBeenNthCalledWith(
+      1,
+      "{}",
+      "t=123,v1=signature",
+      currentSecret,
+    );
+    expect(constructEvent).toHaveBeenNthCalledWith(
+      2,
+      "{}",
+      "t=123,v1=signature",
+      previousSecret,
+    );
+  });
+
+  it("does not accept an expired previous webhook signing secret", () => {
+    const constructEvent = vi.fn(() => {
+      throw new Error("invalid signature");
+    });
+    const stripe = {
+      webhooks: { constructEvent },
+    } as unknown as Pick<Stripe, "webhooks">;
+
+    expect(constructStripeWebhookEvent({
+      payload: "{}",
+      signature: "t=123,v1=signature",
+      stripe,
+      webhookSigningSecret: "fake_current_stripe_webhook_signing_secret",
+      webhookSigningSecretPrevious: "fake_previous_stripe_webhook_signing_secret",
+      webhookSigningSecretPreviousExpiresAt: "2029-12-31T23:59:59.000Z",
+      now: new Date("2030-01-01T00:00:00.000Z"),
+    })).toEqual({
+      ok: false,
+      error: {
+        code: "invalid_stripe_signature",
+        message: "Stripe webhook signature could not be verified",
+      },
+    });
+    expect(constructEvent).toHaveBeenCalledTimes(1);
+  });
 });
