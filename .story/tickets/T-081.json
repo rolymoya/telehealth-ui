@@ -1,12 +1,12 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "completedDate": "2026-06-08",
   "createdDate": "2026-06-08",
   "description": "Use a developer/admin AWS identity to bring the staging AWS account up to date with the CDK serverless platform stack currently defined in `infra/`.\n\n**Scope**\n- Confirm AWS CLI SSO/developer role access to the staging account and region.\n- Bootstrap CDK for the staging account/region if needed.\n- Run staging synth/diff/deploy for `Apoth-staging-ServerlessPlatform`.\n- Capture stack outputs needed by later app/auth/vendor work.\n- Populate repo docs with non-secret account IDs, role ARNs, BAA evidence path/date, and staging stack output references where appropriate.\n- Keep secrets out of Git; populate live secret values only in AWS Secrets Manager.\n\n**Acceptance**\n- Staging CDK deploy completes successfully against the intended account/region.\n- Stack outputs are captured and documented without secret values.\n- AWS account baseline docs and BAA register have real non-secret staging evidence values.\n- No root-user credentials or long-lived developer access keys are used.",
   "id": "T-081",
   "order": 140,
   "phase": "infrastructure",
-  "status": "open",
+  "status": "complete",
   "title": "Deploy current CDK serverless baseline to staging",
   "type": "chore"
 }

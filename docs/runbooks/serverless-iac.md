@@ -5,9 +5,10 @@ baseline. It is intentionally small: Cognito, DynamoDB, Lambda/API Gateway,
 Secrets Manager, SQS/DLQ, EventBridge schedules, CloudWatch, and static
 S3/CloudFront hosting in a later deploy ticket.
 
-Production deploy is not ready while `ISS-002` remains open. Real AWS account
-IDs, AWS BAA evidence, IAM Identity Center state, and GitHub OIDC role ARNs
-must come from the actual AWS account.
+Production deploy is not ready while `ISS-002` remains open. The current
+launch decision is a single AWS account, `329425487030`, with staging and
+future production resources separated by explicit CDK stage names, secrets,
+and deploy roles until a later architecture decision splits accounts.
 
 ## Commands
 
@@ -27,7 +28,7 @@ Production synth/diff also requires an explicit guard:
 
 ```bash
 APOTH_ALLOW_PRODUCTION_SYNTH=true \
-APOTH_PRODUCTION_ACCOUNT_ID=<real-production-account-id> \
+APOTH_PRODUCTION_ACCOUNT_ID=329425487030 \
 npm --prefix infra run synth -- --context stage=production
 ```
 
@@ -39,7 +40,7 @@ back to `staging`.
 ```bash
 npm --prefix infra run synth -- --context stage=staging
 APOTH_ALLOW_PRODUCTION_SYNTH=true \
-APOTH_PRODUCTION_ACCOUNT_ID=<real-production-account-id> \
+APOTH_PRODUCTION_ACCOUNT_ID=329425487030 \
 npm --prefix infra run synth -- --context stage=production
 ```
 

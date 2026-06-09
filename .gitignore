@@ -29,6 +29,10 @@ tsconfig.tsbuildinfo
 # Env
 .env*.local
 
+# Local installers and agreement evidence
+AWSCLIV2.pkg
+docs/compliance/*.pdf
+
 # storybloq (session-local state)
 .story/snapshots/
 .story/sessions/

@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-06-08",
+  "description": "Create the least-privilege GitHub Actions OIDC deploy path for the current single-account AWS launch setup.\n\n**Scope**\n- Confirm the GitHub repository, branch/environment, and workflow subject restrictions to trust.\n- Create or manage the AWS IAM OIDC provider for `token.actions.githubusercontent.com` if it is not already present.\n- Create a staging/single-account CDK deploy role with trust limited to the confirmed GitHub org/repo/branch/environment/workflow.\n- Prefer least-privilege deploy permissions over permanent AdministratorAccess where practical; document any temporary broader permission with a follow-up hardening path.\n- Record the role ARN and trust source in `docs/runbooks/aws-account-baseline.md` and the staging handoff.\n\n**Acceptance**\n- GitHub Actions can assume the deploy role through OIDC without long-lived AWS access keys.\n- The role trust policy is restricted to the intended repository and branch/environment/workflow subject.\n- The role ARN is documented as a non-secret value.\n- No AWS access keys are added to GitHub secrets, local env files, or repo docs.",
+  "id": "T-083",
+  "order": 160,
+  "phase": "infrastructure",
+  "status": "open",
+  "title": "Create GitHub OIDC deploy role for the single-account CDK pipeline",
+  "type": "chore"
+}

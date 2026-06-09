@@ -1,7 +1,7 @@
 # Staging CDK Deploy Handoff
 
 Created: 2026-06-08
-Related: `T-081`, `ISS-002`, `T-039`, `T-046`, `T-080`
+Related: `T-081`, `T-082`, `T-083`, `T-084`, `ISS-002`, `T-039`, `T-046`, `T-080`
 
 Use this handoff to bring the AWS staging environment up to date with the CDK
 serverless platform stack currently defined in `infra/`.
@@ -20,32 +20,41 @@ of Git; record only account IDs, role ARNs, evidence paths, and stack outputs.
    - Do not create or use root access keys.
 
 2. Confirm the staging account.
-   - Staging AWS account ID: `TODO`
-   - Staging region: `TODO`, recommended default: `us-east-1`
+   - Staging AWS account ID: `329425487030`
+   - Staging region: `us-east-1`
    - AWS organization management account ID, if separate: `TODO`
+   - Single-account launch decision: account `329425487030` is staging now
+     and may host future production-stage resources once readiness gates are
+     complete.
 
 3. Confirm AWS Artifact / BAA status.
    - In the AWS management account, open AWS Artifact agreements.
    - Confirm the AWS BAA/organization agreement is accepted for the accounts
      that may hold PHI-adjacent staging/production state.
    - Record:
-     - AWS BAA effective date: `TODO`
-     - Evidence path/location: `TODO`, for example `AWS Artifact > Agreements > ...`
-     - Covered account IDs: `TODO`
+     - AWS BAA effective date: `June 8, 2026`
+     - Evidence path/location:
+       `AWS Artifact > Agreements > AWS Business Associate Addendum`
+     - Covered account IDs: `329425487030`
 
 4. Confirm human access baseline.
-   - IAM Identity Center enabled: `TODO yes/no`
-   - MFA required for developer/admin users: `TODO yes/no`
+   - IAM Identity Center enabled: `yes`, instance
+     `arn:aws:sso:::instance/ssoins-7223bfcc3b158a96`
+   - MFA required for developer/admin users: `TODO account-wide`; developer
+     access used SSO/MFA.
    - Long-lived IAM user access keys avoided/disabled for developers: `TODO yes/no`
 
 5. Confirm baseline security services.
-   - CloudTrail management events enabled in staging: `TODO yes/no`
-   - GuardDuty enabled in staging: `TODO yes/no`
+   - CloudTrail management events enabled in staging: `no`; CLI
+     `describe-trails --include-shadow-trails` returned no trails.
+   - GuardDuty enabled in staging: `no`; CLI `list-detectors` returned no
+     detectors.
    - Security findings owner/contact path: `TODO`
 
 6. Confirm or create deploy identity.
-   - Developer CLI profile name to use locally: `TODO`, example `apoth-staging`
-   - Staging deploy/admin role ARN, if assuming a role: `TODO`
+   - Developer CLI profile name to use locally: `apoth-staging`
+   - Staging deploy/admin role ARN, if assuming a role:
+     `arn:aws:sts::329425487030:assumed-role/AWSReservedSSO_AdministratorAccess_57fb0260b21e4638/roly-dev-sso`
    - GitHub Actions OIDC deploy role ARN, if already created: `TODO`
    - GitHub org/repo/branch/workflow subject restrictions: `TODO`
 
@@ -59,13 +68,13 @@ Paste these values into the next thread, or update this file before asking
 Codex to continue. Do not paste secrets.
 
 ```text
-AWS_PROFILE=
+AWS_PROFILE=apoth-staging
 AWS_REGION=us-east-1
-STAGING_ACCOUNT_ID=
+STAGING_ACCOUNT_ID=329425487030
 MANAGEMENT_ACCOUNT_ID=
-PRODUCTION_ACCOUNT_ID=
-AWS_BAA_EFFECTIVE_DATE=
-AWS_BAA_EVIDENCE_LOCATION=
+PRODUCTION_ACCOUNT_ID=329425487030
+AWS_BAA_EFFECTIVE_DATE=06/08/2026
+AWS_BAA_EVIDENCE_LOCATION=AWS Artifact > Agreements > AWS Business Associate Addendum
 STAGING_DEPLOY_ROLE_ARN=
 GITHUB_OIDC_ROLE_ARN=
 GITHUB_REPOSITORY=
@@ -76,11 +85,48 @@ SECURITY_FINDINGS_CONTACT=
 If SSO is used, also provide:
 
 ```text
-SSO_START_URL=
-SSO_REGION=
-SSO_ACCOUNT_ID=
-SSO_ROLE_NAME=
+SSO_START_URL=https://ssoins-7223bfcc3b158a96.portal.us-east-1.app.aws
+SSO_REGION=us-east-1
+SSO_ACCOUNT_ID=329425487030
+SSO_ROLE_NAME=AdministratorAccess
 ```
+
+## Deployment Result
+
+`Apoth-staging-ServerlessPlatform` has been deployed successfully.
+
+- CDK bootstrap stack: `CDKToolkit`, status `CREATE_COMPLETE`.
+- Application stack ARN:
+  `arn:aws:cloudformation:us-east-1:329425487030:stack/Apoth-staging-ServerlessPlatform/47e5c000-63ac-11f1-9dcb-0afff611d6bb`
+- Public health endpoint:
+  `https://un74umczu7.execute-api.us-east-1.amazonaws.com/health`, verified
+  response `{"ok":true}`.
+- Scheduled heartbeat rule target:
+  `arn:aws:lambda:us-east-1:329425487030:function:apoth-staging-scheduled-heartbeat`.
+
+Stack outputs captured from CloudFormation:
+
+```text
+ApiEndpoint=https://un74umczu7.execute-api.us-east-1.amazonaws.com
+AppTableName=apoth-staging-app
+PatientUserPoolId=us-east-1_urOM8PctH
+PatientUserPoolClientId=2i8kvm8c840gfou4qvlm67u2be
+ScheduledHeartbeatFunctionName=apoth-staging-scheduled-heartbeat
+ObservabilityDashboardName=apoth-staging-launch-observability
+WebhookQueueArn=arn:aws:sqs:us-east-1:329425487030:apoth-staging-webhook-processing
+WebhookDeadLetterQueueArn=arn:aws:sqs:us-east-1:329425487030:apoth-staging-webhook-dlq
+MdiApiSecretArn=arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/staging/mdi/api-NDEIUc
+StripeSecretArn=arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/staging/stripe/api-jGmsWe
+AppSigningSecretArn=arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/staging/app/signing-YtRbE6
+```
+
+Remaining staging account-baseline work:
+
+- `T-082`: Enable CloudTrail management events and GuardDuty.
+- `T-083`: Create least-privilege GitHub Actions OIDC deploy role.
+- `T-084`: Confirm account-wide MFA/key posture, security findings contact,
+  GitHub trust restrictions, and populate live secret values in AWS Secrets
+  Manager only.
 
 ## Tasks Codex Can Do Via CLI
 

@@ -15,12 +15,17 @@ Use dedicated AWS accounts for environments when practical:
 
 | Environment | AWS account ID | Purpose | Notes |
 | --- | --- | --- | --- |
-| Staging | TODO: staging account ID | Pre-production Cognito, DynamoDB, Lambda/API Gateway, S3/CloudFront, Secrets, and webhook testing. | Should be safe for test patients and sandbox vendor credentials only. |
-| Production | TODO: production account ID | Production patient account, linkage/status records, billing/webhook processing, and public hosting. | Must have AWS BAA evidence recorded before handling PHI-adjacent data. |
+| Staging | `329425487030` | Pre-production Cognito, DynamoDB, Lambda/API Gateway, S3/CloudFront, Secrets, and webhook testing. | CDK staging stack deployed with SSO profile `apoth-staging`. Should be safe for test patients and sandbox vendor credentials only. |
+| Production | `329425487030` | Future production-stage resources in the same AWS account unless a later architecture decision splits accounts. | Single-account launch exception recorded. Production resources must still use explicit `production` stage naming, protected deploy permissions, and readiness gates before real patient traffic. |
 
 If launch starts with a single AWS account, separate staging and production by
 explicit CDK stages, resource naming, IAM roles, and secrets. Split accounts
 before production scale or external audit scope makes shared accounts risky.
+
+Current launch decision: Apoth will use account `329425487030` as the single
+AWS account for staging now and future production-stage resources once the app
+is ready. This avoids premature account sprawl while preserving stage-separated
+resource names, deploy roles, secrets, and runbook evidence.
 
 ## Required Baseline
 
@@ -46,8 +51,8 @@ before production scale or external audit scope makes shared accounts risky.
 
 | Role | ARN | Trust source | Notes |
 | --- | --- | --- | --- |
-| Staging deploy | TODO: staging deploy role ARN | TODO: GitHub org/repo/workflow subject | Least privilege for staging CDK deploys. |
-| Production deploy | TODO: production deploy role ARN | TODO: GitHub org/repo/workflow subject | Production deploys should require protected branches and review gates. |
+| Staging deploy | TODO: GitHub OIDC staging deploy role ARN | TODO: GitHub org/repo/workflow subject | Not created yet. Initial staging bootstrap/deploy used SSO role `arn:aws:sts::329425487030:assumed-role/AWSReservedSSO_AdministratorAccess_57fb0260b21e4638/roly-dev-sso`. |
+| Production deploy | TODO: protected same-account production deploy role ARN | TODO: GitHub org/repo/workflow subject | Same AWS account as staging for now. Production deploys should require protected branches/environments and review gates. |
 
 4. CloudTrail
    - Enable CloudTrail for management events in every launch account.
@@ -105,22 +110,61 @@ them:
 
 Complete these before production launch. Use real AWS/account evidence only.
 
-- [ ] TODO: Confirm staging account ID.
-- [ ] TODO: Confirm production account ID or documented single-account launch
-      exception.
-- [ ] TODO: Confirm AWS BAA effective date in AWS Artifact.
-- [ ] TODO: Record AWS BAA evidence path in `docs/compliance/baa-register.md`.
-- [ ] TODO: Enable IAM Identity Center/SSO with MFA.
+- [x] Confirm staging account ID: `329425487030`.
+- [x] Document single-account launch exception: staging and future
+      production-stage resources use account `329425487030` until a later
+      architecture decision splits accounts.
+- [x] Record AWS BAA effective date in `docs/compliance/baa-register.md`:
+      `June 8, 2026`.
+- [x] Record AWS BAA evidence path in `docs/compliance/baa-register.md`.
+- [x] Enable IAM Identity Center/SSO for developer access. Verified instance:
+      `arn:aws:sso:::instance/ssoins-7223bfcc3b158a96`.
+- [ ] TODO: Confirm account-wide MFA enforcement for all developer/admin users.
 - [ ] TODO: Remove or disable long-lived developer IAM user keys.
 - [ ] TODO: Create staging deploy role with GitHub OIDC trust.
-- [ ] TODO: Create production deploy role with GitHub OIDC trust.
-- [ ] TODO: Enable CloudTrail management events.
-- [ ] TODO: Enable GuardDuty and route high-severity findings.
-- [ ] TODO: Set CloudWatch log retention defaults for Lambda/API logs.
+- [ ] TODO: Create protected production-stage deploy role with GitHub OIDC
+      trust in the same AWS account.
+- [ ] TODO: Enable CloudTrail management events. CLI check
+      `aws cloudtrail describe-trails --include-shadow-trails` returned no
+      trails in staging.
+- [ ] TODO: Enable GuardDuty and route high-severity findings. CLI check
+      `aws guardduty list-detectors` returned no detectors in staging.
+- [x] Set CloudWatch log retention defaults for Lambda/API logs in the CDK
+      staging stack.
 - [ ] TODO: Confirm Secrets Manager is the only credential store for vendor
       API secrets.
-- [ ] TODO: Confirm no VPC, NAT, RDS, Redis, ECS, App Runner, or VPC endpoints
+- [x] Confirm no VPC, NAT, RDS, Redis, ECS, App Runner, or VPC endpoints
       are part of launch infrastructure.
+
+## Staging Deployment Evidence
+
+`Apoth-staging-ServerlessPlatform` was deployed to account `329425487030` in
+`us-east-1` using SSO profile `apoth-staging`.
+
+- CDK bootstrap stack: `CDKToolkit`, status `CREATE_COMPLETE`.
+- Application stack ARN:
+  `arn:aws:cloudformation:us-east-1:329425487030:stack/Apoth-staging-ServerlessPlatform/47e5c000-63ac-11f1-9dcb-0afff611d6bb`
+- Public health endpoint:
+  `https://un74umczu7.execute-api.us-east-1.amazonaws.com/health`, verified
+  response `{"ok":true}`.
+- Scheduled heartbeat rule target:
+  `arn:aws:lambda:us-east-1:329425487030:function:apoth-staging-scheduled-heartbeat`.
+- Observability dashboard: `apoth-staging-launch-observability`.
+
+Stack outputs captured from CloudFormation:
+
+| Output | Value |
+| --- | --- |
+| `ApiEndpoint` | `https://un74umczu7.execute-api.us-east-1.amazonaws.com` |
+| `AppTableName` | `apoth-staging-app` |
+| `PatientUserPoolId` | `us-east-1_urOM8PctH` |
+| `PatientUserPoolClientId` | `2i8kvm8c840gfou4qvlm67u2be` |
+| `ScheduledHeartbeatFunctionName` | `apoth-staging-scheduled-heartbeat` |
+| `WebhookQueueArn` | `arn:aws:sqs:us-east-1:329425487030:apoth-staging-webhook-processing` |
+| `WebhookDeadLetterQueueArn` | `arn:aws:sqs:us-east-1:329425487030:apoth-staging-webhook-dlq` |
+| `MdiApiSecretArn` | `arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/staging/mdi/api-NDEIUc` |
+| `StripeSecretArn` | `arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/staging/stripe/api-jGmsWe` |
+| `AppSigningSecretArn` | `arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/staging/app/signing-YtRbE6` |
 
 ## Developer Verification
 

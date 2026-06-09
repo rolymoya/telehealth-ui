@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-06-08",
+  "description": "Track the owner/manual confirmations that should not be guessed or silently automated for the current single-account AWS launch setup.\n\n**Scope**\n- Confirm and document the single-account launch decision: account `329425487030` is staging now and may host production-stage resources later, separated by CDK stage/resource names until an account split is warranted.\n- Confirm account-wide MFA posture for developer/admin users in IAM Identity Center.\n- Confirm no long-lived developer IAM user access keys are active or required.\n- Choose the security findings owner/contact path for CloudTrail/GuardDuty alerts.\n- Decide the GitHub repository and branch/environment/workflow restrictions for OIDC deploy role trust.\n- Populate live MDI, Stripe, and app-signing secret values in AWS Secrets Manager only; do not paste or commit secret values.\n\n**Acceptance**\n- `docs/runbooks/aws-account-baseline.md` records the single-account launch exception and all owner-provided non-secret values.\n- The staging handoff no longer has TODOs for MFA/key posture, security findings contact, or GitHub trust restrictions once decisions are made.\n- Secrets Manager containers are populated in AWS, and docs record only secret ARNs/names, never secret values.\n- ISS-002 is resolved only after these manual confirmations and the related implementation tickets are complete.",
+  "id": "T-084",
+  "order": 170,
+  "phase": "infrastructure",
+  "status": "open",
+  "title": "Owner manual AWS baseline confirmations for single-account launch",
+  "type": "chore"
+}

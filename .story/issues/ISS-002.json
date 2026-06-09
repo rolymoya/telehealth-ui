@@ -6,7 +6,7 @@
   ],
   "discoveredDate": "2026-06-04",
   "id": "ISS-002",
-  "impact": "The repo now has the BAA register and AWS account baseline runbook, but production readiness still depends on filling real AWS staging/production account IDs, AWS BAA effective date, evidence path, IAM Identity Center state, and GitHub OIDC deploy role ARNs from the actual AWS account. T-039 can proceed with local IaC skeleton work, but production deployment must not treat these TODO evidence fields as complete.",
+  "impact": "The AWS BAA date/evidence location, IAM Identity Center instance, single-account launch decision, and successful staging CDK deploy evidence are now recorded for account 329425487030. Production readiness still depends on creating GitHub OIDC deploy roles, confirming account-wide MFA/key posture, selecting a security findings contact path, populating live secret values in AWS Secrets Manager, and enabling CloudTrail and GuardDuty. Production deployment must not treat the remaining TODO evidence fields as complete.",
   "location": [
     "docs/compliance/baa-register.md",
     "docs/runbooks/aws-account-baseline.md"
@@ -14,7 +14,11 @@
   "phase": "infrastructure",
   "relatedTickets": [
     "T-038",
-    "T-039"
+    "T-039",
+    "T-081",
+    "T-082",
+    "T-083",
+    "T-084"
   ],
   "resolution": null,
   "resolvedDate": null,
