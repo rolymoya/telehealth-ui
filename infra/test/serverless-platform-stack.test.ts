@@ -128,6 +128,43 @@ describe("ServerlessPlatformStack", () => {
     });
   });
 
+  it("configures the Cognito launch auth posture without hosted UI", () => {
+    const template = synthesizeTemplate();
+
+    template.hasResourceProperties("AWS::Cognito::UserPool", {
+      AccountRecoverySetting: {
+        RecoveryMechanisms: [
+          {
+            Name: "verified_email",
+            Priority: 1,
+          },
+        ],
+      },
+      AdminCreateUserConfig: {
+        AllowAdminCreateUserOnly: false,
+      },
+      AutoVerifiedAttributes: ["email"],
+      EnabledMfas: ["SOFTWARE_TOKEN_MFA"],
+      MfaConfiguration: "ON",
+      Policies: {
+        PasswordPolicy: {
+          MinimumLength: 12,
+          RequireLowercase: true,
+          RequireNumbers: true,
+          RequireSymbols: false,
+          RequireUppercase: true,
+        },
+      },
+      UsernameAttributes: ["email"],
+    });
+
+    template.hasResourceProperties("AWS::Cognito::UserPoolClient", {
+      AllowedOAuthFlowsUserPoolClient: false,
+      ExplicitAuthFlows: Match.arrayWith(["ALLOW_USER_SRP_AUTH"]),
+      PreventUserExistenceErrors: "ENABLED",
+    });
+  });
+
   it("uses MFA and stage-specific CORS origins", () => {
     const stagingTemplate = synthesizeTemplate("staging");
     const productionTemplate = synthesizeTemplate("production");

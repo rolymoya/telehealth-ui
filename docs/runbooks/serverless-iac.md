@@ -82,6 +82,80 @@ The stack outputs identifiers needed by app configuration:
 Do not paste secret values into docs, GitHub Actions variables, or logs. Store
 real credentials in Secrets Manager only.
 
+## Cognito Patient Auth Setup
+
+The launch auth baseline uses a first-party SRP flow against the Cognito app
+client. Cognito owns patient email identity, password state, email
+verification, MFA enrollment/challenges, refresh/session state, and the stable
+subject. Apoth product code must use `src/lib/auth.ts` or a local wrapper built
+on it for session lookup, current-user access, protected-route checks, and
+future sign-up/sign-in calls.
+
+Required public app configuration:
+
+| Variable | Local | Staging | Production |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_COGNITO_REGION` | `us-east-1` unless running a local Cognito-compatible test harness | `us-east-1` | production stack region |
+| `NEXT_PUBLIC_COGNITO_USER_POOL_ID` | staging test pool or deterministic test fixture | `us-east-1_urOM8PctH` | production stack output |
+| `NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID` | staging test client or deterministic test fixture | `2i8kvm8c840gfou4qvlm67u2be` | production stack output |
+
+These values are public identifiers, not secrets. Keep them in stack outputs,
+hosting environment variables, or client-safe config. Never store Cognito
+passwords, refresh tokens, access tokens, ID tokens, MFA shared secrets, email
+addresses, or verification codes in DynamoDB, Stripe metadata, logs, tickets,
+or Secrets Manager.
+
+Launch does not configure a Cognito hosted UI domain, OAuth flow, callback URL,
+or logout URL. The user pool client is intentionally SRP-oriented for the
+first-party UI/API work that follows this baseline. Any future hosted UI,
+social login, OAuth callback, or external identity provider requires a new
+architecture/security decision and stage-specific redirect tests before it can
+ship.
+
+The current Cognito launch posture is:
+
+- Self sign-up is enabled with email as the sign-in alias.
+- Email is auto-verified by Cognito and account recovery is email-only.
+- Passwords require at least 12 characters with uppercase, lowercase, and
+  digits. Symbols are not required for launch.
+- MFA is required with software-token TOTP only. SMS MFA is disabled.
+- The app client enables SRP auth and prevents user-existence errors. Password
+  auth and hosted UI/OAuth are disabled.
+
+### Staging Test User Smoke Path
+
+Use a dedicated non-clinical test email and synthetic data only.
+
+1. Confirm the stack outputs:
+
+   ```bash
+   aws cloudformation describe-stacks \
+     --stack-name Apoth-staging-ServerlessPlatform \
+     --query 'Stacks[0].Outputs[?starts_with(OutputKey, `PatientUserPool`)]'
+   ```
+
+2. Run sign-up through the app facade once the T-014 UI/API entry point exists,
+   or use an operator-approved Cognito CLI smoke test while UI is still pending.
+   Do not paste the password, verification code, MFA secret, or token values
+   into logs, tickets, docs, or screenshots.
+
+3. If email delivery is not configured, an operator may confirm the synthetic
+   staging user in Cognito for the smoke test:
+
+   ```bash
+   aws cognito-idp admin-confirm-sign-up \
+     --user-pool-id us-east-1_urOM8PctH \
+     --username patient-smoke@example.invalid
+   ```
+
+4. Complete first sign-in, enroll TOTP, complete the MFA challenge, and retrieve
+   a server-side session through `src/lib/auth.ts`. The session evidence should
+   show only the Cognito subject, issuer, client ID, token use, and expiration.
+
+5. Sign out and verify the facade no longer returns a session for the old
+   token/cookie. If a smoke path emits evidence, store only opaque event IDs and
+   `cognitoSub`; Cognito remains authoritative for auth details.
+
 ## Managed Encryption Baseline
 
 Launch uses AWS-managed service encryption and minimized data storage rather

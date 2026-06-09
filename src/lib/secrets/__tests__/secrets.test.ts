@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { cognitoAuthEnv } from "@/lib/auth";
 import {
   fakeSecretPrefix,
   placeholderSecretPayload,
@@ -378,6 +379,30 @@ describe("secret validation", () => {
       }),
     ).toThrow(
       "Public environment variable NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY must not contain secret material",
+    );
+  });
+
+  it("validates optional public Cognito auth config during server startup", () => {
+    expect(() =>
+      assertServerStartupConfig({
+        env: {
+          [cognitoAuthEnv.region]: "us-east-1",
+          [cognitoAuthEnv.userPoolId]: "us-east-1_urOM8PctH",
+          [cognitoAuthEnv.userPoolClientId]: "2i8kvm8c840gfou4qvlm67u2be",
+        },
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      assertServerStartupConfig({
+        env: {
+          [cognitoAuthEnv.region]: "us-east-1",
+          [cognitoAuthEnv.userPoolId]: "us-west-2_urOM8PctH",
+          [cognitoAuthEnv.userPoolClientId]: "2i8kvm8c840gfou4qvlm67u2be",
+        },
+      }),
+    ).toThrow(
+      "NEXT_PUBLIC_COGNITO_USER_POOL_ID must be a Cognito user pool ID for us-east-1",
     );
   });
 

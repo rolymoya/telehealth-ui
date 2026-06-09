@@ -5,6 +5,10 @@ import {
   parseSecretPayload,
   type SecretValidationError,
 } from ".";
+import {
+  cognitoAuthEnv,
+  resolveCognitoAuthConfig,
+} from "../auth";
 import type {
   AppSecretPayload,
   RuntimeStage,
@@ -28,6 +32,11 @@ export function assertServerStartupConfig(input: {
   const publicConfig = assertNoPublicSecretConfig(input.env);
   if (!publicConfig.ok) {
     throw new Error(publicConfig.error.message);
+  }
+
+  const authConfig = assertOptionalCognitoAuthConfig(input.env);
+  if (!authConfig.ok) {
+    throw new Error(authConfig.error.message);
   }
 
   const stage = resolveRuntimeStage(input.env);
@@ -185,6 +194,16 @@ function validateStartupSecretValues(input: {
   }
 
   return { ok: true, value: secrets };
+}
+
+function assertOptionalCognitoAuthConfig(env: StartupEnvironment) {
+  const hasAnyCognitoConfig = Object.values(cognitoAuthEnv).some(
+    (envName) => env[envName] !== undefined,
+  );
+  if (!hasAnyCognitoConfig) {
+    return { ok: true as const, value: undefined };
+  }
+  return resolveCognitoAuthConfig(env);
 }
 
 function parseRequiredSecretKinds(value: string): SecretKind[] {
