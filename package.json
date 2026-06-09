@@ -15,7 +15,8 @@
     "aws-jwt-verify": "^5.2.1",
     "next": "^16.2.6",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "stripe": "^22.2.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

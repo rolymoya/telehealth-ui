@@ -2,13 +2,14 @@
   "blockedBy": [
     "T-041"
   ],
-  "completedDate": null,
+  "claimedBySession": "7f48be35-fd31-451e-beb8-acdd95fee9a9",
+  "completedDate": "2026-06-09",
   "createdDate": "2026-05-18",
   "description": "Set up Stripe in test mode and codify the launch data boundary.\n\n**Scope**\n- Add Stripe SDK configuration, typed helpers, test webhook setup, and environment configuration.\n- Create `docs/stripe-data-policy.md` defining allowed metadata: opaque Apoth IDs, Cognito subject aliases, MDI pointer aliases, and environment tags only.\n- Add grep/regex or unit-test checks that reject condition names, medication names, diagnoses, symptoms, questionnaire answers, clinician notes, or other PHI in Stripe metadata/product descriptors we control.\n\n**Acceptance**\n- Stripe helpers work in test mode with fake keys.\n- No-PHI policy is linked from RULES or compliance docs.\n- Automated checks fail on representative PHI-shaped metadata examples.",
   "id": "T-023",
   "order": 10,
   "phase": "payments",
-  "status": "open",
+  "status": "complete",
   "title": "Stripe SDK setup + no-PHI data policy",
   "type": "chore"
 }

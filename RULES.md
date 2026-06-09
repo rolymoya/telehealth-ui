@@ -20,7 +20,7 @@
   timestamp, onboarding status, billing status, and webhook idempotency records.
 - Stripe metadata must contain only opaque non-PHI identifiers. No condition,
   medication, diagnosis, symptom, questionnaire answer, clinician note, or
-  patient health context goes to Stripe.
+  patient health context goes to Stripe. See `docs/stripe-data-policy.md`.
 - Persona/KYC is out of launch scope. Do not add identity-verification flows or
   KYC storage without a new product/compliance decision.
 
