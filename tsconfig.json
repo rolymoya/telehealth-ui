@@ -32,6 +32,7 @@
   "include": [
     "next-env.d.ts",
     "vitest.config.ts",
+    "shared/**/*.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     ".next/types/**/*.ts",

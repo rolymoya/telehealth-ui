@@ -9,15 +9,16 @@
   "impact": "The infra stack imports the pure secret contract from src/lib. It works today because the module is type/pure-data only, but it couples CDK synthesis to the app source tree and could accidentally pull app-only dependencies into infra builds if the contract grows. Consider moving shared infra/app contracts to a neutral package or shared directory.",
   "location": [
     "infra/src/serverless-platform-stack.ts",
+    "shared/secrets/contracts.ts",
     "src/lib/secrets/contracts.ts"
   ],
   "phase": "infrastructure",
   "relatedTickets": [
     "T-041"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Moved the pure secret contract into shared/secrets/contracts.ts, kept src/lib/secrets/contracts.ts as an app compatibility re-export, and updated the CDK stack to import the neutral shared module with a regression test guarding against src/lib imports.",
+  "resolvedDate": "2026-06-09",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "CDK imports secret contract from app source tree"
 }

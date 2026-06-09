@@ -50,7 +50,7 @@ import {
   secretName,
   secretPurposeTag,
   type SecretKind,
-} from "../../src/lib/secrets/contracts";
+} from "../../shared/secrets/contracts";
 import type { StageConfig } from "./config";
 
 export type ServerlessPlatformStackProps = StackProps & {

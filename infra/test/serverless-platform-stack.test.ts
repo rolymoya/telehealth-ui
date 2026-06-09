@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import * as cdk from "aws-cdk-lib";
 import { Match, Template } from "aws-cdk-lib/assertions";
 import { describe, expect, it } from "vitest";
@@ -19,6 +21,16 @@ function synthesizeTemplate(stage: StageName = "staging") {
 }
 
 describe("ServerlessPlatformStack", () => {
+  it("imports neutral shared secret contracts instead of app runtime modules", () => {
+    const stackSource = readFileSync(
+      join(process.cwd(), "src/serverless-platform-stack.ts"),
+      "utf8",
+    );
+
+    expect(stackSource).toContain("../../shared/secrets/contracts");
+    expect(stackSource).not.toContain("../../src/lib/secrets/contracts");
+  });
+
   it("creates the required lean serverless resources", () => {
     const template = synthesizeTemplate();
     const resources = template.toJSON().Resources as Record<string, SynthResource>;
