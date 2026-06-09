@@ -9,6 +9,10 @@ import {
   evidenceEventUniquenessKey,
   findPatientByMdiPointer,
   findPatientByStripePointer,
+  getConsentEvidence,
+  getMdiLinkage,
+  getPatientProfile,
+  getStripeLinkage,
   listEvidenceEventsForMdiCase,
   listEvidenceEventsForPatient,
   linkMdiPatientCase,
@@ -43,6 +47,47 @@ describe("DynamoDB app-data helpers", () => {
       ok: true,
       value: profile,
     });
+    expect(getPatientProfile(repository, "cognito-sub-001")).toEqual({
+      ok: true,
+      value: profile,
+    });
+  });
+
+  it("reads primary profile, consent, MDI, and Stripe records through typed helpers", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    const profile = upsertPatientProfile(repository, {
+      cognitoSub: "cognito-sub-001",
+      onboardingStatus: "intake_ready",
+      now,
+    });
+    const consent = recordConsentEvidence(repository, {
+      acceptedAt: now,
+      cognitoSub: "cognito-sub-001",
+      now,
+      version: "consent-v1",
+    });
+    const mdi = linkMdiPatientCase(repository, {
+      cognitoSub: "cognito-sub-001",
+      mdiCaseId: "mdi-case-001",
+      mdiPatientId: "mdi-patient-001",
+      now,
+    });
+    const stripe = linkStripeCustomer(repository, {
+      billingStatus: "payment_method_collected",
+      cognitoSub: "cognito-sub-001",
+      now,
+      stripeCustomerId: "cus_123456789",
+      stripeSubscriptionId: "sub_123456789",
+    });
+
+    expect(profile.ok && getPatientProfile(repository, "cognito-sub-001")).toEqual(profile);
+    expect(consent.ok && getConsentEvidence(repository, {
+      cognitoSub: "cognito-sub-001",
+      version: "consent-v1",
+    })).toEqual(consent);
+    expect(mdi.ok && getMdiLinkage(repository, "cognito-sub-001")).toEqual(mdi);
+    expect(stripe.ok && getStripeLinkage(repository, "cognito-sub-001")).toEqual(stripe);
   });
 
   it("accepts bounded scheduled-job operational heartbeat records", () => {
@@ -1977,6 +2022,59 @@ describe("DynamoDB app-data helpers", () => {
         message: "Forbidden clinical field: diagnosis",
       },
     });
+  });
+
+  it("rejects intake answer payloads across profile, linkage, consent, and webhook records", () => {
+    const repository = createInMemoryAppDataRepository();
+    const profile = createPatientProfileRecord({
+      cognitoSub: "cognito-sub-001",
+      onboardingStatus: "profile_pending",
+      now,
+    });
+    const consent = recordConsentEvidence(repository, {
+      acceptedAt: now,
+      cognitoSub: "cognito-sub-001",
+      now,
+      version: "consent-v1",
+    });
+    const mdi = linkMdiPatientCase(repository, {
+      cognitoSub: "cognito-sub-001",
+      mdiCaseId: "mdi_case_001",
+      mdiPatientId: "mdi_patient_001",
+      now,
+    });
+    const stripe = linkStripeCustomer(repository, {
+      billingStatus: "payment_method_collected",
+      cognitoSub: "cognito-sub-001",
+      now,
+      stripeCustomerId: "cus_opaque_001",
+      stripeSubscriptionId: "sub_opaque_001",
+    });
+    const webhook = claimWebhookEvent(repository, {
+      eventId: "evt_opaque_001",
+      now,
+      provider: "stripe",
+    });
+    const unsafePayload = {
+      answers: [{ question: "Are you pregnant?", answer: "no" }],
+      diagnosis: "clinical answer",
+      questionnaire: { id: "questionnaire-001" },
+    };
+
+    for (const record of [
+      profile,
+      consent.ok && consent.value,
+      mdi.ok && mdi.value,
+      stripe.ok && stripe.value,
+      webhook.ok && webhook.value.record,
+    ]) {
+      expect(repository.put({ ...record, ...unsafePayload } as never)).toMatchObject({
+        ok: false,
+        error: {
+          kind: "validation_failed",
+        },
+      });
+    }
   });
 
   it("rejects malformed stored records on reads", () => {

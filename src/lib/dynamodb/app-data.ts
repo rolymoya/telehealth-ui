@@ -527,6 +527,62 @@ export function createPatientProfileRecord(input: {
   };
 }
 
+export function getPatientProfile(
+  repository: AppDataRepository,
+  cognitoSub: string,
+): AppDataResult<PatientProfileRecord | null> {
+  const record = repository.get(patientProfileKey(cognitoSub));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<PatientProfileRecord | null>;
+  }
+  if (record.value.recordType !== "patientProfile") {
+    return err("validation_failed", "Patient profile key contains another record type");
+  }
+  return ok(record.value);
+}
+
+export function getMdiLinkage(
+  repository: AppDataRepository,
+  cognitoSub: string,
+): AppDataResult<MdiLinkageRecord | null> {
+  const record = repository.get(mdiLinkageKey(cognitoSub));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<MdiLinkageRecord | null>;
+  }
+  if (record.value.recordType !== "mdiLinkage") {
+    return err("validation_failed", "MDI linkage key contains another record type");
+  }
+  return ok(record.value);
+}
+
+export function getStripeLinkage(
+  repository: AppDataRepository,
+  cognitoSub: string,
+): AppDataResult<StripeLinkageRecord | null> {
+  const record = repository.get(stripeLinkageKey(cognitoSub));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<StripeLinkageRecord | null>;
+  }
+  if (record.value.recordType !== "stripeLinkage") {
+    return err("validation_failed", "Stripe linkage key contains another record type");
+  }
+  return ok(record.value);
+}
+
+export function getConsentEvidence(
+  repository: AppDataRepository,
+  input: { cognitoSub: string; version: string },
+): AppDataResult<ConsentEvidenceRecord | null> {
+  const record = repository.get(consentEvidenceKey(input.cognitoSub, input.version));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<ConsentEvidenceRecord | null>;
+  }
+  if (record.value.recordType !== "consentEvidence") {
+    return err("validation_failed", "Consent key contains another record type");
+  }
+  return ok(record.value);
+}
+
 export function upsertPatientProfile(
   repository: AppDataRepository,
   input: {

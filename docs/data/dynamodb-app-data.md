@@ -39,6 +39,34 @@ not scan the table or put PHI into third-party metadata.
 | Evidence event uniqueness | Apoth | `PATIENT#{cognitoSub}` / `EVIDENCE_UNIQUE#EVENT#{eventId}` for patient-scoped events; `EVIDENCE#EVENT#{eventId}` / `UNIQUE` for webhook side effects | Same as evidence event | Duplicate guard and timeline pointer only |
 | Operational status | Apoth | `STATUS#{name}` / `CURRENT` | Keep while flag/status is relevant | No clinical content; scheduled jobs may store bounded metadata such as stage, job name, latest heartbeat/scheduled timestamps, and request ID |
 
+## Field Policy
+
+These fields are allowed in the launch app-data table. Logs may include fields
+marked "code/log-safe" only in structured, PHI-safe operational events. Fields
+marked "restricted" should not be written to application logs except as counts,
+record-type labels, or redacted presence booleans.
+
+| Record | Field | Owner system | Retention expectation | Log posture |
+| --- | --- | --- | --- | --- |
+| All app-data records | `pk`, `sk`, `recordType`, `schemaVersion`, `createdAt`, `updatedAt` | Apoth | Same as containing record | `recordType` and schema/version are code/log-safe; keys and timestamps are restricted |
+| Patient profile | `cognitoSub` | Cognito/Apoth | Keep while account is active; delete/archive per retention policy | Restricted; use stable request IDs or aggregate counts in logs |
+| Patient profile | `onboardingStatus` | Apoth | Keep while account is active | Code/log-safe when not combined with patient identifiers |
+| Consent evidence | `cognitoSub` | Cognito/Apoth | Keep per counsel-approved consent retention | Restricted |
+| Consent evidence | `version`, `acceptedAt` | Apoth/legal content source | Keep per counsel-approved consent retention | Code/log-safe when not combined with patient identifiers |
+| Consent evidence | `ipHash`, `userAgentHash` | Apoth | Keep only if counsel approves minimized evidence retention | Restricted; never log raw IP or raw user-agent values |
+| MDI linkage | `cognitoSub` | Cognito/Apoth | Keep while care workflow is active and per legal retention policy | Restricted |
+| MDI linkage | `mdiPatientId`, `mdiCaseId` | MDI/Apoth | Keep while care workflow is active and per legal retention policy | Restricted; log only redacted/presence values |
+| MDI reverse lookup | `cognitoSub`, `mdiPatientId`, `mdiCaseId`, `pointerType` | MDI/Apoth | Same as MDI linkage | `pointerType` is code/log-safe; identifiers are restricted |
+| Stripe linkage | `cognitoSub` | Cognito/Apoth | Keep while billing relationship is active and per finance/legal retention | Restricted |
+| Stripe linkage | `stripeCustomerId`, `stripeSubscriptionId` | Stripe/Apoth | Keep while billing relationship is active and per finance/legal retention | Restricted; do not place PHI or care context in Stripe metadata |
+| Stripe linkage | `billingStatus` | Stripe/Apoth | Keep while billing relationship is active and per finance/legal retention | Code/log-safe when not combined with patient identifiers |
+| Stripe reverse lookup | `cognitoSub`, `stripeCustomerId`, `stripeSubscriptionId`, `pointerType` | Stripe/Apoth | Same as Stripe linkage | `pointerType` is code/log-safe; identifiers are restricted |
+| Webhook idempotency | `provider`, `eventId`, `status`, `retryable`, `attempts`, `retryOwner`, `processingExpiresAt`, `nextAttemptAfter`, `maxAttempts`, `retryExhaustedAt` | Vendor/Apoth | Keep long enough to cover vendor retry windows and audit needs | Provider/status/retry codes are code/log-safe; event IDs and timestamps are restricted |
+| Evidence event | `eventId`, `eventType`, `eventCategory`, `occurredAt`, `recordedAt`, `actorType`, `status`, `summaryCode`, `requestId`, `source`, `metadata` | Apoth/vendor systems | Keep per counsel-approved evidence retention | Type/category/status/summary codes are code/log-safe; IDs, timestamps, source, and metadata values are restricted |
+| Evidence event | `cognitoSub`, `mdiPatientId`, `mdiCaseId`, `stripeCustomerId`, `stripeSubscriptionId`, `webhookProvider`, `webhookEventId`, `adminActorId` | Cognito/MDI/Stripe/Apoth | Same as evidence event | Restricted; never log alongside clinical or payment-instrument context |
+| Evidence event uniqueness | `cognitoSub`, `eventId`, `evidencePk`, `evidenceSk` | Apoth | Same as evidence event | Restricted |
+| Operational status | `name`, `status`, `stage`, `jobName`, `lastHeartbeatAt`, `lastScheduledAt`, `lastRequestId` | Apoth/AWS | Keep while flag/status is relevant | Code/log-safe if values remain bounded operational codes and request IDs |
+
 ## Data Boundaries
 
 - Cognito owns authentication identity, password/MFA state, and sessions.

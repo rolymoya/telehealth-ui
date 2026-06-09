@@ -3,13 +3,14 @@
     "T-013",
     "T-040"
   ],
-  "completedDate": null,
+  "claimedBySession": "7f48be35-fd31-451e-beb8-acdd95fee9a9",
+  "completedDate": "2026-06-09",
   "createdDate": "2026-05-18",
   "description": "Define the minimal Apoth-owned patient record model in DynamoDB.\n\n**Scope**\n- Model records for `cognito_sub`, onboarding status, consent evidence, `mdi_patient_id`, latest `mdi_case_id`, `stripe_customer_id`, `stripe_subscription_id`, billing state, timestamps, and webhook idempotency references where appropriate.\n- Capture only non-clinical app data and opaque vendor pointers by default.\n- Document field-level PHI expectations and log/redaction rules.\n- Avoid storing questionnaire answers, diagnoses, clinician notes, message bodies, photos, labs, or condition-specific health context in Apoth.\n\n**Acceptance**\n- DynamoDB access helpers exist for profile/linkage reads and writes.\n- Tests prove intake answer payloads are not written to the profile/linkage table.\n- Data model documentation names each field, owner system, retention expectation, and whether it can appear in logs.",
   "id": "T-016",
   "order": 40,
   "phase": "auth",
-  "status": "open",
+  "status": "complete",
   "title": "Patient profile + linkage records in DynamoDB",
   "type": "task"
 }

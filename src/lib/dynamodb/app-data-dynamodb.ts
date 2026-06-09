@@ -1,9 +1,30 @@
+import "server-only";
+
 import { createHmac, createHash } from "node:crypto";
 import {
   type AppDataErrorKind,
   type AppDataKey,
   type AppDataRecord,
+  type AppDataRepository,
   type AppDataResult,
+  type BillingStatus,
+  type ConsentEvidenceRecord,
+  type MdiLinkageRecord,
+  type MdiReverseLookupRecord,
+  type OnboardingStatus,
+  type PatientProfileRecord,
+  type StripeLinkageRecord,
+  type StripeReverseLookupRecord,
+  type TransactWriteOperation,
+  consentEvidenceKey,
+  createPatientProfileRecord,
+  mdiCaseReverseKey,
+  mdiLinkageKey,
+  mdiPatientReverseKey,
+  patientProfileKey,
+  stripeCustomerReverseKey,
+  stripeLinkageKey,
+  stripeSubscriptionReverseKey,
   validateAppDataRecord,
 } from "@/lib/dynamodb/app-data";
 import type { AppDataReadRepository } from "@/lib/onboarding-status";
@@ -21,6 +42,13 @@ type FetchLike = (
   status: number;
 }>;
 
+type DynamoDbTarget =
+  | "DynamoDB_20120810.DeleteItem"
+  | "DynamoDB_20120810.GetItem"
+  | "DynamoDB_20120810.PutItem"
+  | "DynamoDB_20120810.Query"
+  | "DynamoDB_20120810.TransactWriteItems";
+
 export type DynamoDbAppDataConfig = {
   accessKeyId: string;
   endpoint?: string;
@@ -30,10 +58,29 @@ export type DynamoDbAppDataConfig = {
   tableName: string;
 };
 
+export type DynamoDbAppDataRepository = {
+  get(key: AppDataKey): Promise<AppDataResult<AppDataRecord | null>>;
+  queryByKeyPrefix(input: Parameters<AppDataRepository["queryByKeyPrefix"]>[0]):
+    Promise<ReturnType<AppDataRepository["queryByKeyPrefix"]>>;
+  put<T extends AppDataRecord>(
+    record: T,
+    options?: Parameters<AppDataRepository["put"]>[1],
+  ): Promise<AppDataResult<T>>;
+  update<T extends AppDataRecord>(
+    record: T,
+    options?: Parameters<AppDataRepository["update"]>[1],
+  ): Promise<AppDataResult<T>>;
+  delete(
+    key: AppDataKey,
+    options?: Parameters<AppDataRepository["delete"]>[1],
+  ): Promise<AppDataResult<void>>;
+  transactWrite(operations: TransactWriteOperation[]): Promise<AppDataResult<void>>;
+};
+
 export function resolveDynamoDbAppDataConfig(
   env: Record<string, string | undefined>,
 ): AppDataResult<DynamoDbAppDataConfig> {
-  const stage = env.APOTH_STAGE;
+  const stage = cleanEnv(env.APOTH_STAGE);
   const tableName = cleanEnv(env.APP_TABLE_NAME) ??
     cleanEnv(env.APOTH_APP_TABLE_NAME) ??
     (stage ? `apoth-${stage}-app` : undefined);
@@ -65,66 +112,655 @@ export function createDynamoDbAppDataReadRepository(
   config: DynamoDbAppDataConfig,
   options: { fetch?: FetchLike; now?: () => Date } = {},
 ): AppDataReadRepository {
+  return createDynamoDbAppDataRepository(config, options);
+}
+
+export function createDynamoDbAppDataRepository(
+  config: DynamoDbAppDataConfig,
+  options: { fetch?: FetchLike; now?: () => Date } = {},
+): DynamoDbAppDataRepository {
   const fetchImpl = options.fetch ?? fetch;
   const now = options.now ?? (() => new Date());
 
   return {
     async get(key) {
-      const body = JSON.stringify({
-        ConsistentRead: true,
-        Key: {
-          pk: { S: key.pk },
-          sk: { S: key.sk },
+      const response = await sendDynamoDbRequest({
+        body: {
+          ConsistentRead: true,
+          Key: marshallKey(key),
+          TableName: config.tableName,
         },
-        TableName: config.tableName,
-      });
-
-      const request = signDynamoDbRequest({
-        body,
         config,
+        fetchImpl,
         now: now(),
+        operation: "GetItem",
         target: "DynamoDB_20120810.GetItem",
       });
+      if (!response.ok) {
+        return response;
+      }
 
-      try {
-        const response = await fetchImpl(request.url, {
-          body,
-          headers: request.headers,
-          method: "POST",
-        });
-        if (!response.ok) {
-          return err("unexpected_client_failure", `DynamoDB GetItem failed with ${response.status}`);
+      const item = isRecord(response.value) && isRecord(response.value.Item)
+        ? response.value.Item
+        : null;
+      if (!item) {
+        return ok(null);
+      }
+
+      const unmarshalled = unmarshallRecord(item);
+      if (!unmarshalled.ok) {
+        return unmarshalled;
+      }
+
+      return validateAppDataRecord(unmarshalled.value);
+    },
+
+    async queryByKeyPrefix(input) {
+      if (
+        typeof input.pk !== "string" ||
+        typeof input.skPrefix !== "string" ||
+        (input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1)) ||
+        (input.exclusiveStartKey !== undefined &&
+          (input.exclusiveStartKey.pk !== input.pk ||
+            !input.exclusiveStartKey.sk.startsWith(input.skPrefix)))
+      ) {
+        return err("validation_failed", "Invalid key-prefix query");
+      }
+
+      const response = await sendDynamoDbRequest({
+        body: withoutUndefined({
+          ConsistentRead: true,
+          ExclusiveStartKey: input.exclusiveStartKey
+            ? marshallKey(input.exclusiveStartKey)
+            : undefined,
+          ExpressionAttributeNames: {
+            "#pk": "pk",
+            "#sk": "sk",
+          },
+          ExpressionAttributeValues: {
+            ":pk": { S: input.pk },
+            ":skPrefix": { S: input.skPrefix },
+          },
+          KeyConditionExpression: "#pk = :pk AND begins_with(#sk, :skPrefix)",
+          Limit: input.limit,
+          TableName: config.tableName,
+        }),
+        config,
+        fetchImpl,
+        now: now(),
+        operation: "Query",
+        target: "DynamoDB_20120810.Query",
+      });
+      if (!response.ok) {
+        return response;
+      }
+
+      const items = isRecord(response.value) && Array.isArray(response.value.Items)
+        ? response.value.Items
+        : [];
+      const records: AppDataRecord[] = [];
+      for (const item of items) {
+        if (!isRecord(item)) {
+          return err("validation_failed", "Invalid DynamoDB query item");
         }
-
-        const parsed = await response.json();
-        const item = isRecord(parsed) && isRecord(parsed.Item) ? parsed.Item : null;
-        if (!item) {
-          return ok(null);
-        }
-
         const unmarshalled = unmarshallRecord(item);
         if (!unmarshalled.ok) {
           return unmarshalled;
         }
-
         const validated = validateAppDataRecord(unmarshalled.value);
         if (!validated.ok) {
           return validated;
         }
-
-        return ok(validated.value);
-      } catch {
-        return err("unexpected_client_failure", "DynamoDB GetItem request failed");
+        records.push(validated.value);
       }
+
+      const lastEvaluatedKey = isRecord(response.value) && isRecord(response.value.LastEvaluatedKey)
+        ? unmarshallKey(response.value.LastEvaluatedKey)
+        : undefined;
+      if (lastEvaluatedKey && !lastEvaluatedKey.ok) {
+        return lastEvaluatedKey;
+      }
+
+      return ok({
+        items: records,
+        nextKey: lastEvaluatedKey?.value,
+      });
+    },
+
+    async put(record, putOptions) {
+      const validation = validateAppDataRecord(record);
+      if (!validation.ok) {
+        return validation;
+      }
+
+      const response = await sendDynamoDbRequest({
+        body: withoutUndefined({
+          ConditionExpression: putOptions?.ifNotExists
+            ? "attribute_not_exists(#pk) AND attribute_not_exists(#sk)"
+            : undefined,
+          ExpressionAttributeNames: putOptions?.ifNotExists
+            ? { "#pk": "pk", "#sk": "sk" }
+            : undefined,
+          Item: marshallRecord(validation.value),
+          TableName: config.tableName,
+        }),
+        config,
+        fetchImpl,
+        now: now(),
+        operation: "PutItem",
+        target: "DynamoDB_20120810.PutItem",
+      });
+      return response.ok ? ok(validation.value as typeof record) : response;
+    },
+
+    async update(record, updateOptions) {
+      const validation = validateAppDataRecord(record);
+      if (!validation.ok) {
+        return validation;
+      }
+
+      const condition = conditionForExpected(updateOptions?.expected);
+      const response = await sendDynamoDbRequest({
+        body: withoutUndefined({
+          ConditionExpression: condition.expression,
+          ExpressionAttributeNames: condition.names,
+          ExpressionAttributeValues: condition.values,
+          Item: marshallRecord(validation.value),
+          TableName: config.tableName,
+        }),
+        config,
+        fetchImpl,
+        now: now(),
+        operation: "PutItem",
+        target: "DynamoDB_20120810.PutItem",
+      });
+      return response.ok ? ok(validation.value as typeof record) : response;
+    },
+
+    async delete(key, deleteOptions) {
+      const condition = conditionForExpected(deleteOptions?.expected);
+      const response = await sendDynamoDbRequest({
+        body: withoutUndefined({
+          ConditionExpression: condition.expression,
+          ExpressionAttributeNames: condition.names,
+          ExpressionAttributeValues: condition.values,
+          Key: marshallKey(key),
+          TableName: config.tableName,
+        }),
+        config,
+        fetchImpl,
+        now: now(),
+        operation: "DeleteItem",
+        target: "DynamoDB_20120810.DeleteItem",
+      });
+      return response.ok ? ok(undefined) : response;
+    },
+
+    async transactWrite(operations) {
+      const transactItems: unknown[] = [];
+      for (const operation of operations) {
+        if (operation.type === "delete") {
+          const condition = conditionForExpected(operation.expected);
+          transactItems.push({
+            Delete: withoutUndefined({
+              ConditionExpression: condition.expression,
+              ExpressionAttributeNames: condition.names,
+              ExpressionAttributeValues: condition.values,
+              Key: marshallKey(operation.key),
+              TableName: config.tableName,
+            }),
+          });
+          continue;
+        }
+
+        const validation = validateAppDataRecord(operation.record);
+        if (!validation.ok) {
+          return validation;
+        }
+
+        if (operation.type === "put") {
+          transactItems.push({
+            Put: withoutUndefined({
+              ConditionExpression: operation.ifNotExists
+                ? "attribute_not_exists(#pk) AND attribute_not_exists(#sk)"
+                : undefined,
+              ExpressionAttributeNames: operation.ifNotExists
+                ? { "#pk": "pk", "#sk": "sk" }
+                : undefined,
+              Item: marshallRecord(validation.value),
+              TableName: config.tableName,
+            }),
+          });
+          continue;
+        }
+
+        const condition = conditionForExpected(operation.expected);
+        transactItems.push({
+          Put: withoutUndefined({
+            ConditionExpression: condition.expression,
+            ExpressionAttributeNames: condition.names,
+            ExpressionAttributeValues: condition.values,
+            Item: marshallRecord(validation.value),
+            TableName: config.tableName,
+          }),
+        });
+      }
+
+      const response = await sendDynamoDbRequest({
+        body: { TransactItems: transactItems },
+        config,
+        fetchImpl,
+        now: now(),
+        operation: "TransactWriteItems",
+        target: "DynamoDB_20120810.TransactWriteItems",
+      });
+      return response.ok ? ok(undefined) : response;
     },
   };
+}
+
+export async function getPatientProfileDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  cognitoSub: string,
+): Promise<AppDataResult<PatientProfileRecord | null>> {
+  const record = await repository.get(patientProfileKey(cognitoSub));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<PatientProfileRecord | null>;
+  }
+  if (record.value.recordType !== "patientProfile") {
+    return err("validation_failed", "Patient profile key contains another record type");
+  }
+  return ok(record.value);
+}
+
+export async function getMdiLinkageDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  cognitoSub: string,
+): Promise<AppDataResult<MdiLinkageRecord | null>> {
+  const record = await repository.get(mdiLinkageKey(cognitoSub));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<MdiLinkageRecord | null>;
+  }
+  if (record.value.recordType !== "mdiLinkage") {
+    return err("validation_failed", "MDI linkage key contains another record type");
+  }
+  return ok(record.value);
+}
+
+export async function getStripeLinkageDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  cognitoSub: string,
+): Promise<AppDataResult<StripeLinkageRecord | null>> {
+  const record = await repository.get(stripeLinkageKey(cognitoSub));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<StripeLinkageRecord | null>;
+  }
+  if (record.value.recordType !== "stripeLinkage") {
+    return err("validation_failed", "Stripe linkage key contains another record type");
+  }
+  return ok(record.value);
+}
+
+export async function getConsentEvidenceDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  input: { cognitoSub: string; version: string },
+): Promise<AppDataResult<ConsentEvidenceRecord | null>> {
+  const record = await repository.get(consentEvidenceKey(input.cognitoSub, input.version));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<ConsentEvidenceRecord | null>;
+  }
+  if (record.value.recordType !== "consentEvidence") {
+    return err("validation_failed", "Consent key contains another record type");
+  }
+  return ok(record.value);
+}
+
+export async function upsertPatientProfileDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "put" | "update">,
+  input: {
+    cognitoSub: string;
+    onboardingStatus: OnboardingStatus;
+    now: string;
+  },
+): Promise<AppDataResult<PatientProfileRecord>> {
+  const existing = await getPatientProfileDynamoDb(repository, input.cognitoSub);
+  if (!existing.ok) {
+    return existing;
+  }
+  if (!existing.value) {
+    return repository.put(createPatientProfileRecord(input), { ifNotExists: true });
+  }
+
+  return repository.update({
+    ...existing.value,
+    updatedAt: input.now,
+  }, { expected: existing.value });
+}
+
+export async function transitionOnboardingStatusDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "update">,
+  input: {
+    cognitoSub: string;
+    expected: OnboardingStatus;
+    next: OnboardingStatus;
+    now: string;
+  },
+): Promise<AppDataResult<PatientProfileRecord>> {
+  const existing = await getPatientProfileDynamoDb(repository, input.cognitoSub);
+  if (!existing.ok) {
+    return existing;
+  }
+  if (!existing.value) {
+    return err("not_found", "Patient profile was not found");
+  }
+  if (existing.value.onboardingStatus !== input.expected) {
+    return err("stale_transition", "Onboarding status did not match expected state");
+  }
+
+  return repository.update({
+    ...existing.value,
+    onboardingStatus: input.next,
+    updatedAt: input.now,
+  }, { expected: existing.value });
+}
+
+export async function recordConsentEvidenceDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "put">,
+  input: {
+    acceptedAt: string;
+    cognitoSub: string;
+    ipHash?: string;
+    now: string;
+    userAgentHash?: string;
+    version: string;
+  },
+): Promise<AppDataResult<ConsentEvidenceRecord>> {
+  const record: ConsentEvidenceRecord = {
+    ...consentEvidenceKey(input.cognitoSub, input.version),
+    acceptedAt: input.acceptedAt,
+    cognitoSub: input.cognitoSub,
+    createdAt: input.now,
+    ipHash: input.ipHash,
+    recordType: "consentEvidence",
+    schemaVersion: 1,
+    updatedAt: input.now,
+    userAgentHash: input.userAgentHash,
+    version: input.version,
+  };
+  return repository.put(record);
+}
+
+export async function linkMdiPatientCaseDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
+  input: {
+    cognitoSub: string;
+    mdiCaseId?: string;
+    mdiPatientId: string;
+    now: string;
+  },
+): Promise<AppDataResult<MdiLinkageRecord>> {
+  const existing = await getMdiLinkageDynamoDb(repository, input.cognitoSub);
+  if (!existing.ok) {
+    return existing;
+  }
+
+  const linkage: MdiLinkageRecord = {
+    ...mdiLinkageKey(input.cognitoSub),
+    cognitoSub: input.cognitoSub,
+    createdAt: existing.value?.createdAt ?? input.now,
+    mdiCaseId: input.mdiCaseId,
+    mdiPatientId: input.mdiPatientId,
+    recordType: "mdiLinkage",
+    schemaVersion: 1,
+    updatedAt: input.now,
+  };
+  const reverseRecords: MdiReverseLookupRecord[] = [
+    {
+      ...mdiPatientReverseKey(input.mdiPatientId),
+      cognitoSub: input.cognitoSub,
+      createdAt: input.now,
+      mdiPatientId: input.mdiPatientId,
+      pointerType: "patient",
+      recordType: "mdiReverseLookup",
+      schemaVersion: 1,
+      updatedAt: input.now,
+    },
+  ];
+  if (input.mdiCaseId) {
+    reverseRecords.push({
+      ...mdiCaseReverseKey(input.mdiCaseId),
+      cognitoSub: input.cognitoSub,
+      createdAt: input.now,
+      mdiCaseId: input.mdiCaseId,
+      pointerType: "case",
+      recordType: "mdiReverseLookup",
+      schemaVersion: 1,
+      updatedAt: input.now,
+    });
+  }
+
+  const reverseCheck = await collectNewReverseRecords(repository, reverseRecords, input.cognitoSub);
+  if (!reverseCheck.ok) {
+    return reverseCheck;
+  }
+  const staleDeletes = await collectStaleMdiDeletes(repository, existing.value, linkage);
+  if (!staleDeletes.ok) {
+    return staleDeletes;
+  }
+
+  const transaction = await repository.transactWrite([
+    existing.value
+      ? { type: "update", record: linkage, expected: existing.value }
+      : { type: "put", record: linkage, ifNotExists: true },
+    ...staleDeletes.value,
+    ...reverseCheck.value.map((record) => ({
+      type: "put" as const,
+      record,
+      ifNotExists: true,
+    })),
+  ]);
+  return transaction.ok ? ok(linkage) : transaction;
+}
+
+export async function linkStripeCustomerDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
+  input: {
+    billingStatus: BillingStatus;
+    cognitoSub: string;
+    now: string;
+    stripeCustomerId: string;
+    stripeSubscriptionId?: string;
+  },
+): Promise<AppDataResult<StripeLinkageRecord>> {
+  const existing = await getStripeLinkageDynamoDb(repository, input.cognitoSub);
+  if (!existing.ok) {
+    return existing;
+  }
+
+  const linkage: StripeLinkageRecord = {
+    ...stripeLinkageKey(input.cognitoSub),
+    billingStatus: input.billingStatus,
+    cognitoSub: input.cognitoSub,
+    createdAt: existing.value?.createdAt ?? input.now,
+    recordType: "stripeLinkage",
+    schemaVersion: 1,
+    stripeCustomerId: input.stripeCustomerId,
+    stripeSubscriptionId: input.stripeSubscriptionId,
+    updatedAt: input.now,
+  };
+  const reverseRecords: StripeReverseLookupRecord[] = [
+    {
+      ...stripeCustomerReverseKey(input.stripeCustomerId),
+      cognitoSub: input.cognitoSub,
+      createdAt: input.now,
+      pointerType: "customer",
+      recordType: "stripeReverseLookup",
+      schemaVersion: 1,
+      stripeCustomerId: input.stripeCustomerId,
+      updatedAt: input.now,
+    },
+  ];
+  if (input.stripeSubscriptionId) {
+    reverseRecords.push({
+      ...stripeSubscriptionReverseKey(input.stripeSubscriptionId),
+      cognitoSub: input.cognitoSub,
+      createdAt: input.now,
+      pointerType: "subscription",
+      recordType: "stripeReverseLookup",
+      schemaVersion: 1,
+      stripeSubscriptionId: input.stripeSubscriptionId,
+      updatedAt: input.now,
+    });
+  }
+
+  const reverseCheck = await collectNewReverseRecords(repository, reverseRecords, input.cognitoSub);
+  if (!reverseCheck.ok) {
+    return reverseCheck;
+  }
+  const staleDeletes = await collectStaleStripeDeletes(repository, existing.value, linkage);
+  if (!staleDeletes.ok) {
+    return staleDeletes;
+  }
+
+  const transaction = await repository.transactWrite([
+    existing.value
+      ? { type: "update", record: linkage, expected: existing.value }
+      : { type: "put", record: linkage, ifNotExists: true },
+    ...staleDeletes.value,
+    ...reverseCheck.value.map((record) => ({
+      type: "put" as const,
+      record,
+      ifNotExists: true,
+    })),
+  ]);
+  return transaction.ok ? ok(linkage) : transaction;
+}
+
+async function collectNewReverseRecords<T extends MdiReverseLookupRecord | StripeReverseLookupRecord>(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  records: T[],
+  cognitoSub: string,
+): Promise<AppDataResult<T[]>> {
+  const newRecords: T[] = [];
+  for (const record of records) {
+    const existing = await repository.get(record);
+    if (!existing.ok) {
+      return existing;
+    }
+    if (!existing.value) {
+      newRecords.push(record);
+      continue;
+    }
+    if (!("cognitoSub" in existing.value) || existing.value.cognitoSub !== cognitoSub) {
+      return err("conditional_conflict", "Vendor pointer already belongs to another patient");
+    }
+  }
+  return ok(newRecords);
+}
+
+async function collectStaleMdiDeletes(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  previous: MdiLinkageRecord | null,
+  next: MdiLinkageRecord,
+): Promise<AppDataResult<TransactWriteOperation[]>> {
+  if (!previous) {
+    return ok([]);
+  }
+
+  const keys = [
+    previous.mdiPatientId !== next.mdiPatientId
+      ? mdiPatientReverseKey(previous.mdiPatientId)
+      : null,
+    previous.mdiCaseId && previous.mdiCaseId !== next.mdiCaseId
+      ? mdiCaseReverseKey(previous.mdiCaseId)
+      : null,
+  ].filter((key): key is AppDataKey => Boolean(key));
+  return collectOwnedReverseDeletes(repository, keys, next.cognitoSub);
+}
+
+async function collectStaleStripeDeletes(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  previous: StripeLinkageRecord | null,
+  next: StripeLinkageRecord,
+): Promise<AppDataResult<TransactWriteOperation[]>> {
+  if (!previous) {
+    return ok([]);
+  }
+
+  const keys = [
+    previous.stripeCustomerId !== next.stripeCustomerId
+      ? stripeCustomerReverseKey(previous.stripeCustomerId)
+      : null,
+    previous.stripeSubscriptionId && previous.stripeSubscriptionId !== next.stripeSubscriptionId
+      ? stripeSubscriptionReverseKey(previous.stripeSubscriptionId)
+      : null,
+  ].filter((key): key is AppDataKey => Boolean(key));
+  return collectOwnedReverseDeletes(repository, keys, next.cognitoSub);
+}
+
+async function collectOwnedReverseDeletes(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  keys: AppDataKey[],
+  cognitoSub: string,
+): Promise<AppDataResult<TransactWriteOperation[]>> {
+  const deletes: TransactWriteOperation[] = [];
+  for (const key of keys) {
+    const existing = await repository.get(key);
+    if (!existing.ok) {
+      return existing;
+    }
+    if (!existing.value) {
+      continue;
+    }
+    if (!("cognitoSub" in existing.value) || existing.value.cognitoSub !== cognitoSub) {
+      return err("conditional_conflict", "Stale reverse pointer belongs to another patient");
+    }
+    deletes.push({ type: "delete", key, expected: existing.value });
+  }
+  return ok(deletes);
+}
+
+async function sendDynamoDbRequest(input: {
+  body: Record<string, unknown>;
+  config: DynamoDbAppDataConfig;
+  fetchImpl: FetchLike;
+  now: Date;
+  operation: string;
+  target: DynamoDbTarget;
+}): Promise<AppDataResult<unknown>> {
+  const body = JSON.stringify(withoutUndefined(input.body));
+  const request = signDynamoDbRequest({
+    body,
+    config: input.config,
+    now: input.now,
+    target: input.target,
+  });
+
+  try {
+    const response = await input.fetchImpl(request.url, {
+      body,
+      headers: request.headers,
+      method: "POST",
+    });
+    const parsed = await safeJson(response);
+    if (!response.ok) {
+      return err(
+        errorKindForDynamoDbResponse(parsed),
+        `DynamoDB ${input.operation} failed with ${response.status}`,
+      );
+    }
+
+    return ok(parsed ?? {});
+  } catch {
+    return err("unexpected_client_failure", `DynamoDB ${input.operation} request failed`);
+  }
 }
 
 function signDynamoDbRequest(input: {
   body: string;
   config: DynamoDbAppDataConfig;
   now: Date;
-  target: "DynamoDB_20120810.GetItem";
+  target: DynamoDbTarget;
 }) {
   const endpoint = new URL(input.config.endpoint ?? `https://dynamodb.${input.config.region}.amazonaws.com`);
   const amzDate = toAmzDate(input.now);
@@ -178,6 +814,97 @@ function signDynamoDbRequest(input: {
     },
     url: endpoint.toString(),
   };
+}
+
+function conditionForExpected(expected: AppDataRecord | undefined) {
+  if (!expected) {
+    return {
+      expression: "attribute_exists(#pk) AND attribute_exists(#sk)",
+      names: { "#pk": "pk", "#sk": "sk" },
+      values: undefined,
+    };
+  }
+
+  const names: Record<string, string> = {};
+  const values: Record<string, unknown> = {};
+  const parts: string[] = [];
+  let index = 0;
+  for (const [key, value] of Object.entries(expected)) {
+    if (value === undefined) {
+      continue;
+    }
+    const nameKey = `#f${index}`;
+    const valueKey = `:v${index}`;
+    names[nameKey] = key;
+    values[valueKey] = marshallAttribute(value);
+    parts.push(`${nameKey} = ${valueKey}`);
+    index += 1;
+  }
+
+  return {
+    expression: parts.join(" AND "),
+    names,
+    values,
+  };
+}
+
+function marshallKey(key: AppDataKey) {
+  return {
+    pk: { S: key.pk },
+    sk: { S: key.sk },
+  };
+}
+
+function unmarshallKey(key: Record<string, unknown>): AppDataResult<AppDataKey> {
+  const pk = unmarshallAttribute(key.pk);
+  const sk = unmarshallAttribute(key.sk);
+  if (!pk.ok) {
+    return pk;
+  }
+  if (!sk.ok) {
+    return sk;
+  }
+  return typeof pk.value === "string" && typeof sk.value === "string"
+    ? ok({ pk: pk.value, sk: sk.value })
+    : err("validation_failed", "Invalid DynamoDB key");
+}
+
+function marshallRecord(record: AppDataRecord) {
+  const item: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (value !== undefined) {
+      item[key] = marshallAttribute(value);
+    }
+  }
+  return item;
+}
+
+function marshallAttribute(value: unknown): unknown {
+  if (typeof value === "string") {
+    return { S: value };
+  }
+  if (typeof value === "number") {
+    return { N: String(value) };
+  }
+  if (typeof value === "boolean") {
+    return { BOOL: value };
+  }
+  if (value === null) {
+    return { NULL: true };
+  }
+  if (Array.isArray(value)) {
+    return { L: value.map(marshallAttribute) };
+  }
+  if (isRecord(value)) {
+    const mapped: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (item !== undefined) {
+        mapped[key] = marshallAttribute(item);
+      }
+    }
+    return { M: mapped };
+  }
+  return { NULL: true };
 }
 
 function unmarshallRecord(item: Record<string, unknown>): AppDataResult<AppDataRecord> {
@@ -234,6 +961,37 @@ function unmarshallAttribute(value: unknown): AppDataResult<unknown> {
     return ok(objectValue);
   }
   return err("validation_failed", "Unsupported DynamoDB attribute value");
+}
+
+function withoutUndefined<T extends Record<string, unknown>>(value: T): T {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item !== undefined) {
+      cleaned[key] = item;
+    }
+  }
+  return cleaned as T;
+}
+
+async function safeJson(response: { json(): Promise<unknown> }) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+function errorKindForDynamoDbResponse(parsed: unknown): AppDataErrorKind {
+  const type = isRecord(parsed)
+    ? typeof parsed.__type === "string"
+      ? parsed.__type
+      : typeof parsed.name === "string"
+        ? parsed.name
+        : ""
+    : "";
+  return type.includes("ConditionalCheckFailed")
+    ? "conditional_conflict"
+    : "unexpected_client_failure";
 }
 
 function getSignatureKey(secretAccessKey: string, dateStamp: string, region: string, service: string) {
