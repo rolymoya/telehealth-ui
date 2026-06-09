@@ -186,6 +186,46 @@ describe("AccountBaselineStack", () => {
     expect(renderedPolicy).not.toContain('"Action":"*"');
   });
 
+  it("defines a launch-scoped CDK CloudFormation execution policy", () => {
+    const template = synthesizeTemplate();
+
+    template.hasResourceProperties("AWS::IAM::ManagedPolicy", {
+      ManagedPolicyName: "apoth-staging-cdk-cloudformation-execution-launch",
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: Match.arrayWith([
+              "apigateway:*",
+              "cognito-idp:*",
+              "dynamodb:*",
+              "lambda:*",
+              "secretsmanager:*",
+              "sqs:*",
+            ]),
+            Effect: "Allow",
+          }),
+          Match.objectLike({
+            Action: Match.arrayWith([
+              "iam:CreateRole",
+              "iam:PassRole",
+              "iam:PutRolePolicy",
+            ]),
+            Effect: "Allow",
+          }),
+        ]),
+      },
+    });
+
+    const policies = Object.values(
+      template.findResources("AWS::IAM::ManagedPolicy"),
+    );
+    const renderedPolicy = JSON.stringify(policies);
+    expect(renderedPolicy).not.toContain("AdministratorAccess");
+    expect(renderedPolicy).not.toContain('"Action":"*"');
+    expect(renderedPolicy).toContain("role/apoth-staging-*");
+    expect(renderedPolicy).toContain("role/Apoth-staging-*");
+  });
+
   it("applies Apoth environment tags", () => {
     const template = synthesizeTemplate();
 
@@ -216,6 +256,7 @@ describe("AccountBaselineStack", () => {
     for (const outputName of [
       "CloudTrailName",
       "CloudTrailLogBucketName",
+      "CdkCloudFormationExecutionPolicyArn",
       "GuardDutyDetectorId",
       "GithubActionsOidcProviderArn",
       "GithubActionsDeployRoleArn",

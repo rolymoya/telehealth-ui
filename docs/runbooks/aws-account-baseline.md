@@ -132,6 +132,12 @@ Complete these before production launch. Use real AWS/account evidence only.
 - [x] Create staging deploy role with GitHub OIDC trust. Verified role
       `arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy`
       trusts `repo:rolymoya/telehealth-ui:ref:refs/heads/main`.
+- [x] Define launch-scoped CDK CloudFormation execution policy
+      `arn:aws:iam::329425487030:policy/apoth-staging-cdk-cloudformation-execution-launch`
+      in the account-baseline stack.
+- [ ] TODO: Re-bootstrap CDK with the launch-scoped execution policy and verify
+      `AdministratorAccess` is no longer attached to
+      `cdk-hnb659fds-cfn-exec-role-329425487030-us-east-1`.
 - [ ] TODO: Create protected production-stage deploy role with GitHub OIDC
       trust in the same AWS account.
 - [ ] TODO: Run the first GitHub Actions OIDC smoke check from `main` and
@@ -189,6 +195,8 @@ Stack outputs captured from CloudFormation:
   `arn:aws:cloudtrail:us-east-1:329425487030:trail/apoth-staging-management-events`
 - CloudTrail log bucket:
   `apoth-staging-cloudtrail-logs-329425487030-us-east-1-an`
+- CDK CloudFormation execution policy:
+  `arn:aws:iam::329425487030:policy/apoth-staging-cdk-cloudformation-execution-launch`
 - GuardDuty detector:
   `a834cce0182642a2884136f8c0f152c0`
 - GitHub Actions OIDC provider:
@@ -283,12 +291,53 @@ roles:
 It also allows `cloudformation:DescribeStacks` on `CDKToolkit` and
 `ssm:GetParameter` for `/cdk-bootstrap/hnb659fds/version`.
 
-Effective-permission caveat: the GitHub role has no attached managed policies
-and no direct `AdministratorAccess`, but the CDK bootstrap
-`cdk-hnb659fds-cfn-exec-role-329425487030-us-east-1` currently has AWS-managed
-`AdministratorAccess`. Treat this as a temporary broad CDK bootstrap posture
-until a later hardening ticket narrows the CloudFormation execution role to
-the launch resource set.
+Effective deploy permissions: the GitHub role has no attached managed policies
+and no direct `AdministratorAccess`. The account-baseline stack defines
+`arn:aws:iam::329425487030:policy/apoth-staging-cdk-cloudformation-execution-launch`
+as the replacement policy for the CDK bootstrap CloudFormation execution role.
+Before treating staging deploys as least-privilege or production-ready, deploy
+the updated account-baseline stack, re-bootstrap with that policy, and verify
+that `cdk-hnb659fds-cfn-exec-role-329425487030-us-east-1` no longer has
+AWS-managed `AdministratorAccess`.
+
+CDK bootstrap hardening procedure:
+
+```bash
+AWS_PROFILE=apoth-staging \
+CDK_DEFAULT_ACCOUNT=329425487030 \
+CDK_DEFAULT_REGION=us-east-1 \
+npm --prefix infra exec -- cdk deploy Apoth-staging-AccountBaseline \
+  --context stage=staging
+```
+
+```bash
+AWS_PROFILE=apoth-staging \
+CDK_DEFAULT_ACCOUNT=329425487030 \
+CDK_DEFAULT_REGION=us-east-1 \
+npm --prefix infra exec -- cdk bootstrap aws://329425487030/us-east-1 \
+  --cloudformation-execution-policies \
+  arn:aws:iam::329425487030:policy/apoth-staging-cdk-cloudformation-execution-launch
+```
+
+```bash
+AWS_PROFILE=apoth-staging aws iam list-attached-role-policies \
+  --role-name cdk-hnb659fds-cfn-exec-role-329425487030-us-east-1
+```
+
+Expected result: the attached policies include
+`apoth-staging-cdk-cloudformation-execution-launch` and do not include
+`AdministratorAccess`.
+
+```bash
+AWS_PROFILE=apoth-staging aws iam simulate-principal-policy \
+  --policy-source-arn \
+  arn:aws:iam::329425487030:role/cdk-hnb659fds-cfn-exec-role-329425487030-us-east-1 \
+  --action-names ec2:CreateVpc rds:CreateDBInstance iam:CreateUser \
+  --resource-arns '*'
+```
+
+Expected result: non-launch primitives such as VPC creation, RDS creation, and
+IAM user creation are not allowed.
 
 First GitHub-side OIDC smoke check is pending. Add a temporary workflow on
 `main` or run the first deploy workflow with:

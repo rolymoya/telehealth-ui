@@ -137,6 +137,7 @@ Remaining staging account-baseline work:
 
 ```text
 CloudTrailLogBucketName=apoth-staging-cloudtrail-logs-329425487030-us-east-1-an
+CdkCloudFormationExecutionPolicyArn=arn:aws:iam::329425487030:policy/apoth-staging-cdk-cloudformation-execution-launch
 CloudTrailName=apoth-staging-management-events
 GuardDutyDetectorId=a834cce0182642a2884136f8c0f152c0
 GithubActionsOidcProviderArn=arn:aws:iam::329425487030:oidc-provider/token.actions.githubusercontent.com
@@ -145,11 +146,33 @@ GithubActionsDeployTrustSubject=repo:rolymoya/telehealth-ui:ref:refs/heads/main
 StackArn=arn:aws:cloudformation:us-east-1:329425487030:stack/Apoth-staging-AccountBaseline/7ec00270-63b1-11f1-8e5c-12bdeb8afd65
 ```
 
-Effective deploy-permission caveat: the GitHub role itself has no managed
-policies and can assume only CDK bootstrap roles, but the CDK CloudFormation
-execution role currently has AWS-managed `AdministratorAccess`. Treat this as
-a temporary broad CDK bootstrap deploy posture until a later hardening ticket
-narrows the execution role.
+Effective deploy permissions: the GitHub role itself has no managed policies
+and can assume only CDK bootstrap roles. The account-baseline stack now defines
+the launch-scoped replacement policy
+`arn:aws:iam::329425487030:policy/apoth-staging-cdk-cloudformation-execution-launch`
+for the CDK CloudFormation execution role. After deploying the updated
+account-baseline stack, re-bootstrap CDK with that policy and verify
+`cdk-hnb659fds-cfn-exec-role-329425487030-us-east-1` no longer has
+AWS-managed `AdministratorAccess`.
+
+```bash
+AWS_PROFILE=apoth-staging \
+CDK_DEFAULT_ACCOUNT=329425487030 \
+CDK_DEFAULT_REGION=us-east-1 \
+npm --prefix infra exec -- cdk bootstrap aws://329425487030/us-east-1 \
+  --cloudformation-execution-policies \
+  arn:aws:iam::329425487030:policy/apoth-staging-cdk-cloudformation-execution-launch
+```
+
+Verify the hardening:
+
+```bash
+AWS_PROFILE=apoth-staging aws iam list-attached-role-policies \
+  --role-name cdk-hnb659fds-cfn-exec-role-329425487030-us-east-1
+```
+
+Expected result: `AdministratorAccess` is absent and
+`apoth-staging-cdk-cloudformation-execution-launch` is attached.
 
 First GitHub-side OIDC smoke check is still pending. Use a workflow on `main`
 with `permissions: id-token: write` and

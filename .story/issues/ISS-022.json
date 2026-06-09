@@ -15,9 +15,9 @@
   "relatedTickets": [
     "T-083"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Added a launch-scoped CDK CloudFormation execution managed policy to the account-baseline stack, output its ARN, covered it with infra tests, and replaced the AdministratorAccess caveat in deploy runbooks with exact rebootstrap and verification steps.",
+  "resolvedDate": "2026-06-09",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "CDK bootstrap execution role still has AdministratorAccess"
 }
