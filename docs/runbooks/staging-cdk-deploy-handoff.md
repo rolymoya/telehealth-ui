@@ -45,11 +45,11 @@ of Git; record only account IDs, role ARNs, evidence paths, and stack outputs.
    - Long-lived IAM user access keys avoided/disabled for developers: `TODO yes/no`
 
 5. Confirm baseline security services.
-   - CloudTrail management events enabled in staging: `no`; CLI
-     `describe-trails --include-shadow-trails` returned no trails.
-   - GuardDuty enabled in staging: `no`; CLI `list-detectors` returned no
-     detectors.
-   - Security findings owner/contact path: `TODO`
+   - CloudTrail management events enabled in staging: `yes`, trail
+     `apoth-staging-management-events`.
+   - GuardDuty enabled in staging: `yes`, detector
+     `a834cce0182642a2884136f8c0f152c0` in `us-east-1`.
+   - Security findings owner/contact path: `TODO` (`T-084`)
 
 6. Confirm or create deploy identity.
    - Developer CLI profile name to use locally: `apoth-staging`
@@ -122,11 +122,22 @@ AppSigningSecretArn=arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/
 
 Remaining staging account-baseline work:
 
-- `T-082`: Enable CloudTrail management events and GuardDuty.
+- `T-082`: CloudTrail management events and GuardDuty are deployed and
+  verified. Security findings owner/contact path remains owner-provided via
+  `T-084`.
 - `T-083`: Create least-privilege GitHub Actions OIDC deploy role.
 - `T-084`: Confirm account-wide MFA/key posture, security findings contact,
   GitHub trust restrictions, and populate live secret values in AWS Secrets
   Manager only.
+
+`Apoth-staging-AccountBaseline` deployment outputs:
+
+```text
+CloudTrailLogBucketName=apoth-staging-cloudtrail-logs-329425487030-us-east-1-an
+CloudTrailName=apoth-staging-management-events
+GuardDutyDetectorId=a834cce0182642a2884136f8c0f152c0
+StackArn=arn:aws:cloudformation:us-east-1:329425487030:stack/Apoth-staging-AccountBaseline/7ec00270-63b1-11f1-8e5c-12bdeb8afd65
+```
 
 ## Tasks Codex Can Do Via CLI
 
@@ -191,6 +202,17 @@ npm --prefix infra exec -- cdk deploy Apoth-staging-ServerlessPlatform \
   --context stage=staging
 ```
 
+Deploy the account-baseline stack separately when CloudTrail, GuardDuty, or
+their verification outputs need to be created or updated:
+
+```bash
+AWS_PROFILE="$AWS_PROFILE" \
+CDK_DEFAULT_ACCOUNT="$STAGING_ACCOUNT_ID" \
+CDK_DEFAULT_REGION="$AWS_REGION" \
+npm --prefix infra exec -- cdk deploy Apoth-staging-AccountBaseline \
+  --context stage=staging
+```
+
 8. Capture stack outputs.
 
 ```bash
@@ -198,6 +220,13 @@ AWS_PROFILE="$AWS_PROFILE" \
 aws cloudformation describe-stacks \
   --region "$AWS_REGION" \
   --stack-name Apoth-staging-ServerlessPlatform
+```
+
+```bash
+AWS_PROFILE="$AWS_PROFILE" \
+aws cloudformation describe-stacks \
+  --region "$AWS_REGION" \
+  --stack-name Apoth-staging-AccountBaseline
 ```
 
 Record output names and values, but do not record secret values.

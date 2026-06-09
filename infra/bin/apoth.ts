@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
+import { AccountBaselineStack } from "../src/account-baseline-stack";
 import { getStageConfig, resolveDeployEnvironment } from "../src/config";
 import { ServerlessPlatformStack } from "../src/serverless-platform-stack";
 
@@ -14,6 +15,11 @@ const env = resolveDeployEnvironment(config, {
 });
 
 new ServerlessPlatformStack(app, `Apoth-${config.stage}-ServerlessPlatform`, {
+  config,
+  env,
+});
+
+new AccountBaselineStack(app, `Apoth-${config.stage}-AccountBaseline`, {
   config,
   env,
 });

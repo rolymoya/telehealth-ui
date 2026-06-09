@@ -59,6 +59,9 @@ resource names, deploy roles, secrets, and runbook evidence.
    - Prefer organization trail if AWS Organizations is in use.
    - Keep log retention launch-appropriate and cost-aware.
    - Protect CloudTrail logs from ordinary deploy roles.
+   - Current staging evidence: stack `Apoth-staging-AccountBaseline` creates
+     trail `apoth-staging-management-events` with multi-region management
+     events, global service events, log file validation, and retained S3 logs.
 
 5. GuardDuty and Security Findings
    - Enable GuardDuty in staging and production.
@@ -66,6 +69,11 @@ resource names, deploy roles, secrets, and runbook evidence.
    - Security Hub can be enabled if the account owner wants consolidated
      findings, but it is not required for the first tiny launch unless the
      certification package needs it.
+   - Current staging evidence: GuardDuty detector
+     `a834cce0182642a2884136f8c0f152c0` is enabled in `us-east-1`.
+   - Security findings contact path remains owner-provided and is tracked in
+     `T-084`; do not treat production alert routing as complete until that path
+     is recorded.
 
 6. CloudWatch and Logging
    - Set explicit log retention on Lambda/API logs.
@@ -124,11 +132,12 @@ Complete these before production launch. Use real AWS/account evidence only.
 - [ ] TODO: Create staging deploy role with GitHub OIDC trust.
 - [ ] TODO: Create protected production-stage deploy role with GitHub OIDC
       trust in the same AWS account.
-- [ ] TODO: Enable CloudTrail management events. CLI check
-      `aws cloudtrail describe-trails --include-shadow-trails` returned no
-      trails in staging.
-- [ ] TODO: Enable GuardDuty and route high-severity findings. CLI check
-      `aws guardduty list-detectors` returned no detectors in staging.
+- [x] Enable CloudTrail management events. Verified trail
+      `apoth-staging-management-events` in `us-east-1`.
+- [x] Enable GuardDuty. Verified detector
+      `a834cce0182642a2884136f8c0f152c0` in `us-east-1`.
+- [ ] TODO: Record and route the high-severity security findings contact path
+      once the owner provides it in `T-084`.
 - [x] Set CloudWatch log retention defaults for Lambda/API logs in the CDK
       staging stack.
 - [ ] TODO: Confirm Secrets Manager is the only credential store for vendor
@@ -165,6 +174,64 @@ Stack outputs captured from CloudFormation:
 | `MdiApiSecretArn` | `arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/staging/mdi/api-NDEIUc` |
 | `StripeSecretArn` | `arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/staging/stripe/api-jGmsWe` |
 | `AppSigningSecretArn` | `arn:aws:secretsmanager:us-east-1:329425487030:secret:/apoth/staging/app/signing-YtRbE6` |
+
+`Apoth-staging-AccountBaseline` was deployed to account `329425487030` in
+`us-east-1` using SSO profile `apoth-staging`.
+
+- Stack ARN:
+  `arn:aws:cloudformation:us-east-1:329425487030:stack/Apoth-staging-AccountBaseline/7ec00270-63b1-11f1-8e5c-12bdeb8afd65`
+- CloudTrail trail:
+  `arn:aws:cloudtrail:us-east-1:329425487030:trail/apoth-staging-management-events`
+- CloudTrail log bucket:
+  `apoth-staging-cloudtrail-logs-329425487030-us-east-1-an`
+- GuardDuty detector:
+  `a834cce0182642a2884136f8c0f152c0`
+
+Account-baseline verification captured on June 8, 2026:
+
+```bash
+AWS_PROFILE=apoth-staging aws sts get-caller-identity
+```
+
+Result: account `329425487030`, assumed role
+`arn:aws:sts::329425487030:assumed-role/AWSReservedSSO_AdministratorAccess_57fb0260b21e4638/roly-dev-sso`.
+
+```bash
+AWS_PROFILE=apoth-staging aws cloudtrail describe-trails \
+  --include-shadow-trails \
+  --region us-east-1
+```
+
+Result: trail `apoth-staging-management-events`, home region `us-east-1`,
+multi-region `true`, global service events `true`, log file validation `true`,
+organization trail `false`.
+
+```bash
+AWS_PROFILE=apoth-staging aws cloudtrail get-trail-status \
+  --name apoth-staging-management-events \
+  --region us-east-1
+```
+
+Result: `IsLogging` is `true`; logging started at `2026-06-09T03:16:09Z`.
+
+```bash
+AWS_PROFILE=apoth-staging aws cloudtrail get-event-selectors \
+  --trail-name apoth-staging-management-events \
+  --region us-east-1
+```
+
+Result: `IncludeManagementEvents` is `true`, `ReadWriteType` is `All`, and no
+data event resources are configured.
+
+```bash
+AWS_PROFILE=apoth-staging aws guardduty list-detectors --region us-east-1
+AWS_PROFILE=apoth-staging aws guardduty get-detector \
+  --detector-id a834cce0182642a2884136f8c0f152c0 \
+  --region us-east-1
+```
+
+Result: detector `a834cce0182642a2884136f8c0f152c0` exists with status
+`ENABLED` and finding publishing frequency `FIFTEEN_MINUTES`.
 
 ## Developer Verification
 
