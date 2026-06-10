@@ -1,3 +1,5 @@
+import { observabilityMetricNames } from "../../../shared/observability/metrics";
+
 const logLevels = ["debug", "info", "warn", "error"] as const;
 export type LogLevel = (typeof logLevels)[number];
 
@@ -79,13 +81,7 @@ const allowedMetadataKeys = new Set([
   "retryable",
 ]);
 
-const allowedMetricNames = new Set([
-  "MdiOutboundFailures",
-  "OnboardingFailures",
-  "StripeSignatureFailures",
-  "StripeWebhookLagSeconds",
-  "WebhookProcessingFailures",
-]);
+const allowedMetricNames = new Set<string>(observabilityMetricNames);
 
 const sensitiveKeyPattern =
   /answer|question|condition|medication|symptom|diagnosis|clinician|note|allerg|pregnancy|weight|height|address|phone|dob|birth|ssn|email|name|secret|token|authorization|api.?key|header|url|body|payload|metadata|message|description|cognito|mdi.*(patient|case)|stripe.*(customer|subscription)|patient|pk|sk/i;

@@ -355,6 +355,9 @@ that the workflow is healthy.
 
 Custom metrics use the `Apoth/Application` namespace and only these bounded
 dimensions: `Stage`, `Provider`, `Outcome`, `ReasonCode`, and `RouteGroup`.
+The source of truth for custom metric names and dimensions is
+`shared/observability/metrics.ts`; update that shared contract before changing
+infra alarms, dashboard widgets, or logging allowlists.
 Never use patient identifiers, Cognito subjects, MDI/Stripe IDs, webhook event
 IDs, request IDs, condition/offering names, medication context, raw route
 parameters, query strings, error messages, or free text as metric dimensions.

@@ -9,6 +9,13 @@ import {
   type StageName,
 } from "../src/config";
 import { ServerlessPlatformStack } from "../src/serverless-platform-stack";
+import {
+  observabilityMetricDimensions,
+  observabilityMetricNames,
+  observabilityNamespace,
+  type ObservabilityMetricDimension,
+  type ObservabilityMetricName,
+} from "../../shared/observability/metrics";
 
 function synthesizeTemplate(stage: StageName = "staging") {
   const app = new cdk.App();
@@ -267,7 +274,7 @@ describe("ServerlessPlatformStack", () => {
         .filter(
           (resource) =>
             resource.Type === "AWS::CloudWatch::Alarm" &&
-            resource.Properties.Namespace === "Apoth/Application",
+            resource.Properties.Namespace === observabilityNamespace,
         )
         .map((resource) => [
           resource.Properties.MetricName as ExpectedCustomMetricName,
@@ -282,7 +289,7 @@ describe("ServerlessPlatformStack", () => {
       const alarm = customAlarms[contract.metricName];
       expect(alarm.Properties).toMatchObject({
         MetricName: contract.metricName,
-        Namespace: "Apoth/Application",
+        Namespace: observabilityNamespace,
         Threshold: contract.threshold,
         ComparisonOperator: contract.comparisonOperator,
         EvaluationPeriods: 1,
@@ -671,13 +678,7 @@ const expectedAlarmNames = [
   "apoth-staging-scheduled-heartbeat-errors",
 ] as const;
 
-const expectedCustomMetricNames = [
-  "StripeSignatureFailures",
-  "WebhookProcessingFailures",
-  "MdiOutboundFailures",
-  "OnboardingFailures",
-  "StripeWebhookLagSeconds",
-] as const;
+const expectedCustomMetricNames = observabilityMetricNames;
 
 const expectedActiveAlarmContracts = [
   {
@@ -768,15 +769,9 @@ const expectedActiveAlarmContracts = [
   },
 ] as const;
 
-const allowedCustomMetricDimensions = [
-  "Outcome",
-  "Provider",
-  "ReasonCode",
-  "RouteGroup",
-  "Stage",
-] as const;
+const allowedCustomMetricDimensions = observabilityMetricDimensions;
 
-type ExpectedCustomMetricName = (typeof expectedCustomMetricNames)[number];
+type ExpectedCustomMetricName = ObservabilityMetricName;
 
 const expectedCustomMetricContracts = [
   {
@@ -855,7 +850,7 @@ const expectedCustomMetricContracts = [
   comparisonOperator: string;
   statistic: string;
   unit: string;
-  dimensions: Record<(typeof allowedCustomMetricDimensions)[number], string>;
+  dimensions: Record<ObservabilityMetricDimension, string>;
 }>;
 
 const accessLogForbiddenFragments = [

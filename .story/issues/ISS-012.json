@@ -8,9 +8,9 @@
   "location": [],
   "phase": null,
   "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Moved custom observability metric namespace, metric names, and bounded dimension names into shared/observability/metrics.ts. App logging, CDK metric contracts, infra tests, and the runbook now reference that shared contract instead of maintaining independent metric allowlists.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[maintainability/drift-risk] infra/src/serverless-platform-stack.ts and src/lib/observability/logging.ts: cus"
 }

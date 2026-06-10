@@ -51,6 +51,12 @@ import {
   secretPurposeTag,
   type SecretKind,
 } from "../../shared/secrets/contracts";
+import {
+  observabilityMetricDimensions,
+  observabilityNamespace,
+  type ObservabilityMetricDimension,
+  type ObservabilityMetricName,
+} from "../../shared/observability/metrics";
 import type { StageConfig } from "./config";
 
 export type ServerlessPlatformStackProps = StackProps & {
@@ -476,7 +482,7 @@ const priorSecretLogicalIds: Partial<Record<SecretKind, string>> = {
 
 type ObservabilityMetricContract = {
   id: string;
-  metricName: string;
+  metricName: ObservabilityMetricName;
   alarmName: string;
   description: string;
   threshold: number;
@@ -494,15 +500,9 @@ type ActiveObservabilityMetrics = {
   webhookOldestMessageAge: Metric;
 };
 
-const observabilityNamespace = "Apoth/Application";
-
-const observabilityDimensions = {
-  Stage: "",
-  Provider: "",
-  Outcome: "",
-  ReasonCode: "",
-  RouteGroup: "",
-} satisfies Record<string, string>;
+const observabilityDimensions = Object.fromEntries(
+  observabilityMetricDimensions.map((dimension) => [dimension, ""]),
+) as Record<ObservabilityMetricDimension, string>;
 
 function createObservabilityMetricContracts(
   stage: StageConfig["stage"],
