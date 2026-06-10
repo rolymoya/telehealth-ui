@@ -178,7 +178,6 @@ export async function handleStripeWebhook(
     processed = await processVerifiedWebhook({
       envelope,
       repository: input.webhookRepository,
-      now: input.receivedAt,
       handler: async () => handleVerifiedStripeEvent({
         contract,
         event: verified.value,

@@ -343,7 +343,6 @@ export function isWebhookQueueMessagePhiSafe(message: WebhookQueueMessage): bool
 export async function processVerifiedWebhook(input: {
   envelope: VerifiedWebhookEnvelope;
   repository: WebhookProcessingRepository;
-  now: string;
   handler: (envelope: VerifiedWebhookEnvelope) => Promise<WebhookHandlerResult>;
   enqueue?: (message: WebhookQueueMessage) => Promise<void>;
   deliverySource?: "provider" | "queue";
@@ -356,10 +355,12 @@ export async function processVerifiedWebhook(input: {
   const retryBackoffSeconds = input.retryBackoffSeconds ?? 300;
   const maxAttempts = input.maxAttempts ?? 3;
   const deliverySource = input.deliverySource ?? "provider";
+  const clock = input.clock ?? (() => new Date().toISOString());
+  const startedAt = clock();
   const claim = await input.repository.claim({
     provider: input.envelope.provider,
     eventId: input.envelope.eventId,
-    now: input.now,
+    now: startedAt,
     deliverySource,
     expectedAttempts: deliverySource === "queue" ? input.queueMessageAttempt : undefined,
     processingLeaseSeconds: input.processingLeaseSeconds,
@@ -402,12 +403,12 @@ export async function processVerifiedWebhook(input: {
       outcome: "failed",
       retryable: true,
       durableRetry: true,
-      nextAttemptAfter: addSecondsIso(input.clock?.() ?? new Date().toISOString(), retryBackoffSeconds),
+      nextAttemptAfter: addSecondsIso(clock(), retryBackoffSeconds),
       maxAttempts,
     };
   }
 
-  const completedAt = input.clock?.() ?? new Date().toISOString();
+  const completedAt = clock();
 
   if (handled.outcome === "processed") {
     await input.repository.markProcessed({

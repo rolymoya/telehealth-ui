@@ -8,9 +8,9 @@
   "location": [],
   "phase": null,
   "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Removed the separate now input from processVerifiedWebhook so the processor now uses a single clock source for claim, retry backoff, and completion timestamps. Tests keep deterministic fixed-time helpers, and the lease-expiry invariant uses a sequence clock to prove time advancement without exposing two public time inputs.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[clean-code] processVerifiedWebhook exposes both now and clock, which can be wired inconsiste"
 }

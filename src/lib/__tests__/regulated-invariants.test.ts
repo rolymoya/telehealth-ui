@@ -46,11 +46,22 @@ async function verifyThenProcessWebhook(input: Parameters<typeof verifyWebhookEn
   return input.process(verified.envelope);
 }
 
-function processTestWebhook(input: Parameters<typeof processVerifiedWebhook>[0]) {
+type ProcessTestWebhookInput = Omit<Parameters<typeof processVerifiedWebhook>[0], "clock"> & {
+  now: string;
+  clock?: () => string;
+};
+
+function processTestWebhook(input: ProcessTestWebhookInput) {
+  const { now, clock, ...processInput } = input;
   return processVerifiedWebhook({
-    clock: () => input.now,
-    ...input,
+    ...processInput,
+    clock: clock ?? (() => now),
   });
+}
+
+function sequenceClock(values: string[]) {
+  let index = 0;
+  return () => values[Math.min(index++, values.length - 1)];
 }
 
 describe("regulated launch invariants", () => {
@@ -931,11 +942,15 @@ describe("regulated launch invariants", () => {
       },
     };
 
+    const clock = sequenceClock([
+      "2026-06-05T12:00:00.000Z",
+      "2026-06-05T12:01:01.000Z",
+    ]);
+
     await expect(
       processVerifiedWebhook({
         envelope,
-        now: "2026-06-05T12:00:00.000Z",
-        clock: () => "2026-06-05T12:01:01.000Z",
+        clock,
         repository: statefulRepository,
         handler: async () => ({ outcome: "processed" }),
       }),
