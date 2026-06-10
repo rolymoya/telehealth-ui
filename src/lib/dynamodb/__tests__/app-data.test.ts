@@ -1568,6 +1568,87 @@ describe("DynamoDB app-data helpers", () => {
     });
   });
 
+  it("requires a first-page refresh to see late evidence with older occurredAt", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(recordEvidenceEvent(repository, {
+      cognitoSub: "cognito-sub-001",
+      eventId: "consent:terms-2026-06-04",
+      eventType: "consent_granted",
+      eventCategory: "consent",
+      occurredAt: "2026-06-04T18:00:00.000Z",
+      recordedAt: "2026-06-04T18:00:00.000Z",
+      actorType: "patient",
+      status: "succeeded",
+      summaryCode: "CONSENT_GRANTED",
+      source: "app",
+      metadata: { version: "terms-2026-06-04" },
+    }).ok).toBe(true);
+    expect(recordEvidenceEvent(repository, {
+      cognitoSub: "cognito-sub-001",
+      eventId: "auth:sign-in:req_opaque_002",
+      eventType: "auth_sign_in",
+      eventCategory: "auth",
+      occurredAt: "2026-06-04T18:02:00.000Z",
+      recordedAt: "2026-06-04T18:02:00.000Z",
+      actorType: "cognito",
+      status: "succeeded",
+      summaryCode: "AUTH_SIGN_IN",
+      requestId: "req_opaque_002",
+      source: "cognito",
+      metadata: { outcome: "succeeded" },
+    }).ok).toBe(true);
+
+    const firstPage = listEvidenceEventsForPatient(repository, {
+      cognitoSub: "cognito-sub-001",
+      limit: 1,
+    });
+    expect(firstPage).toMatchObject({
+      ok: true,
+      value: { items: [{ eventId: "consent:terms-2026-06-04" }] },
+    });
+
+    expect(recordEvidenceEvent(repository, {
+      cognitoSub: "cognito-sub-001",
+      eventId: "auth:sign-in:req_opaque_001",
+      eventType: "auth_sign_in",
+      eventCategory: "auth",
+      occurredAt: "2026-06-04T17:59:00.000Z",
+      recordedAt: "2026-06-04T18:03:00.000Z",
+      actorType: "cognito",
+      status: "succeeded",
+      summaryCode: "AUTH_SIGN_IN",
+      requestId: "req_opaque_001",
+      source: "cognito",
+      metadata: { outcome: "succeeded" },
+    }).ok).toBe(true);
+
+    const continued = firstPage.ok && firstPage.value.nextKey
+      ? listEvidenceEventsForPatient(repository, {
+        cognitoSub: "cognito-sub-001",
+        limit: 10,
+        exclusiveStartKey: firstPage.value.nextKey,
+      })
+      : firstPage;
+    expect(continued).toMatchObject({
+      ok: true,
+      value: { items: [{ eventId: "auth:sign-in:req_opaque_002" }] },
+    });
+    expect(listEvidenceEventsForPatient(repository, {
+      cognitoSub: "cognito-sub-001",
+      limit: 10,
+    })).toMatchObject({
+      ok: true,
+      value: {
+        items: [
+          { eventId: "auth:sign-in:req_opaque_001" },
+          { eventId: "consent:terms-2026-06-04" },
+          { eventId: "auth:sign-in:req_opaque_002" },
+        ],
+      },
+    });
+  });
+
   it("requires event-specific linkage for case and billing evidence", () => {
     const repository = createInMemoryAppDataRepository();
 

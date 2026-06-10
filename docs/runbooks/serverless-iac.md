@@ -313,6 +313,15 @@ not replace MDI, Stripe, or Cognito records. Provider webhook side-effect
 evidence uses deterministic event IDs plus a DynamoDB uniqueness guard, so
 replays should not create duplicate logical evidence items.
 
+Evidence timelines are ordered by `occurredAt`, not by write time. During
+active webhooks, intake handoff, or support actions, a late write with an older
+`occurredAt` can sort before a cursor the operator already paged past. Treat
+`nextKey` as a live-read continuation token only; for complete incident or
+compliance review, wait for the relevant writes to settle and restart from page
+1 before concluding no earlier evidence exists. Do not promise snapshot-style
+timeline completeness until an append-ordered or case-scoped access path is
+implemented.
+
 ### Dashboard
 
 Open CloudWatch Dashboards and select:

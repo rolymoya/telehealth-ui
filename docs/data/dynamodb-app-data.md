@@ -140,9 +140,17 @@ lookup, then read the resolved patient timeline and filter to events for that
 `mdiCaseId`. Continue later case pages with the returned `cognitoSub` and
 `nextKey` so pagination remains bound to the same patient partition. Stripe
 customer or subscription IDs follow the same reverse-lookup pattern. Evidence
-timelines are ordered by `occurredAt`; if support is paging during active writes
-and needs a complete point-in-time view, refresh from the first page after the
-write stream settles or use a future append-ordered/case-scoped access path.
+timelines are ordered by `occurredAt`, not by write/recording time. A paginated
+read is therefore a moving operational view, not a snapshot isolation boundary:
+after a user has advanced past page 1, a concurrently written event with an
+older `occurredAt` can sort before the saved `nextKey` and will not appear by
+continuing from that cursor. Support tooling must treat `nextKey` as a
+continuation token for one live read, not as proof that earlier pages are
+complete forever. If support or compliance needs a complete point-in-time view,
+wait for the relevant write stream to settle and restart from the first page;
+refresh indicators should tell users when new earlier evidence may exist. A
+future append-ordered or case-scoped access path is required before offering
+snapshot-like timelines during active concurrent writes.
 
 Evidence events are not a clinical note system, raw audit payload archive, or
 tamper-evident hash chain. Do not store raw support notes, message/file
