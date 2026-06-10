@@ -8,9 +8,9 @@
   "location": [],
   "phase": null,
   "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Replaced the launch observability dashboard test's string-substring assertions with structured DashboardBody parsing. The test now verifies the exact seven widget titles and each widget's CloudWatch metric rows, including namespace, metric name, dimensions, dimension values, and statistic for AWS and Apoth custom metrics.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[test-quality] Dashboard assertions check titles and metric-name substrings but not full namesp"
 }

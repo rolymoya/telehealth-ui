@@ -327,28 +327,76 @@ describe("ServerlessPlatformStack", () => {
     expect(dashboard?.Properties.DashboardName).toBe(
       "apoth-staging-launch-observability",
     );
-    const renderedDashboard = JSON.stringify(dashboard?.Properties.DashboardBody);
-    for (const title of [
+    const parsedDashboard = parseDashboardBody(dashboard?.Properties.DashboardBody);
+    const metricsByTitle = dashboardMetricsByTitle(parsedDashboard);
+
+    expect([...metricsByTitle.keys()].sort()).toEqual([
       "API errors",
-      "Webhook queue health",
-      "Scheduled job failures",
-      "Stripe webhook failures and lag",
       "MDI failures",
       "Onboarding failures",
+      "Scheduled job failures",
+      "Stripe webhook failures and lag",
       "Webhook processing failures",
-    ]) {
-      expect(renderedDashboard).toContain(title);
-    }
-    for (const metricName of [
-      "4xx",
-      "5xx",
-      "Errors",
-      "ApproximateAgeOfOldestMessage",
-      "ApproximateNumberOfMessagesVisible",
-      ...expectedCustomMetricNames,
-    ]) {
-      expect(renderedDashboard).toContain(metricName);
-    }
+      "Webhook queue health",
+    ]);
+    expect(metricsByTitle.get("API errors")).toEqual([
+      [
+        "AWS/ApiGateway",
+        "5xx",
+        "ApiId",
+        cloudFormationToken,
+        "Stage",
+        "$default",
+        { stat: "Sum" },
+      ],
+      [
+        "AWS/ApiGateway",
+        "4xx",
+        "ApiId",
+        cloudFormationToken,
+        "Stage",
+        "$default",
+        { stat: "Sum" },
+      ],
+    ]);
+    expect(metricsByTitle.get("Webhook queue health")).toEqual([
+      [
+        "AWS/SQS",
+        "ApproximateNumberOfMessagesVisible",
+        "QueueName",
+        cloudFormationToken,
+        { stat: "Maximum" },
+      ],
+      [
+        "AWS/SQS",
+        "ApproximateAgeOfOldestMessage",
+        "QueueName",
+        cloudFormationToken,
+        { stat: "Maximum" },
+      ],
+    ]);
+    expect(metricsByTitle.get("Scheduled job failures")).toEqual([
+      [
+        "AWS/Lambda",
+        "Errors",
+        "FunctionName",
+        cloudFormationToken,
+        { stat: "Sum" },
+      ],
+    ]);
+    expect(metricsByTitle.get("Stripe webhook failures and lag")).toEqual([
+      expectedDashboardCustomMetric("StripeSignatureFailures"),
+      expectedDashboardCustomMetric("StripeWebhookLagSeconds"),
+    ]);
+    expect(metricsByTitle.get("MDI failures")).toEqual([
+      expectedDashboardCustomMetric("MdiOutboundFailures"),
+    ]);
+    expect(metricsByTitle.get("Onboarding failures")).toEqual([
+      expectedDashboardCustomMetric("OnboardingFailures"),
+    ]);
+    expect(metricsByTitle.get("Webhook processing failures")).toEqual([
+      expectedDashboardCustomMetric("WebhookProcessingFailures"),
+    ]);
   });
 
   it("uses stage log retention for API and Lambda log groups", () => {
@@ -664,6 +712,78 @@ type SynthResource = {
     TreatMissingData?: string;
   };
 };
+
+const cloudFormationToken = "__CLOUDFORMATION_TOKEN__";
+
+type DashboardMetricRow = unknown[];
+
+type DashboardBody = {
+  widgets: Array<{
+    properties?: {
+      metrics?: DashboardMetricRow[];
+      title?: string;
+    };
+  }>;
+};
+
+function parseDashboardBody(value: unknown): DashboardBody {
+  const rendered = renderDashboardBody(value);
+  const parsed = JSON.parse(rendered) as DashboardBody;
+  expect(Array.isArray(parsed.widgets)).toBe(true);
+  return parsed;
+}
+
+function renderDashboardBody(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "Fn::Join" in value &&
+    Array.isArray(value["Fn::Join"])
+  ) {
+    const [, parts] = value["Fn::Join"] as [unknown, unknown];
+    if (Array.isArray(parts)) {
+      return parts.map((part) => (
+        typeof part === "string" ? part : cloudFormationToken
+      )).join("");
+    }
+  }
+
+  throw new Error("Dashboard body was not a string or Fn::Join");
+}
+
+function dashboardMetricsByTitle(body: DashboardBody) {
+  const metrics = new Map<string, DashboardMetricRow[]>();
+  for (const widget of body.widgets) {
+    const title = widget.properties?.title;
+    if (!title || !widget.properties?.metrics) {
+      continue;
+    }
+    metrics.set(title, widget.properties.metrics);
+  }
+  return metrics;
+}
+
+function expectedDashboardCustomMetric(metricName: ExpectedCustomMetricName) {
+  const contract = expectedCustomMetricContracts.find((contract) =>
+    contract.metricName === metricName
+  );
+  if (!contract) {
+    throw new Error(`Missing expected custom metric contract: ${metricName}`);
+  }
+
+  return [
+    observabilityNamespace,
+    contract.metricName,
+    ...observabilityMetricDimensions.flatMap((dimension) => [
+      dimension,
+      contract.dimensions[dimension],
+    ]),
+    { stat: contract.statistic },
+  ];
+}
 
 const expectedAlarmNames = [
   "apoth-staging-webhook-dlq-visible-messages",
