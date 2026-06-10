@@ -1,8 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import Stripe from "stripe";
 import { createDynamoDbAppDataRepository, resolveDynamoDbAppDataConfig } from "@/lib/dynamodb/app-data-dynamodb";
-import { parseSecretPayload } from "@/lib/secrets";
-import { resolveRuntimeStage, secretPayloadEnvName } from "@/lib/secrets/startup";
+import { resolveRuntimeStage, resolveStartupSecretSource, validateServerStartupSecrets } from "@/lib/secrets/startup";
 import { createSqsWebhookEnqueue, resolveWebhookQueueConfig } from "@/lib/sqs";
 import {
   createDynamoDbStripeMirrorRepository,
@@ -17,7 +16,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid_signature" }, { status: 400 });
   }
 
-  const secret = resolveStripeSecret(process.env);
+  const secret = await resolveStripeSecret(process.env);
   const repository = resolveRepository(process.env);
   const queue = resolveWebhookQueueConfig(process.env);
   if (!secret.ok || !repository.ok || !queue.ok) {
@@ -75,17 +74,25 @@ async function readRequestBodyWithLimit(
   return { ok: true, value: Buffer.concat(chunks, byteLength) };
 }
 
-function resolveStripeSecret(env: Record<string, string | undefined>) {
-  const raw = env[secretPayloadEnvName("stripeApi")];
-  if (!raw) {
+async function resolveStripeSecret(env: Record<string, string | undefined>) {
+  const source = resolveStartupSecretSource({
+    env,
+    requiredSecrets: ["stripeApi"],
+  });
+  if (!source.ok) {
     return { ok: false as const };
   }
-  const parsed = parseSecretPayload(raw, {
-    expectedKind: "stripeApi",
-    expectedStage: resolveRuntimeStage(env),
+  const validated = await validateServerStartupSecrets({
+    stage: resolveRuntimeStage(env),
+    requiredSecrets: ["stripeApi"],
+    source: source.value.source,
   });
-  return parsed.ok && parsed.value.secretKind === "stripeApi"
-    ? { ok: true as const, value: parsed.value }
+  if (!validated.ok) {
+    return { ok: false as const };
+  }
+  const secret = validated.value.find((value) => value.secretKind === "stripeApi");
+  return secret
+    ? { ok: true as const, value: secret }
     : { ok: false as const };
 }
 

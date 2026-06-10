@@ -15,6 +15,11 @@ import {
 } from "../index";
 import {
   assertServerStartupConfig,
+  createAwsSecretsManagerStartupSecretSource,
+  resolveAwsSecretsManagerStartupConfig,
+  resolveStartupSecretSource,
+  secretIdentifierEnvName,
+  validateConfiguredServerStartupSecrets,
   validateServerStartupSecrets,
 } from "../startup";
 
@@ -559,13 +564,14 @@ describe("secret validation", () => {
           APOTH_STAGE: "production",
         },
       }),
-    ).toThrow("Required secret mdiApi is missing");
+    ).toThrow("Required secret mdiApi identifier is missing");
   });
 
-  it("fails actual server startup config for wrong-stage configured secrets", () => {
+  it("fails explicit env-payload startup fallback for wrong-stage configured secrets", () => {
     expect(() =>
       assertServerStartupConfig({
         env: {
+          APOTH_ALLOW_ENV_SECRET_PAYLOADS: "true",
           APOTH_STAGE: "staging",
           APOTH_REQUIRED_SERVER_SECRETS: "appSigning",
           APOTH_SECRET_APP_SIGNING_JSON: JSON.stringify(
@@ -574,6 +580,149 @@ describe("secret validation", () => {
         },
       }),
     ).toThrow("Secret appSigning is tagged for the wrong Apoth stage");
+  });
+
+  it("accepts Secrets Manager identifiers without requiring full secret JSON in env", () => {
+    expect(() =>
+      assertServerStartupConfig({
+        env: {
+          APOTH_STAGE: "production",
+          AWS_ACCESS_KEY_ID: "access",
+          AWS_REGION: "us-east-1",
+          AWS_SECRET_ACCESS_KEY: "secret",
+          [secretIdentifierEnvName("mdiApi")]: "arn:aws:secretsmanager:us-east-1:123:secret:/apoth/production/mdi/api",
+          [secretIdentifierEnvName("stripeApi")]: "arn:aws:secretsmanager:us-east-1:123:secret:/apoth/production/stripe/api",
+          [secretIdentifierEnvName("appSigning")]: "arn:aws:secretsmanager:us-east-1:123:secret:/apoth/production/app/signing",
+        },
+      }),
+    ).not.toThrow();
+  });
+
+  it("resolves an AWS Secrets Manager startup source from secret identifiers", () => {
+    expect(
+      resolveAwsSecretsManagerStartupConfig({
+        APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
+        AWS_ACCESS_KEY_ID: "access",
+        AWS_REGION: "us-east-1",
+        AWS_SECRET_ACCESS_KEY: "secret",
+      }, ["stripeApi"]),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        region: "us-east-1",
+        secretIdentifiers: {
+          stripeApi: "/apoth/staging/stripe/api",
+        },
+      },
+    });
+
+    expect(
+      resolveStartupSecretSource({
+        env: {
+          APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
+          AWS_REGION: "us-east-1",
+        },
+        requiredSecrets: ["stripeApi"],
+      }),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "invalid_secret",
+        message: "AWS credentials are unavailable for Secrets Manager",
+      },
+    });
+  });
+
+  it("fetches and validates configured secrets through AWS Secrets Manager", async () => {
+    const fetchMock = async (_url: string, init: { body: string; headers: Record<string, string> }) => {
+      expect(init.headers.authorization).toContain("AWS4-HMAC-SHA256");
+      expect(init.headers["x-amz-target"]).toBe("secretsmanager.GetSecretValue");
+      expect(JSON.parse(init.body)).toEqual({ SecretId: "/apoth/staging/stripe/api" });
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return {
+            SecretString: JSON.stringify({
+              apothStage: "staging",
+              schemaVersion: 1,
+              secretKind: "stripeApi",
+              secretKey: "sk_test_runtime_secret",
+              webhookSigningSecret: "whsec_runtime_secret",
+            }),
+          };
+        },
+      };
+    };
+    const source = createAwsSecretsManagerStartupSecretSource({
+      accessKeyId: "access",
+      region: "us-east-1",
+      secretAccessKey: "secret",
+      secretIdentifiers: {
+        stripeApi: "/apoth/staging/stripe/api",
+      },
+    }, {
+      fetch: fetchMock,
+      now: () => new Date("2026-06-10T00:00:00.000Z"),
+    });
+
+    await expect(
+      validateServerStartupSecrets({
+        stage: "staging",
+        requiredSecrets: ["stripeApi"],
+        source,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: [{
+        secretKind: "stripeApi",
+        secretKey: "sk_test_runtime_secret",
+      }],
+    });
+  });
+
+  it("validates configured startup secrets with explicit env payload fallback only", async () => {
+    await expect(
+      validateConfiguredServerStartupSecrets({
+        env: {
+          APOTH_ALLOW_ENV_SECRET_PAYLOADS: "true",
+          APOTH_REQUIRED_SERVER_SECRETS: "appSigning",
+          APOTH_SECRET_APP_SIGNING_JSON: JSON.stringify({
+            apothStage: "staging",
+            schemaVersion: 1,
+            secretKind: "appSigning",
+            signingSecret: "runtime_signing_secret",
+          }),
+          APOTH_STAGE: "staging",
+        },
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: [{
+        secretKind: "appSigning",
+      }],
+    });
+
+    await expect(
+      validateConfiguredServerStartupSecrets({
+        env: {
+          APOTH_REQUIRED_SERVER_SECRETS: "appSigning",
+          APOTH_SECRET_APP_SIGNING_JSON: JSON.stringify({
+            apothStage: "staging",
+            schemaVersion: 1,
+            secretKind: "appSigning",
+            signingSecret: "runtime_signing_secret",
+          }),
+          APOTH_STAGE: "staging",
+        },
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: {
+        kind: "missing_secret",
+        message: "Required secret appSigning identifier is missing",
+      },
+    });
   });
 
   it("fails closed for unsupported startup stage values", () => {
@@ -604,7 +753,7 @@ describe("secret validation", () => {
           NODE_ENV: "production",
         },
       }),
-    ).toThrow("Required secret mdiApi is missing");
+    ).toThrow("Required secret mdiApi identifier is missing");
 
     expect(() =>
       assertServerStartupConfig({
@@ -641,6 +790,15 @@ describe("secret validation", () => {
         },
       }),
     ).toThrow("APOTH_REQUIRE_SERVER_SECRETS must be true or false");
+
+    expect(() =>
+      assertServerStartupConfig({
+        env: {
+          APOTH_ALLOW_ENV_SECRET_PAYLOADS: "TRUE",
+          APOTH_REQUIRED_SERVER_SECRETS: "stripeApi",
+        },
+      }),
+    ).toThrow("APOTH_ALLOW_ENV_SECRET_PAYLOADS must be true or false");
   });
 
   it("reads required startup secrets concurrently but reports in required order", async () => {

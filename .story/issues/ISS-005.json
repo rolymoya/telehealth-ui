@@ -15,9 +15,9 @@
   "relatedTickets": [
     "T-041"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Added an AWS Secrets Manager runtime startup source that fetches required secret payloads by stage-scoped secret identifiers, changed startup validation to require secret IDs/ARNs by default instead of full JSON env payloads, kept JSON env payloads behind an explicit local/test fallback flag, wired the Stripe webhook route through the runtime secret source, and documented the production identifier variables.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "Runtime secret loading still uses interim JSON env bindings"
 }

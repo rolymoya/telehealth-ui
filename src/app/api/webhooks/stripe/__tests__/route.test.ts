@@ -6,9 +6,10 @@ const mocks = vi.hoisted(() => ({
   createDynamoDbWebhookProcessingRepository: vi.fn(() => ({ kind: "webhook-repo" })),
   createSqsWebhookEnqueue: vi.fn(() => vi.fn()),
   handleStripeWebhook: vi.fn(),
-  parseSecretPayload: vi.fn(),
   resolveDynamoDbAppDataConfig: vi.fn(),
   resolveRuntimeStage: vi.fn(() => "staging"),
+  resolveStartupSecretSource: vi.fn(),
+  validateServerStartupSecrets: vi.fn(),
   resolveWebhookQueueConfig: vi.fn(),
 }));
 
@@ -17,13 +18,10 @@ vi.mock("@/lib/dynamodb/app-data-dynamodb", () => ({
   resolveDynamoDbAppDataConfig: mocks.resolveDynamoDbAppDataConfig,
 }));
 
-vi.mock("@/lib/secrets", () => ({
-  parseSecretPayload: mocks.parseSecretPayload,
-}));
-
 vi.mock("@/lib/secrets/startup", () => ({
   resolveRuntimeStage: mocks.resolveRuntimeStage,
-  secretPayloadEnvName: () => "APOTH_SECRET_STRIPE_API_JSON",
+  resolveStartupSecretSource: mocks.resolveStartupSecretSource,
+  validateServerStartupSecrets: mocks.validateServerStartupSecrets,
 }));
 
 vi.mock("@/lib/sqs", () => ({
@@ -50,14 +48,22 @@ vi.mock("stripe", () => ({
 describe("Stripe webhook route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.APOTH_SECRET_STRIPE_API_JSON = JSON.stringify({ secret: "redacted" });
-    mocks.parseSecretPayload.mockReturnValue({
+    mocks.resolveStartupSecretSource.mockReturnValue({
       ok: true,
       value: {
+        kind: "awsSecretsManager",
+        source: { kind: "source" },
+      },
+    });
+    mocks.validateServerStartupSecrets.mockResolvedValue({
+      ok: true,
+      value: [{
+        apothStage: "staging",
+        schemaVersion: 1,
         secretKind: "stripeApi",
         secretKey: "sk_test_opaque",
         webhookSigningSecret: "whsec_opaque",
-      },
+      }],
     });
     mocks.resolveDynamoDbAppDataConfig.mockReturnValue({
       ok: true,
@@ -118,6 +124,15 @@ describe("Stripe webhook route", () => {
       payload: Buffer.from(payload),
       signature: "t=123,v1=signature",
     }));
+    expect(mocks.resolveStartupSecretSource).toHaveBeenCalledWith({
+      env: process.env,
+      requiredSecrets: ["stripeApi"],
+    });
+    expect(mocks.validateServerStartupSecrets).toHaveBeenCalledWith({
+      stage: "staging",
+      requiredSecrets: ["stripeApi"],
+      source: { kind: "source" },
+    });
     expect(mocks.createDynamoDbStripeMirrorRepository).toHaveBeenCalledWith({ kind: "dynamodb-repo" });
     expect(mocks.createDynamoDbWebhookProcessingRepository).toHaveBeenCalledWith({ kind: "dynamodb-repo" });
     expect(mocks.createSqsWebhookEnqueue).toHaveBeenCalledWith({

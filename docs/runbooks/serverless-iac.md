@@ -451,16 +451,31 @@ token or callback lifetime has elapsed:
 
 Server startup validates public environment variables on every render process.
 Production runtime processes must set `APOTH_STAGE=production`. In production,
-or when `APOTH_REQUIRE_SERVER_SECRETS=true`, startup also requires all three
-secret payloads to be present and valid. Next production builds still require
-the stage sentinel but do not require live secret payloads during prerendering.
-Until a dedicated AWS Secrets Manager runtime client is added, hosting must
-provide the secret payloads through the server-only environment bindings
+or when `APOTH_REQUIRE_SERVER_SECRETS=true`, startup requires references to all
+three Secrets Manager values. Next production builds still require the stage
+sentinel but do not require live secret references during prerendering.
+
+Runtime consumers load payloads through AWS Secrets Manager `GetSecretValue`
+using the Lambda/runtime role and the stage-scoped secret identifier. Do not
+duplicate live secret JSON payloads into hosting environment variables,
+GitHub Actions variables, docs, logs, or tickets.
+
+| Kind | Runtime identifier variable |
+| --- | --- |
+| `mdiApi` | `APOTH_SECRET_MDI_API_ID` |
+| `stripeApi` | `APOTH_SECRET_STRIPE_API_ID` |
+| `appSigning` | `APOTH_SECRET_APP_SIGNING_ID` |
+
+The identifier value may be the secret name or ARN output by the stack, such as
+`/apoth/staging/stripe/api` or the corresponding ARN. `APOTH_REQUIRED_SERVER_SECRETS`
+can narrow the required comma-separated set for a specific server process, for
+example `stripeApi,appSigning`. `APOTH_REQUIRE_SERVER_SECRETS` accepts only
+`true` or `false` when set.
+
 `APOTH_SECRET_MDI_API_JSON`, `APOTH_SECRET_STRIPE_API_JSON`, and
-`APOTH_SECRET_APP_SIGNING_JSON`. `APOTH_REQUIRED_SERVER_SECRETS` can narrow the
-required comma-separated set for a specific server process, for example
-`stripeApi,appSigning`. `APOTH_REQUIRE_SERVER_SECRETS` accepts only `true` or
-`false` when set.
+`APOTH_SECRET_APP_SIGNING_JSON` are reserved for local/test fallback only. They
+are ignored unless `APOTH_ALLOW_ENV_SECRET_PAYLOADS=true`, and that flag must
+not be enabled for staging or production hosting.
 
 Public Cognito and client configuration, including user pool IDs, app client
 IDs, hosted domains, and public app URLs, is not secret material and should stay
