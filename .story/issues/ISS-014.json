@@ -8,9 +8,9 @@
   "location": [],
   "phase": null,
   "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Centralized evidence event taxonomy into a single evidenceEventSchema that now defines each event type's category, summary code, allowed statuses, and allowed metadata values. Validation derives those checks from the schema, removing the previous parallel event type set, category map, summary map, status map, metadata-key map, and metadata-value map. Event ID and linkage-specific validation remain separate behavioral checks for ISS-016.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[maintainability] Evidence-event schema is duplicated across event type unions, sets, category map"
 }

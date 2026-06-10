@@ -49,29 +49,168 @@ export type EvidenceEventCategory =
   | "support_admin"
   | "auth";
 
-export type EvidenceEventType =
-  | "consent_granted"
-  | "consent_reprompted"
-  | "mdi_handoff_submitted"
-  | "mdi_handoff_failed"
-  | "mdi_status_updated"
-  | "stripe_payment_method_collected"
-  | "stripe_billing_activated"
-  | "stripe_billing_status_changed"
-  | "webhook_claimed"
-  | "webhook_processed"
-  | "webhook_failed"
-  | "webhook_side_effect_applied"
-  | "support_action_recorded"
-  | "admin_action_recorded"
-  | "auth_sign_in"
-  | "auth_sign_up"
-  | "auth_mfa_changed"
-  | "auth_password_reset";
-
 export type EvidenceActorType = "patient" | "system" | "admin" | "vendor" | "cognito";
 
 export type EvidenceEventStatus = "recorded" | "succeeded" | "failed" | "skipped";
+
+const evidenceEventSchema = {
+  consent_granted: {
+    category: "consent",
+    summaryCode: "CONSENT_GRANTED",
+    statuses: ["succeeded"],
+    metadata: { version: ["terms-2026-06-04"] },
+  },
+  consent_reprompted: {
+    category: "consent",
+    summaryCode: "CONSENT_REPROMPTED",
+    statuses: ["recorded"],
+    metadata: { version: ["terms-2026-06-04"] },
+  },
+  mdi_handoff_submitted: {
+    category: "mdi_handoff",
+    summaryCode: "MDI_HANDOFF_SUBMITTED",
+    statuses: ["succeeded"],
+    metadata: { status: ["submitted"] },
+  },
+  mdi_handoff_failed: {
+    category: "mdi_handoff",
+    summaryCode: "MDI_HANDOFF_FAILED",
+    statuses: ["failed"],
+    metadata: {
+      status: ["failed"],
+      reason_code: ["MDI_UNAVAILABLE", "MDI_TIMEOUT", "MDI_VALIDATION_FAILED"],
+    },
+  },
+  mdi_status_updated: {
+    category: "mdi_handoff",
+    summaryCode: "MDI_STATUS_UPDATED",
+    statuses: ["recorded"],
+    metadata: { status: ["clinical_review", "completed", "declined", "cancelled"] },
+  },
+  stripe_payment_method_collected: {
+    category: "stripe_billing",
+    summaryCode: "STRIPE_PAYMENT_METHOD_COLLECTED",
+    statuses: ["succeeded"],
+    metadata: { status: ["payment_method_collected"] },
+  },
+  stripe_billing_activated: {
+    category: "stripe_billing",
+    summaryCode: "STRIPE_BILLING_ACTIVATED",
+    statuses: ["succeeded"],
+    metadata: { status: ["active"] },
+  },
+  stripe_billing_status_changed: {
+    category: "stripe_billing",
+    summaryCode: "STRIPE_BILLING_STATUS_CHANGED",
+    statuses: ["recorded"],
+    metadata: {
+      status: [
+        "payment_method_pending",
+        "payment_method_collected",
+        "active",
+        "past_due",
+        "canceled",
+      ],
+      previous_status: [
+        "not_started",
+        "payment_method_pending",
+        "payment_method_collected",
+        "active",
+        "past_due",
+        "canceled",
+      ],
+    },
+  },
+  webhook_claimed: {
+    category: "webhook",
+    summaryCode: "WEBHOOK_CLAIMED",
+    statuses: ["recorded"],
+    metadata: {
+      outcome: [
+        "claimed",
+        "already_processing",
+        "already_processed",
+        "failed_retryable",
+        "retry_not_due",
+        "queue_owned_retry",
+        "stale_queue_delivery",
+        "processing_lease_expired",
+        "retry_exhausted",
+        "conflict",
+      ],
+    },
+  },
+  webhook_processed: {
+    category: "webhook",
+    summaryCode: "WEBHOOK_PROCESSED",
+    statuses: ["succeeded"],
+    metadata: { outcome: ["processed", "skipped_duplicate"] },
+  },
+  webhook_failed: {
+    category: "webhook",
+    summaryCode: "WEBHOOK_FAILED",
+    statuses: ["failed"],
+    metadata: {
+      reason_code: ["SIGNATURE_INVALID", "HANDLER_FAILED", "RETRYABLE_FAILURE", "TERMINAL_FAILURE"],
+    },
+  },
+  webhook_side_effect_applied: {
+    category: "webhook",
+    summaryCode: "WEBHOOK_SIDE_EFFECT_APPLIED",
+    statuses: ["succeeded", "skipped"],
+    metadata: {
+      side_effect: [
+        "billing_status_update",
+        "mdi_status_update",
+        "consent_status_update",
+        "webhook_idempotency_update",
+      ],
+    },
+  },
+  support_action_recorded: {
+    category: "support_admin",
+    summaryCode: "SUPPORT_ACTION_RECORDED",
+    statuses: ["recorded"],
+    metadata: { action_code: ["case_lookup", "status_review", "consent_export"] },
+  },
+  admin_action_recorded: {
+    category: "support_admin",
+    summaryCode: "ADMIN_ACTION_RECORDED",
+    statuses: ["recorded"],
+    metadata: { action_code: ["status_override", "linkage_review", "safe_replay"] },
+  },
+  auth_sign_in: {
+    category: "auth",
+    summaryCode: "AUTH_SIGN_IN",
+    statuses: ["succeeded", "failed"],
+    metadata: { outcome: ["succeeded", "failed"] },
+  },
+  auth_sign_up: {
+    category: "auth",
+    summaryCode: "AUTH_SIGN_UP",
+    statuses: ["succeeded", "failed"],
+    metadata: { outcome: ["succeeded", "failed"] },
+  },
+  auth_mfa_changed: {
+    category: "auth",
+    summaryCode: "AUTH_MFA_CHANGED",
+    statuses: ["recorded"],
+    metadata: { outcome: ["enabled", "disabled"] },
+  },
+  auth_password_reset: {
+    category: "auth",
+    summaryCode: "AUTH_PASSWORD_RESET",
+    statuses: ["recorded", "succeeded"],
+    metadata: { outcome: ["requested", "completed"] },
+  },
+} as const satisfies Record<string, {
+  category: EvidenceEventCategory;
+  summaryCode: string;
+  statuses: readonly EvidenceEventStatus[];
+  metadata: Record<string, readonly string[]>;
+}>;
+
+export type EvidenceEventType = keyof typeof evidenceEventSchema;
 
 export type EvidenceEventMetadataValue = string;
 
@@ -1565,20 +1704,24 @@ function validateStripeReverse(
 function validateEvidenceEvent(
   record: EvidenceEventRecord,
 ): AppDataResult<AppDataRecord> {
+  const schema = isEvidenceEventType(record.eventType)
+    ? evidenceEventSchema[record.eventType]
+    : null;
+
   return typeof record.cognitoSub === "string" &&
     isCognitoSub(record.cognitoSub) &&
-    isEvidenceEventType(record.eventType) &&
+    schema !== null &&
     isEvidenceEventId(record) &&
     isEvidenceEventCategory(record.eventCategory) &&
-    evidenceTypeCategory[record.eventType] === record.eventCategory &&
-    evidenceTypeSummaryCode[record.eventType] === record.summaryCode &&
+    schema.category === record.eventCategory &&
+    schema.summaryCode === record.summaryCode &&
     validateWebhookEvidenceIdentity(record) &&
     validateEvidenceLinkage(record) &&
     isIsoTimestamp(record.occurredAt) &&
     isIsoTimestamp(record.recordedAt) &&
     isEvidenceActorType(record.actorType) &&
     isEvidenceEventStatus(record.status) &&
-    evidenceTypeStatuses[record.eventType].has(record.status) &&
+    (schema.statuses as readonly EvidenceEventStatus[]).includes(record.status) &&
     isSummaryCode(record.summaryCode) &&
     optionalMdiPatientId(record.mdiPatientId) &&
     optionalMdiCaseId(record.mdiCaseId) &&
@@ -2138,7 +2281,8 @@ function isEvidenceEventCategory(value: unknown): value is EvidenceEventCategory
 }
 
 function isEvidenceEventType(value: unknown): value is EvidenceEventType {
-  return evidenceEventTypes.has(value as EvidenceEventType);
+  return typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(evidenceEventSchema, value);
 }
 
 function isEvidenceActorType(value: unknown): value is EvidenceActorType {
@@ -2157,7 +2301,10 @@ function validateEvidenceMetadata(eventType: EvidenceEventType, value: unknown) 
     return false;
   }
 
-  const allowedKeys = evidenceMetadataKeysByType[eventType];
+  const allowedMetadata = evidenceEventSchema[eventType].metadata as Record<
+    string,
+    readonly string[]
+  >;
   let count = 0;
   for (const key in value) {
     if (!Object.prototype.hasOwnProperty.call(value, key)) {
@@ -2170,7 +2317,7 @@ function validateEvidenceMetadata(eventType: EvidenceEventType, value: unknown) 
 
     const child = value[key];
     if (
-      !allowedKeys.has(key) ||
+      !Object.prototype.hasOwnProperty.call(allowedMetadata, key) ||
       !/^[a-z][a-z0-9_]{0,39}$/.test(key) ||
       unsafeEvidenceMetadataKeys.some((pattern) => pattern.test(key)) ||
       typeof child !== "string" ||
@@ -2188,9 +2335,13 @@ function isEvidenceMetadataValue(
   key: string,
   value: string,
 ) {
-  const allowedValues = evidenceMetadataValuesByType[eventType][key];
+  const allowedMetadata = evidenceEventSchema[eventType].metadata as Record<
+    string,
+    readonly string[]
+  >;
+  const allowedValues = allowedMetadata[key];
   return allowedValues !== undefined &&
-    allowedValues.has(value) &&
+    allowedValues.includes(value) &&
     /^[A-Za-z0-9._:-]{1,160}$/.test(value) &&
     !unsafeOpaqueIdentifierPatterns.some((pattern) => pattern.test(value)) &&
     !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(value));
@@ -2231,186 +2382,6 @@ const evidenceEventCategories = new Set<EvidenceEventCategory>([
   "support_admin",
   "auth",
 ]);
-
-const evidenceEventTypes = new Set<EvidenceEventType>([
-  "consent_granted",
-  "consent_reprompted",
-  "mdi_handoff_submitted",
-  "mdi_handoff_failed",
-  "mdi_status_updated",
-  "stripe_payment_method_collected",
-  "stripe_billing_activated",
-  "stripe_billing_status_changed",
-  "webhook_claimed",
-  "webhook_processed",
-  "webhook_failed",
-  "webhook_side_effect_applied",
-  "support_action_recorded",
-  "admin_action_recorded",
-  "auth_sign_in",
-  "auth_sign_up",
-  "auth_mfa_changed",
-  "auth_password_reset",
-]);
-
-const evidenceTypeCategory: Record<EvidenceEventType, EvidenceEventCategory> = {
-  consent_granted: "consent",
-  consent_reprompted: "consent",
-  mdi_handoff_submitted: "mdi_handoff",
-  mdi_handoff_failed: "mdi_handoff",
-  mdi_status_updated: "mdi_handoff",
-  stripe_payment_method_collected: "stripe_billing",
-  stripe_billing_activated: "stripe_billing",
-  stripe_billing_status_changed: "stripe_billing",
-  webhook_claimed: "webhook",
-  webhook_processed: "webhook",
-  webhook_failed: "webhook",
-  webhook_side_effect_applied: "webhook",
-  support_action_recorded: "support_admin",
-  admin_action_recorded: "support_admin",
-  auth_sign_in: "auth",
-  auth_sign_up: "auth",
-  auth_mfa_changed: "auth",
-  auth_password_reset: "auth",
-};
-
-const evidenceTypeSummaryCode: Record<EvidenceEventType, string> = {
-  consent_granted: "CONSENT_GRANTED",
-  consent_reprompted: "CONSENT_REPROMPTED",
-  mdi_handoff_submitted: "MDI_HANDOFF_SUBMITTED",
-  mdi_handoff_failed: "MDI_HANDOFF_FAILED",
-  mdi_status_updated: "MDI_STATUS_UPDATED",
-  stripe_payment_method_collected: "STRIPE_PAYMENT_METHOD_COLLECTED",
-  stripe_billing_activated: "STRIPE_BILLING_ACTIVATED",
-  stripe_billing_status_changed: "STRIPE_BILLING_STATUS_CHANGED",
-  webhook_claimed: "WEBHOOK_CLAIMED",
-  webhook_processed: "WEBHOOK_PROCESSED",
-  webhook_failed: "WEBHOOK_FAILED",
-  webhook_side_effect_applied: "WEBHOOK_SIDE_EFFECT_APPLIED",
-  support_action_recorded: "SUPPORT_ACTION_RECORDED",
-  admin_action_recorded: "ADMIN_ACTION_RECORDED",
-  auth_sign_in: "AUTH_SIGN_IN",
-  auth_sign_up: "AUTH_SIGN_UP",
-  auth_mfa_changed: "AUTH_MFA_CHANGED",
-  auth_password_reset: "AUTH_PASSWORD_RESET",
-};
-
-const evidenceTypeStatuses: Record<EvidenceEventType, Set<EvidenceEventStatus>> = {
-  consent_granted: new Set(["succeeded"]),
-  consent_reprompted: new Set(["recorded"]),
-  mdi_handoff_submitted: new Set(["succeeded"]),
-  mdi_handoff_failed: new Set(["failed"]),
-  mdi_status_updated: new Set(["recorded"]),
-  stripe_payment_method_collected: new Set(["succeeded"]),
-  stripe_billing_activated: new Set(["succeeded"]),
-  stripe_billing_status_changed: new Set(["recorded"]),
-  webhook_claimed: new Set(["recorded"]),
-  webhook_processed: new Set(["succeeded"]),
-  webhook_failed: new Set(["failed"]),
-  webhook_side_effect_applied: new Set(["succeeded", "skipped"]),
-  support_action_recorded: new Set(["recorded"]),
-  admin_action_recorded: new Set(["recorded"]),
-  auth_sign_in: new Set(["succeeded", "failed"]),
-  auth_sign_up: new Set(["succeeded", "failed"]),
-  auth_mfa_changed: new Set(["recorded"]),
-  auth_password_reset: new Set(["recorded", "succeeded"]),
-};
-
-const evidenceMetadataKeysByType: Record<EvidenceEventType, Set<string>> = {
-  consent_granted: new Set(["version"]),
-  consent_reprompted: new Set(["version"]),
-  mdi_handoff_submitted: new Set(["status"]),
-  mdi_handoff_failed: new Set(["status", "reason_code"]),
-  mdi_status_updated: new Set(["status"]),
-  stripe_payment_method_collected: new Set(["status"]),
-  stripe_billing_activated: new Set(["status"]),
-  stripe_billing_status_changed: new Set(["status", "previous_status"]),
-  webhook_claimed: new Set(["outcome"]),
-  webhook_processed: new Set(["outcome"]),
-  webhook_failed: new Set(["reason_code"]),
-  webhook_side_effect_applied: new Set(["side_effect"]),
-  support_action_recorded: new Set(["action_code"]),
-  admin_action_recorded: new Set(["action_code"]),
-  auth_sign_in: new Set(["outcome"]),
-  auth_sign_up: new Set(["outcome"]),
-  auth_mfa_changed: new Set(["outcome"]),
-  auth_password_reset: new Set(["outcome"]),
-};
-
-const evidenceMetadataValuesByType: Record<EvidenceEventType, Record<string, Set<string>>> = {
-  consent_granted: {
-    version: new Set(["terms-2026-06-04"]),
-  },
-  consent_reprompted: {
-    version: new Set(["terms-2026-06-04"]),
-  },
-  mdi_handoff_submitted: {
-    status: new Set(["submitted"]),
-  },
-  mdi_handoff_failed: {
-    status: new Set(["failed"]),
-    reason_code: new Set(["MDI_UNAVAILABLE", "MDI_TIMEOUT", "MDI_VALIDATION_FAILED"]),
-  },
-  mdi_status_updated: {
-    status: new Set(["clinical_review", "completed", "declined", "cancelled"]),
-  },
-  stripe_payment_method_collected: {
-    status: new Set(["payment_method_collected"]),
-  },
-  stripe_billing_activated: {
-    status: new Set(["active"]),
-  },
-  stripe_billing_status_changed: {
-    status: new Set(["payment_method_pending", "payment_method_collected", "active", "past_due", "canceled"]),
-    previous_status: new Set(["not_started", "payment_method_pending", "payment_method_collected", "active", "past_due", "canceled"]),
-  },
-  webhook_claimed: {
-    outcome: new Set([
-      "claimed",
-      "already_processing",
-      "already_processed",
-      "failed_retryable",
-      "retry_not_due",
-      "queue_owned_retry",
-      "stale_queue_delivery",
-      "processing_lease_expired",
-      "retry_exhausted",
-      "conflict",
-    ]),
-  },
-  webhook_processed: {
-    outcome: new Set(["processed", "skipped_duplicate"]),
-  },
-  webhook_failed: {
-    reason_code: new Set(["SIGNATURE_INVALID", "HANDLER_FAILED", "RETRYABLE_FAILURE", "TERMINAL_FAILURE"]),
-  },
-  webhook_side_effect_applied: {
-    side_effect: new Set([
-      "billing_status_update",
-      "mdi_status_update",
-      "consent_status_update",
-      "webhook_idempotency_update",
-    ]),
-  },
-  support_action_recorded: {
-    action_code: new Set(["case_lookup", "status_review", "consent_export"]),
-  },
-  admin_action_recorded: {
-    action_code: new Set(["status_override", "linkage_review", "safe_replay"]),
-  },
-  auth_sign_in: {
-    outcome: new Set(["succeeded", "failed"]),
-  },
-  auth_sign_up: {
-    outcome: new Set(["succeeded", "failed"]),
-  },
-  auth_mfa_changed: {
-    outcome: new Set(["enabled", "disabled"]),
-  },
-  auth_password_reset: {
-    outcome: new Set(["requested", "completed"]),
-  },
-};
 
 const evidenceActorTypes = new Set<EvidenceActorType>([
   "patient",
