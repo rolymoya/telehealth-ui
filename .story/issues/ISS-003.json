@@ -11,13 +11,13 @@
     "infra/package.json",
     "infra/package-lock.json"
   ],
-  "phase": "infrastructure",
+  "phase": null,
   "relatedTickets": [
     "T-039"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Updated infra CDK dependencies to aws-cdk-lib 2.258.1 and aws-cdk CLI 2.1126.0. The updated lockfile now resolves aws-cdk-lib's bundled minimatch path to minimatch 10.2.5 and brace-expansion 5.0.6, and `npm --prefix infra audit --omit=dev` reports 0 vulnerabilities. Infra tests, build, and staging synth pass.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "Infra npm audit flags bundled aws-cdk-lib brace-expansion advisory"
 }
