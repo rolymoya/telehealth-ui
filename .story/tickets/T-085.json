@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "claimedBySession": "b12bf652-61c3-4189-959e-a318f0e68374",
+  "completedDate": "2026-06-09",
+  "createdDate": "2026-06-09",
+  "description": "Add the baseline Playwright E2E infrastructure without requiring live Cognito, MDI, or Stripe credentials by default.\n\n**Scope**\n- Add `@playwright/test`, `playwright.config.ts`, browser install guidance, and npm scripts such as `test:e2e`, `test:e2e:ui`, `test:e2e:report`, and a narrow smoke command.\n- Configure local Next.js web-server startup, `baseURL`, retries only in CI, trace/screenshot/video retention on failure, and HTML/JUnit/blob artifacts for CI.\n- Establish `tests/e2e` structure, page-object or fixture conventions, and deterministic synthetic patient fixtures.\n- Document the E2E safety boundary: no real PHI, no real secrets in repo, only opaque fixture IDs in Stripe metadata assertions, and vendor calls mocked unless explicitly running staging smoke.\n\n**Acceptance**\n- `npm run test:e2e` starts the app and runs at least one deterministic smoke spec locally.\n- The suite can run with no live AWS, Cognito, MDI, or Stripe credentials.\n- Failed tests produce Playwright traces/screenshots suitable for debugging.\n- Test fixtures and docs clearly prohibit clinical questionnaire answers, PHI, secrets, or real patient data.",
+  "id": "T-085",
+  "order": 10,
+  "phase": "playwright-e2e",
+  "status": "complete",
+  "title": "Playwright harness, scripts, and test-data safety conventions",
+  "type": "chore"
+}

@@ -80,6 +80,13 @@
       "summary": "Reconcilers, CloudWatch dashboards, LegitScript package, pen test, retention policy"
     },
     {
+      "description": "End-to-end browser coverage for Apoth's patient-facing launch surface using Playwright: public compliance pages, Cognito/protected route flows, intake/eligibility/consent journeys, MDI-backed dashboard states, Stripe billing timing invariants, accessibility/responsive checks, CI artifacts, and staging smoke gates. The suite must preserve the thin-PHI launch boundary by using synthetic fixtures, opaque IDs, mocked vendor seams by default, and optional staging-only smoke credentials from approved secret stores.",
+      "id": "playwright-e2e",
+      "label": "PHASE 13",
+      "name": "Playwright E2E Testing",
+      "summary": "Browser journeys, CI artifacts, staging smoke tests"
+    },
+    {
       "description": "Production readiness and launch: SEO and metadata assets (robots, sitemap, favicon, OG image), analytics and cookie consent backing the privacy policy's cookie disclosure, production domain config with HTTPS/WHOIS, hosting decision finalization, and lean AWS serverless production deployment.",
       "id": "deploy",
       "label": "PHASE 8",
