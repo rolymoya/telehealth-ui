@@ -1,11 +1,10 @@
 {
   "blockedBy": [
-    "T-040",
-    "T-028"
+    "T-040"
   ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "Capture the consent evidence LegitScript/legal needs while keeping the launch data model lean.\n\n**Scope**\n- Define consent kinds and current document versions for Terms, Privacy/NPP, telehealth consent, marketing/cookies if used, and any medication-specific disclosure required by counsel.\n- Store user consent version, accepted timestamp, and optional IP/user-agent evidence in DynamoDB.\n- Re-prompt when a required consent version changes.\n- Decide whether rendered document snapshots are needed; do not add S3 document archives unless counsel requires durable byte-level evidence.\n\n**Acceptance**\n- User cannot proceed through intake without current required consents.\n- Bumping a required version triggers a re-prompt on next authenticated visit.\n- Consent evidence is exportable for attorney/LegitScript review without clinical questionnaire content.",
+  "description": "Capture the consent evidence LegitScript/legal needs while keeping the launch data model lean. Build from the current product/legal posture now; attorney signoff in T-028 is a later launch gate, not an implementation blocker.\n\n**Scope**\n- Define consent kinds and current document versions for Terms, Privacy/NPP, telehealth consent, marketing/cookies if used, and any medication-specific disclosure required by counsel.\n- Store user consent version, accepted timestamp, and optional IP/user-agent evidence in DynamoDB.\n- Re-prompt when a required consent version changes.\n- Decide whether rendered document snapshots are needed; do not add S3 document archives unless counsel requires durable byte-level evidence.\n\n**Acceptance**\n- User cannot proceed through intake without current required consents.\n- Bumping a required version triggers a re-prompt on next authenticated visit.\n- Consent evidence is exportable for attorney/LegitScript review without clinical questionnaire content.\n- Any counsel changes from T-028 can be handled as follow-up version bumps rather than blocking this implementation.",
   "id": "T-047",
   "order": 110,
   "phase": "infrastructure",
