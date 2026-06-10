@@ -449,11 +449,20 @@ token or callback lifetime has elapsed:
 }
 ```
 
-Server startup validates public environment variables on every render process.
-Production runtime processes must set `APOTH_STAGE=production`. In production,
-or when `APOTH_REQUIRE_SERVER_SECRETS=true`, startup requires references to all
-three Secrets Manager values. Next production builds still require the stage
-sentinel but do not require live secret references during prerendering.
+The root app layout validates only public-safe startup configuration on every
+render process: no secret-like `NEXT_PUBLIC_*` values, valid optional public
+Cognito identifiers, and a valid stage sentinel. Public, marketing, and legal
+pages must not be blocked by a backend-only secret outage or missing secret
+identifier.
+
+Secret-dependent route handlers and runtime clients use the stricter startup
+secret validation before touching vendor APIs, signing flows, DynamoDB side
+effects, or webhook processing. Production runtime processes must set
+`APOTH_STAGE=production`. In production, or when
+`APOTH_REQUIRE_SERVER_SECRETS=true`, that stricter validation requires
+references to all three Secrets Manager values. Next production builds still
+require the stage sentinel but do not require live secret references during
+prerendering.
 
 Runtime consumers load payloads through AWS Secrets Manager `GetSecretValue`
 using the Lambda/runtime role and the stage-scoped secret identifier. Do not

@@ -15,9 +15,9 @@
   "relatedTickets": [
     "T-041"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Split startup validation into a public-safe root layout check and a stricter secret-required runtime check. The root layout now validates public env safety, optional Cognito public identifiers, and stage syntax without requiring backend secret identifiers, while secret-dependent routes such as Stripe webhooks still load and validate required secrets through the runtime startup source before processing.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "Root startup secret gate can block public pages"
 }

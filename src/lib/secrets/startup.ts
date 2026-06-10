@@ -56,21 +56,17 @@ export type StartupSecretValidationResult =
 
 export type StartupEnvironment = Record<string, string | undefined>;
 
+export function assertPublicServerStartupConfig(input: {
+  env: StartupEnvironment;
+}) {
+  assertBaseServerStartupConfig(input.env);
+}
+
 export function assertServerStartupConfig(input: {
   env: StartupEnvironment;
   requiredSecrets?: SecretKind[];
 }) {
-  const publicConfig = assertNoPublicSecretConfig(input.env);
-  if (!publicConfig.ok) {
-    throw new Error(publicConfig.error.message);
-  }
-
-  const authConfig = assertOptionalCognitoAuthConfig(input.env);
-  if (!authConfig.ok) {
-    throw new Error(authConfig.error.message);
-  }
-
-  const stage = resolveRuntimeStage(input.env);
+  const stage = assertBaseServerStartupConfig(input.env);
   const requiredSecrets = input.requiredSecrets ?? resolveRequiredStartupSecrets(input.env);
   if (
     requiredSecrets.length === 0 ||
@@ -96,6 +92,20 @@ export function assertServerStartupConfig(input: {
       throw new Error(secrets.error.message);
     }
   }
+}
+
+function assertBaseServerStartupConfig(env: StartupEnvironment) {
+  const publicConfig = assertNoPublicSecretConfig(env);
+  if (!publicConfig.ok) {
+    throw new Error(publicConfig.error.message);
+  }
+
+  const authConfig = assertOptionalCognitoAuthConfig(env);
+  if (!authConfig.ok) {
+    throw new Error(authConfig.error.message);
+  }
+
+  return resolveRuntimeStage(env);
 }
 
 export async function validateServerStartupSecrets(input: {

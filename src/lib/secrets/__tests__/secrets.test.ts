@@ -14,6 +14,7 @@ import {
   validateSecretPayload,
 } from "../index";
 import {
+  assertPublicServerStartupConfig,
   assertServerStartupConfig,
   createAwsSecretsManagerStartupSecretSource,
   resolveAwsSecretsManagerStartupConfig,
@@ -533,6 +534,28 @@ describe("secret validation", () => {
     );
   });
 
+  it("does not gate public startup on backend runtime secret identifiers", () => {
+    expect(() =>
+      assertPublicServerStartupConfig({
+        env: {
+          APOTH_STAGE: "production",
+          NODE_ENV: "production",
+        },
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      assertPublicServerStartupConfig({
+        env: {
+          APOTH_STAGE: "production",
+          NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: secretLike("sk", "live"),
+        },
+      }),
+    ).toThrow(
+      "Public environment variable NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY must not contain secret material",
+    );
+  });
+
   it("validates optional public Cognito auth config during server startup", () => {
     expect(() =>
       assertServerStartupConfig({
@@ -846,7 +869,7 @@ describe("secret validation", () => {
     expect(runtimeSource.startsWith('import "server-only";')).toBe(true);
     expect(startupSource.startsWith('import "server-only";')).toBe(true);
     expect(layoutSource).toContain(
-      "assertServerStartupConfig({ env: process.env });",
+      "assertPublicServerStartupConfig({ env: process.env });",
     );
   });
 });
