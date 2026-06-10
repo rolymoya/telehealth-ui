@@ -62,7 +62,7 @@
 ## Testing
 
 - TDD for business logic: write tests first for clinical eligibility
-  screening, state-availability gating, and payment-gating logic. These
+  screening, residency/state capture validation, and payment-gating logic. These
   define the contract before implementation — the "no card charged before
   clinical confirmation" promise must be test-enforced.
 - Add tests around MDI/Stripe webhook signature verification and idempotency

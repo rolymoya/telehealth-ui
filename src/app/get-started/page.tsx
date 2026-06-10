@@ -24,8 +24,9 @@ export default function GetStartedPage() {
         <p className="mt-6 max-w-measure text-pretty text-ink/75">
           Our intake is being built. In the meantime, choose the category that
           fits and we will route you to the right starting point. Eligibility is
-          determined clinically — we will not charge a card before confirming we
-          can see you in your state.
+          determined clinically — we will collect your state so the right
+          licensed clinician can review your visit, and we will not charge a
+          card before clinical approval.
         </p>
         <div className="mt-10 flex flex-wrap gap-3">
           <Link

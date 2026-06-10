@@ -28,7 +28,7 @@ When this branch started, the site was a single-page marketing surface that name
 
 ### New routes
 
-- **`/about`** — corporate-structure disclosure (the three legal entities and what each one does), the full 50-state availability list at `#states`, and contact channels at `#contact`. Every contact value is currently a visible `TODO:` chip.
+- **`/about`** — corporate-structure disclosure (the three legal entities and what each one does), the full 50-state service list at `#states`, and contact channels at `#contact`. Every contact value is currently a visible `TODO:` chip.
 - **`/privacy`** — HIPAA-aware Privacy Policy with sticky left-rail TOC. Eleven sections covering PHI handled, uses, sharing (with the physician group, with the licensed pharmacy partner, with BAA'd vendors), patient rights, security, breach notification, retention, cookies, children, changes, and contact. Includes the full HIPAA Notice of Privacy Practices at `#notice-of-privacy-practices` with all the standard required elements (TPO uses, authorization requirements, patient rights, complaint channels, effective date).
 - **`/terms`** — Terms of Service with sticky left-rail TOC. Eighteen sections including the critical "Apoth is a technology platform, not a medical provider" framing, the clinical-services / pharmacy-services separation, FDA-status disclosure for compounded medications, fees + auto-renewal, disclaimers, limitation of liability, arbitration with class-action waiver and 30-day opt-out, Illinois governing law. Includes the Telehealth Disclosure at `#telehealth-disclosure` and the Refunds and Cancellation Policy at `#refunds-and-cancellation`.
 - **`/get-started`** — stub so primary CTAs no longer 404. To be replaced with the real intake flow on a future branch.

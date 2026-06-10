@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { screenLightweightEligibility } from "@/lib/eligibility";
 import { submitQuestionnaireAndDiscardAnswers } from "@/lib/mdi-questionnaire";
 import { canActivateBilling } from "@/lib/payment-gating";
-import { checkStateAvailability } from "@/lib/state-availability";
+import { validateStateResidency } from "@/lib/state-residency";
 import { validateStripeMetadata } from "@/lib/stripe-policy";
 import {
   claimWebhookEvent,
@@ -65,25 +65,29 @@ function sequenceClock(values: string[]) {
 }
 
 describe("regulated launch invariants", () => {
-  it("gates state availability before intake continues", () => {
+  it("normalizes all-50-state residency before intake continues", () => {
     expect(
-      checkStateAvailability({
+      validateStateResidency({
         state: " il ",
-        careCategory: "weight",
-        supportedStates: ["IL", "WI"],
       }),
-    ).toEqual({ available: true, normalizedState: "IL" });
+    ).toEqual({ valid: true, normalizedState: "IL" });
 
     expect(
-      checkStateAvailability({
+      validateStateResidency({
         state: "CA",
-        careCategory: "weight",
-        supportedStates: ["IL", "WI"],
       }),
-    ).toEqual({
-      available: false,
-      normalizedState: "CA",
-      reason: "unsupported_state",
+    ).toEqual({ valid: true, normalizedState: "CA" });
+
+    expect(validateStateResidency({ state: " " })).toEqual({
+      valid: false,
+      normalizedState: "",
+      reason: "missing_state",
+    });
+
+    expect(validateStateResidency({ state: "XX" })).toEqual({
+      valid: false,
+      normalizedState: "XX",
+      reason: "invalid_state",
     });
   });
 
@@ -91,16 +95,16 @@ describe("regulated launch invariants", () => {
     expect(
       screenLightweightEligibility({
         age: 34,
-        stateAvailable: true,
         hasEmergencySymptoms: false,
         hasBlockingContraindication: false,
       }),
-    ).toEqual({ outcome: "eligible_for_intake" });
+    ).toEqual({
+      outcome: "eligible_for_intake",
+    });
 
     expect(
       screenLightweightEligibility({
         age: 17,
-        stateAvailable: true,
         hasEmergencySymptoms: false,
         hasBlockingContraindication: false,
       }),

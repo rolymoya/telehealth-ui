@@ -5,11 +5,11 @@
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Implement state-of-residence availability gating before clinical intake.\n\n**Scope**\n- Model allowed states by condition/offering using static config or MDI-derived data, whichever product confirms for launch.\n- Refuse unsupported states with clear, non-medical copy and no Stripe/MDI side effects.\n- Record only refusal metadata needed for operations/compliance, not clinical questionnaire answers.\n\n**Acceptance**\n- Tests cover allowed state, unsupported state, missing/invalid state, and condition/state mismatches.\n- Unsupported-state users cannot reach MDI submission or payment.\n- Copy remains legally cautious and preserves Apoth as a technology platform.",
+  "description": "Implement state-of-residence capture and validation before clinical intake. Launch assumes all 50 U.S. states are supported, so this should not block intake/E2E implementation.\n\n**Scope**\n- Normalize and validate that a patient selected a real U.S. state for clinician assignment, pharmacy routing, consent evidence, and support workflows.\n- Treat invalid or missing state values as incomplete intake data.\n- Avoid condition-by-state allowlists unless a future product/legal decision removes all-50-state coverage.\n\n**Acceptance**\n- Tests cover valid state normalization plus missing/invalid state validation.\n- No implementation path refuses a patient solely because their U.S. state is outside a supported-state allowlist.\n- Copy remains legally cautious and preserves Apoth as a technology platform.",
   "id": "T-020",
   "order": 40,
   "phase": "intake-flow",
   "status": "open",
-  "title": "State-availability logic + test contract",
+  "title": "State residency capture + test contract",
   "type": "task"
 }

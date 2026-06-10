@@ -64,9 +64,9 @@ partner requirement reintroduces it.
 
 ## Testing
 
-Tests run after building (Tests-only recipe). Write tests for state gating,
-clinical eligibility, MDI/Stripe webhook verification, and the payment timing
-invariant — see RULES.md.
+Tests run after building (Tests-only recipe). Write tests for residency/state
+capture validation, clinical eligibility, MDI/Stripe webhook verification, and
+the payment timing invariant — see RULES.md.
 
 ## Roadmap
 

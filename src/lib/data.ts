@@ -135,7 +135,7 @@ export const faqs: FaqItem[] = [
   },
   {
     q: "What states are you available in?",
-    a: "All 50 states. Prescriptions are written by clinicians licensed in your state, and medication is dispensed by a licensed compounding pharmacy partner that ships to your state. Eligibility is confirmed at the start of intake — we will not charge a card before confirming we can actually see you.",
+    a: "All 50 states. Prescriptions are written by clinicians licensed in your state, and medication is dispensed by a licensed compounding pharmacy partner that ships to your state. Eligibility is confirmed at the start of intake — we will not charge a card before clinical approval.",
   },
 ];
 
