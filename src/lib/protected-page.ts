@@ -12,6 +12,7 @@ import {
   createDynamoDbAppDataReadRepository,
   resolveDynamoDbAppDataConfig,
 } from "@/lib/dynamodb/app-data-dynamodb";
+import { currentConsentVersion } from "@/lib/consents";
 import { signInRedirectFor } from "@/lib/onboarding-gates";
 import {
   e2eAuthHeaderName,
@@ -20,7 +21,7 @@ import {
 import type { AppDataReadRepository } from "@/lib/onboarding-status";
 import { evaluateProtectedRouteAccess } from "@/lib/protected-routes";
 
-export const currentConsentVersion = "2026-06-legal-v1";
+export { currentConsentVersion };
 
 export type ProtectedPageAccessInput = {
   config?: CognitoAuthConfig;

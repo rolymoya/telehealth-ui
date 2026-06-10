@@ -8,7 +8,7 @@ import {
   createInMemoryAppDataRepository,
   createPatientProfileRecord,
   patientProfileKey,
-  recordConsentEvidence,
+  recordCurrentConsentAcceptance,
 } from "@/lib/dynamodb/app-data";
 import { allowsE2eProtectedRouteBypass } from "@/lib/e2e-auth";
 import {
@@ -73,17 +73,16 @@ describe("protected page access", () => {
       onboardingStatus: "intake_ready",
       now: nowIso,
     }));
-    recordConsentEvidence(repository, {
+    recordCurrentConsentAcceptance(repository, {
       acceptedAt: nowIso,
       cognitoSub: "cognito-sub-0123456789abcdef",
       now: nowIso,
-      version: "consent-v1",
     });
 
     await expect(
       requireProtectedPageAccess({
         config,
-        consentVersion: "consent-v1",
+        consentVersion: "unused-compat-version",
         now,
         pathname: "/dashboard",
         repository,

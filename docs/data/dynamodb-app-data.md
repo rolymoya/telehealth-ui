@@ -33,7 +33,7 @@ not scan the table or put PHI into third-party metadata.
 | MDI reverse lookup | MDI/Apoth | `MDI#PATIENT#{mdiPatientId}` or `MDI#CASE#{mdiCaseId}` / `PATIENT` | Same as MDI linkage | Opaque reverse pointer only |
 | Stripe linkage | Stripe/Apoth | `PATIENT#{cognitoSub}` / `STRIPE#LINKAGE` | Keep while billing relationship is active and per finance/legal retention | Opaque Stripe IDs and billing status only |
 | Stripe reverse lookup | Stripe/Apoth | `STRIPE#CUSTOMER#{stripeCustomerId}` or `STRIPE#SUBSCRIPTION#{stripeSubscriptionId}` / `PATIENT` | Same as Stripe linkage | Opaque reverse pointer only |
-| Consent evidence | Apoth | `PATIENT#{cognitoSub}` / `CONSENT#{version}` | Keep per counsel-approved consent retention | Version/timestamp and minimized evidence |
+| Consent evidence | Apoth | `PATIENT#{cognitoSub}` / `CONSENT#{consentKind}#{version}` | Keep per counsel-approved consent retention | Consent kind, version/timestamp, and minimized evidence |
 | Webhook idempotency | Apoth | `WEBHOOK#{provider}#EVENT#{eventId}` / `CLAIM` | Keep long enough to cover vendor retry windows and audit needs | Event IDs/status only |
 | Evidence event | Apoth | `PATIENT#{cognitoSub}` / `EVIDENCE#{occurredAt}#{eventId}` | Keep per counsel-approved evidence retention | Opaque timeline metadata only |
 | Evidence event uniqueness | Apoth | `PATIENT#{cognitoSub}` / `EVIDENCE_UNIQUE#EVENT#{eventId}` for patient-scoped events; `EVIDENCE#EVENT#{eventId}` / `UNIQUE` for webhook side effects | Same as evidence event | Duplicate guard and timeline pointer only |
@@ -53,7 +53,7 @@ record-type labels, or redacted presence booleans.
 | Patient profile | `cognitoSub` | Cognito/Apoth | Keep while account is active; delete/archive per retention policy | Restricted; use stable request IDs or aggregate counts in logs |
 | Patient profile | `onboardingStatus` | Apoth | Keep while account is active | Code/log-safe when not combined with patient identifiers |
 | Consent evidence | `cognitoSub` | Cognito/Apoth | Keep per counsel-approved consent retention | Restricted |
-| Consent evidence | `version`, `acceptedAt` | Apoth/legal content source | Keep per counsel-approved consent retention | Code/log-safe when not combined with patient identifiers |
+| Consent evidence | `consentKind`, `version`, `acceptedAt` | Apoth/legal content source | Keep per counsel-approved consent retention | Kind/version are code/log-safe when not combined with patient identifiers |
 | Consent evidence | `ipHash`, `userAgentHash` | Apoth | Keep only if counsel approves minimized evidence retention | Restricted; never log raw IP or raw user-agent values |
 | MDI linkage | `cognitoSub` | Cognito/Apoth | Keep while care workflow is active and per legal retention policy | Restricted |
 | MDI linkage | `mdiPatientId`, `mdiCaseId` | MDI/Apoth | Keep while care workflow is active and per legal retention policy | Restricted; log only redacted/presence values |
@@ -177,6 +177,8 @@ symptoms, medications, photos, labs, or clinician content.
 
 Consent evidence defaults to minimized values:
 
+- Consent kind: `platform_terms`, `privacy_notice`, `telehealth_consent`, or
+  `compounded_medication_disclosure`.
 - Consent version.
 - Accepted timestamp.
 - Optional hashed/salted IP evidence, stored with a `sha256:` prefix.
@@ -185,6 +187,17 @@ Consent evidence defaults to minimized values:
 Do not store raw IP address or raw user-agent values unless counsel approves
 that retention in writing and this document is updated with the retention and
 data classification decision.
+
+Current required consent checks evaluate every required consent kind
+independently. Bumping one document version re-prompts for that kind even if the
+other required consent records are current. Pre-kind aggregate consent records
+from local/test history are treated as stale for launch and do not satisfy
+current onboarding gates.
+
+Rendered legal document snapshots are not archived in S3 for launch. The source
+legal pages and version constants are sufficient until counsel or LegitScript
+requires durable byte-level evidence. If that requirement appears, add a new
+architecture decision before storing document archives.
 
 ## Webhook Idempotency
 

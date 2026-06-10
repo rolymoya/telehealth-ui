@@ -3,11 +3,14 @@ import {
   consentEvidenceKey,
   createInMemoryAppDataRepository,
   createPatientProfileRecord,
+  legacyConsentEvidenceKey,
   linkMdiPatientCase,
   linkStripeCustomer,
+  recordCurrentConsentAcceptance,
   recordConsentEvidence,
   type AppDataRecord,
 } from "@/lib/dynamodb/app-data";
+import { currentRequiredConsents } from "@/lib/consents";
 import { readOnboardingGateSnapshot } from "../onboarding-status";
 
 const now = "2026-06-09T15:00:00.000Z";
@@ -22,9 +25,8 @@ describe("onboarding status snapshot reads", () => {
       onboardingStatus: "billing_ready",
       now,
     }));
-    recordConsentEvidence(repository, {
+    recordCurrentConsentAcceptance(repository, {
       cognitoSub,
-      version: "consent-v1",
       acceptedAt: now,
       now,
     });
@@ -45,7 +47,7 @@ describe("onboarding status snapshot reads", () => {
     expect(
       readOnboardingGateSnapshot(repository, {
         cognitoSub,
-        consentVersion: "consent-v1",
+        consentVersion: "unused-compat-version",
       }),
     ).toEqual({
       ok: true,
@@ -65,7 +67,7 @@ describe("onboarding status snapshot reads", () => {
     expect(
       readOnboardingGateSnapshot(repository, {
         cognitoSub,
-        consentVersion: "consent-v1",
+        consentVersion: "unused-compat-version",
       }),
     ).toEqual({
       ok: true,
@@ -77,7 +79,11 @@ describe("onboarding status snapshot reads", () => {
 
   it("fails closed when a gate key contains the wrong record type", () => {
     const wrongRecord: AppDataRecord = {
-      ...consentEvidenceKey(cognitoSub, "consent-v1"),
+      ...consentEvidenceKey(
+        cognitoSub,
+        currentRequiredConsents[0].consentKind,
+        currentRequiredConsents[0].version,
+      ),
       recordType: "patientProfile",
       schemaVersion: 1,
       cognitoSub,
@@ -92,12 +98,69 @@ describe("onboarding status snapshot reads", () => {
     expect(
       readOnboardingGateSnapshot(repository, {
         cognitoSub,
-        consentVersion: "consent-v1",
+        consentVersion: "unused-compat-version",
       }),
     ).toMatchObject({
       ok: false,
       error: {
         kind: "validation_failed",
+      },
+    });
+  });
+
+  it("treats partial current consent acceptance as incomplete", () => {
+    const repository = createInMemoryAppDataRepository();
+    recordConsentEvidence(repository, {
+      acceptedAt: now,
+      cognitoSub,
+      consentKind: currentRequiredConsents[0].consentKind,
+      now,
+      version: currentRequiredConsents[0].version,
+    });
+
+    expect(
+      readOnboardingGateSnapshot(repository, {
+        cognitoSub,
+        consentVersion: "unused-compat-version",
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        consentAccepted: false,
+      },
+    });
+  });
+
+  it("treats stale and legacy aggregate consent as incomplete", () => {
+    const repository = createInMemoryAppDataRepository([
+      {
+        ...legacyConsentEvidenceKey(cognitoSub, "consent-v1"),
+        recordType: "consentEvidence",
+        schemaVersion: 1,
+        cognitoSub,
+        version: "consent-v1",
+        acceptedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      } as AppDataRecord,
+    ], { validateSeed: false });
+    recordConsentEvidence(repository, {
+      acceptedAt: now,
+      cognitoSub,
+      consentKind: currentRequiredConsents[1].consentKind,
+      now,
+      version: "privacy-2026-05-legal-v1",
+    });
+
+    expect(
+      readOnboardingGateSnapshot(repository, {
+        cognitoSub,
+        consentVersion: "unused-compat-version",
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        consentAccepted: false,
       },
     });
   });

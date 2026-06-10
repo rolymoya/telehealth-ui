@@ -5,11 +5,13 @@ import {
   type MdiLinkageRecord,
   type MdiReverseLookupRecord,
 } from "@/lib/dynamodb/app-data";
+import { currentRequiredConsents } from "@/lib/consents";
 import {
   createDynamoDbAppDataRepository,
   createDynamoDbAppDataReadRepository,
   linkMdiPatientCaseDynamoDb,
   linkStripeCustomerDynamoDb,
+  recordCurrentConsentAcceptanceDynamoDb,
   recordConsentEvidenceDynamoDb,
   resolveDynamoDbAppDataConfig,
   upsertPatientProfileDynamoDb,
@@ -176,8 +178,9 @@ describe("DynamoDB app-data repository", () => {
       recordConsentEvidenceDynamoDb(repository, {
         acceptedAt: nowIso,
         cognitoSub: "cognito-sub-0123456789abcdef",
+        consentKind: currentRequiredConsents[0].consentKind,
         now: nowIso,
-        version: "consent-v1",
+        version: currentRequiredConsents[0].version,
       }),
     ).resolves.toMatchObject({
       ok: true,
@@ -219,6 +222,52 @@ describe("DynamoDB app-data repository", () => {
     expect(JSON.stringify(bodies)).toContain("attribute_not_exists(#pk) AND attribute_not_exists(#sk)");
     expect(JSON.stringify(fetchMock.mock.calls)).not.toContain("answers");
     expect(JSON.stringify(fetchMock.mock.calls)).not.toContain("clinicalNotes");
+  });
+
+  it("records current consent acceptance through an idempotent DynamoDB transaction", async () => {
+    const targets: string[] = [];
+    const bodies: unknown[] = [];
+    const fetchMock = vi.fn(async (_url: string, init: { body: string; headers: Record<string, string> }) => {
+      targets.push(init.headers["x-amz-target"]);
+      bodies.push(JSON.parse(init.body));
+      return {
+        async json() {
+          return {};
+        },
+        ok: true,
+        status: 200,
+      };
+    });
+    const repository = createRepository(fetchMock);
+
+    await expect(
+      recordCurrentConsentAcceptanceDynamoDb(repository, {
+        acceptedAt: nowIso,
+        cognitoSub: "cognito-sub-0123456789abcdef",
+        now: nowIso,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: expect.arrayContaining([
+        expect.objectContaining({
+          consentKind: "platform_terms",
+          recordType: "consentEvidence",
+        }),
+        expect.objectContaining({
+          consentKind: "privacy_notice",
+          recordType: "consentEvidence",
+        }),
+      ]),
+    });
+
+    expect(targets.filter((target) => target === "DynamoDB_20120810.GetItem"))
+      .toHaveLength(currentRequiredConsents.length);
+    expect(targets).toContain("DynamoDB_20120810.TransactWriteItems");
+    expect(JSON.stringify(bodies)).toContain("CONSENT#platform_terms#");
+    expect(JSON.stringify(bodies)).toContain("CONSENT#privacy_notice#");
+    expect(JSON.stringify(bodies)).toContain("attribute_not_exists(#pk) AND attribute_not_exists(#sk)");
+    expect(JSON.stringify(bodies)).not.toContain("questionnaire");
+    expect(JSON.stringify(bodies)).not.toContain("userAgent");
   });
 
   it("writes MDI linkage and reverse lookup records through DynamoDB transactions", async () => {

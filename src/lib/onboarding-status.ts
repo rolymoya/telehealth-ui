@@ -1,5 +1,6 @@
 import {
   consentEvidenceKey,
+  getRequiredConsentEvidenceStatus,
   mdiLinkageKey,
   patientProfileKey,
   stripeLinkageKey,
@@ -7,6 +8,7 @@ import {
   type AppDataRepository,
   type AppDataResult,
 } from "@/lib/dynamodb/app-data";
+import { currentRequiredConsents } from "@/lib/consents";
 import { type OnboardingGateSnapshot } from "@/lib/onboarding-gates";
 
 export type AppDataReadRepository = {
@@ -30,12 +32,11 @@ export function readOnboardingGateSnapshot(
     return appDataErr("validation_failed", "Patient profile key contains another record type");
   }
 
-  const consent = repository.get(consentEvidenceKey(input.cognitoSub, input.consentVersion));
+  const consent = getRequiredConsentEvidenceStatus(repository, {
+    cognitoSub: input.cognitoSub,
+  });
   if (!consent.ok) {
     return consent;
-  }
-  if (consent.value && consent.value.recordType !== "consentEvidence") {
-    return appDataErr("validation_failed", "Consent key contains another record type");
   }
 
   const mdi = repository.get(mdiLinkageKey(input.cognitoSub));
@@ -57,7 +58,7 @@ export function readOnboardingGateSnapshot(
   return {
     ok: true,
     value: {
-      consentAccepted: Boolean(consent.value),
+      consentAccepted: consent.value.accepted,
       ...(profile.value ? { onboardingStatus: profile.value.onboardingStatus } : {}),
       ...(mdi.value
         ? {
@@ -85,12 +86,11 @@ export async function readOnboardingGateSnapshotAsync(
     return appDataErr("validation_failed", "Patient profile key contains another record type");
   }
 
-  const consent = await repository.get(consentEvidenceKey(input.cognitoSub, input.consentVersion));
-  if (!consent.ok) {
-    return consent;
-  }
-  if (consent.value && consent.value.recordType !== "consentEvidence") {
-    return appDataErr("validation_failed", "Consent key contains another record type");
+  const consentAccepted = await hasCurrentRequiredConsentEvidence(repository, {
+    cognitoSub: input.cognitoSub,
+  });
+  if (!consentAccepted.ok) {
+    return consentAccepted;
   }
 
   const mdi = await repository.get(mdiLinkageKey(input.cognitoSub));
@@ -112,7 +112,7 @@ export async function readOnboardingGateSnapshotAsync(
   return {
     ok: true,
     value: {
-      consentAccepted: Boolean(consent.value),
+      consentAccepted: consentAccepted.value,
       ...(profile.value ? { onboardingStatus: profile.value.onboardingStatus } : {}),
       ...(mdi.value
         ? {
@@ -123,6 +123,30 @@ export async function readOnboardingGateSnapshotAsync(
       ...(stripe.value ? { billingStatus: stripe.value.billingStatus } : {}),
     },
   };
+}
+
+async function hasCurrentRequiredConsentEvidence(
+  repository: AppDataReadRepository,
+  input: { cognitoSub: string },
+): Promise<AppDataResult<boolean>> {
+  for (const consent of currentRequiredConsents) {
+    const record = await repository.get(consentEvidenceKey(
+      input.cognitoSub,
+      consent.consentKind,
+      consent.version,
+    ));
+    if (!record.ok) {
+      return record;
+    }
+    if (!record.value) {
+      return { ok: true, value: false };
+    }
+    if (record.value.recordType !== "consentEvidence") {
+      return appDataErr("validation_failed", "Consent key contains another record type");
+    }
+  }
+
+  return { ok: true, value: true };
 }
 
 function appDataErr(

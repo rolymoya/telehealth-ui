@@ -10,7 +10,10 @@ import {
   evidenceEventUniquenessKey,
   findPatientByMdiPointer,
   findPatientByStripePointer,
+  exportConsentEvidenceForReview,
   getConsentEvidence,
+  getRequiredConsentEvidenceStatus,
+  legacyConsentEvidenceKey,
   getMdiLinkage,
   getPatientProfile,
   getStripeLinkage,
@@ -23,6 +26,7 @@ import {
   operationalStatusKey,
   patientEvidenceEventUniquenessKey,
   patientProfileKey,
+  recordCurrentConsentAcceptance,
   recordConsentEvidence,
   recordEvidenceEvent,
   transitionOnboardingStatus,
@@ -30,8 +34,13 @@ import {
   validateAppDataRecord,
   webhookIdempotencyKey,
 } from "../app-data";
+import { currentRequiredConsents } from "@/lib/consents";
 
 const now = "2026-06-04T18:00:00.000Z";
+const ipHash = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const userAgentHash = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const differentIpHash = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+const differentUserAgentHash = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
 
 describe("DynamoDB app-data helpers", () => {
   it("reads and writes minimal patient linkage records through typed helpers", () => {
@@ -65,8 +74,9 @@ describe("DynamoDB app-data helpers", () => {
     const consent = recordConsentEvidence(repository, {
       acceptedAt: now,
       cognitoSub: "cognito-sub-001",
+      consentKind: currentRequiredConsents[0].consentKind,
       now,
-      version: "consent-v1",
+      version: currentRequiredConsents[0].version,
     });
     const mdi = linkMdiPatientCase(repository, {
       cognitoSub: "cognito-sub-001",
@@ -85,7 +95,8 @@ describe("DynamoDB app-data helpers", () => {
     expect(profile.ok && getPatientProfile(repository, "cognito-sub-001")).toEqual(profile);
     expect(consent.ok && getConsentEvidence(repository, {
       cognitoSub: "cognito-sub-001",
-      version: "consent-v1",
+      consentKind: currentRequiredConsents[0].consentKind,
+      version: currentRequiredConsents[0].version,
     })).toEqual(consent);
     expect(mdi.ok && getMdiLinkage(repository, "cognito-sub-001")).toEqual(mdi);
     expect(stripe.ok && getStripeLinkage(repository, "cognito-sub-001")).toEqual(stripe);
@@ -1430,6 +1441,7 @@ describe("DynamoDB app-data helpers", () => {
         recordType: "consentEvidence",
         schemaVersion: 1,
         cognitoSub: "cognito-sub-001",
+        consentKind: "platform_terms",
         version: "terms-2026-06-04",
         acceptedAt: "2026-06-04T18:13:00.000Z",
         createdAt: "2026-06-04T18:13:00.000Z",
@@ -2416,8 +2428,9 @@ describe("DynamoDB app-data helpers", () => {
     const consent = recordConsentEvidence(repository, {
       acceptedAt: now,
       cognitoSub: "cognito-sub-001",
+      consentKind: currentRequiredConsents[0].consentKind,
       now,
-      version: "consent-v1",
+      version: currentRequiredConsents[0].version,
     });
     const mdi = linkMdiPatientCase(repository, {
       cognitoSub: "cognito-sub-001",
@@ -2520,17 +2533,18 @@ describe("DynamoDB app-data helpers", () => {
 
     const evidence = recordConsentEvidence(repository, {
       cognitoSub: "cognito-sub-001",
+      consentKind: "platform_terms",
       version: "terms-2026-06-04",
       acceptedAt: now,
       now,
-      ipHash: "sha256:opaque-ip-hash",
-      userAgentHash: "sha256:opaque-ua-hash",
+      ipHash,
+      userAgentHash,
     });
 
     expect(evidence.ok && evidence.value).toMatchObject({
       recordType: "consentEvidence",
-      ipHash: "sha256:opaque-ip-hash",
-      userAgentHash: "sha256:opaque-ua-hash",
+      ipHash,
+      userAgentHash,
     });
 
     expect(
@@ -2540,6 +2554,7 @@ describe("DynamoDB app-data helpers", () => {
     expect(
       recordConsentEvidence(repository, {
         cognitoSub: "cognito-sub-001",
+        consentKind: "platform_terms",
         version: "terms-raw-ip",
         acceptedAt: now,
         now,
@@ -2552,6 +2567,197 @@ describe("DynamoDB app-data helpers", () => {
         message: "Invalid consent evidence record",
       },
     });
+
+    expect(
+      recordConsentEvidence(repository, {
+        cognitoSub: "cognito-sub-001",
+        consentKind: "platform_terms",
+        version: "terms-prefixed-raw-ip",
+        acceptedAt: now,
+        now,
+        ipHash: "sha256:127.0.0.1",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        kind: "validation_failed",
+      },
+    });
+
+    expect(
+      recordConsentEvidence(repository, {
+        cognitoSub: "cognito-sub-001",
+        consentKind: "platform_terms",
+        version: "terms-prefixed-raw-ua",
+        acceptedAt: now,
+        now,
+        userAgentHash: "sha256:Mozilla/5.0",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        kind: "validation_failed",
+      },
+    });
+  });
+
+  it("records all current consent evidence atomically and idempotently", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    const first = recordCurrentConsentAcceptance(repository, {
+      acceptedAt: now,
+      cognitoSub: "cognito-sub-001",
+      ipHash,
+      now,
+      userAgentHash,
+    });
+    const second = recordCurrentConsentAcceptance(repository, {
+      acceptedAt: "2026-06-04T18:05:00.000Z",
+      cognitoSub: "cognito-sub-001",
+      ipHash: differentIpHash,
+      now: "2026-06-04T18:05:00.000Z",
+      userAgentHash: differentUserAgentHash,
+    });
+
+    expect(first.ok && first.value).toHaveLength(currentRequiredConsents.length);
+    expect(second).toEqual(first);
+    expect(getRequiredConsentEvidenceStatus(repository, {
+      cognitoSub: "cognito-sub-001",
+    })).toMatchObject({
+      ok: true,
+      value: {
+        accepted: true,
+      },
+    });
+  });
+
+  it("detects missing, stale, and current consent per required kind", () => {
+    const repository = createInMemoryAppDataRepository();
+    recordConsentEvidence(repository, {
+      acceptedAt: now,
+      cognitoSub: "cognito-sub-001",
+      consentKind: "platform_terms",
+      now,
+      version: "terms-2026-05-legal-v1",
+    });
+    recordConsentEvidence(repository, {
+      acceptedAt: now,
+      cognitoSub: "cognito-sub-001",
+      consentKind: "privacy_notice",
+      now,
+      version: "privacy-2026-06-legal-v1",
+    });
+
+    expect(getRequiredConsentEvidenceStatus(repository, {
+      cognitoSub: "cognito-sub-001",
+    })).toMatchObject({
+      ok: true,
+      value: {
+        accepted: false,
+        statuses: expect.arrayContaining([
+          expect.objectContaining({
+            consentKind: "platform_terms",
+            status: "stale",
+          }),
+          expect.objectContaining({
+            consentKind: "privacy_notice",
+            status: "current",
+          }),
+          expect.objectContaining({
+            consentKind: "telehealth_consent",
+            status: "missing",
+          }),
+        ]),
+      },
+    });
+  });
+
+  it("keeps legacy aggregate consent records from satisfying current consent", () => {
+    const repository = createInMemoryAppDataRepository([
+      {
+        ...legacyConsentEvidenceKey("cognito-sub-001", "consent-v1"),
+        recordType: "consentEvidence",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-001",
+        version: "consent-v1",
+        acceptedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      } as never,
+    ], { validateSeed: false });
+
+    expect(getRequiredConsentEvidenceStatus(repository, {
+      cognitoSub: "cognito-sub-001",
+    })).toMatchObject({
+      ok: true,
+      value: {
+        accepted: false,
+      },
+    });
+  });
+
+  it("exports minimal consent evidence for authorized review surfaces", () => {
+    const repository = createInMemoryAppDataRepository();
+    recordConsentEvidence(repository, {
+      acceptedAt: now,
+      cognitoSub: "cognito-sub-001",
+      consentKind: "platform_terms",
+      ipHash,
+      now,
+      userAgentHash,
+      version: "terms-2026-06-04",
+    });
+
+    expect(exportConsentEvidenceForReview(repository, {
+      cognitoSub: "cognito-sub-001",
+    })).toEqual({
+      ok: true,
+      value: [
+        {
+          acceptedAt: now,
+          consentKind: "platform_terms",
+          ipHash,
+          userAgentHash,
+          version: "terms-2026-06-04",
+        },
+      ],
+    });
+  });
+
+  it("rejects raw request evidence and contact or customer fields on consent records", () => {
+    const base = recordConsentEvidence(createInMemoryAppDataRepository(), {
+      acceptedAt: now,
+      cognitoSub: "cognito-sub-001",
+      consentKind: "platform_terms",
+      now,
+      version: "terms-2026-06-04",
+    });
+    expect(base.ok).toBe(true);
+    if (!base.ok) {
+      throw new Error("Expected valid consent evidence fixture");
+    }
+
+    for (const unsafe of [
+      { ip: "127.0.0.1" },
+      { userAgent: "Mozilla/5.0" },
+      { email: "patient@example.test" },
+      { name: "Example Patient" },
+      { stripeCustomerId: "cus_opaque_001" },
+      { metadata: { customer: "cus_opaque_001" } },
+      { arbitrary: "not allowed" },
+    ]) {
+      expect(
+        validateAppDataRecord({
+          ...base.value,
+          ...unsafe,
+        }),
+      ).toMatchObject({
+        ok: false,
+        error: {
+          kind: "validation_failed",
+        },
+      });
+    }
   });
 
   it("rolls back failed transactions in the in-memory repository", () => {

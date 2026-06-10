@@ -1,5 +1,13 @@
 import type { WebhookProvider } from "@/lib/webhooks";
 import {
+  currentRequiredConsents,
+  evaluateConsentRequirements,
+  isConsentKind,
+  type ConsentKind,
+  type ConsentRequirementStatus,
+  type RequiredConsentDocument,
+} from "@/lib/consents";
+import {
   evidenceEventSchema,
   type EvidenceActorType,
   type EvidenceEventCategory,
@@ -128,6 +136,7 @@ export type StripeReverseLookupRecord = BaseRecord &
 export type ConsentEvidenceRecord = BaseRecord & {
   recordType: "consentEvidence";
   cognitoSub: string;
+  consentKind: ConsentKind;
   version: string;
   acceptedAt: string;
   ipHash?: string;
@@ -272,6 +281,14 @@ export function stripeSubscriptionReverseKey(stripeSubscriptionId: string): AppD
 }
 
 export function consentEvidenceKey(
+  cognitoSub: string,
+  consentKind: ConsentKind,
+  version: string,
+): AppDataKey {
+  return { pk: `PATIENT#${cognitoSub}`, sk: `CONSENT#${consentKind}#${version}` };
+}
+
+export function legacyConsentEvidenceKey(
   cognitoSub: string,
   version: string,
 ): AppDataKey {
@@ -574,9 +591,13 @@ export function getStripeLinkage(
 
 export function getConsentEvidence(
   repository: AppDataRepository,
-  input: { cognitoSub: string; version: string },
+  input: { cognitoSub: string; consentKind: ConsentKind; version: string },
 ): AppDataResult<ConsentEvidenceRecord | null> {
-  const record = repository.get(consentEvidenceKey(input.cognitoSub, input.version));
+  const record = repository.get(consentEvidenceKey(
+    input.cognitoSub,
+    input.consentKind,
+    input.version,
+  ));
   if (!record.ok || !record.value) {
     return record as AppDataResult<ConsentEvidenceRecord | null>;
   }
@@ -584,6 +605,88 @@ export function getConsentEvidence(
     return err("validation_failed", "Consent key contains another record type");
   }
   return ok(record.value);
+}
+
+export function getRequiredConsentEvidenceStatus(
+  repository: AppDataRepository,
+  input: {
+    cognitoSub: string;
+    requiredConsents?: readonly RequiredConsentDocument[];
+  },
+): AppDataResult<{
+  accepted: boolean;
+  records: ConsentEvidenceRecord[];
+  statuses: ConsentRequirementStatus[];
+}> {
+  const requiredConsents = input.requiredConsents ?? currentRequiredConsents;
+  const records: ConsentEvidenceRecord[] = [];
+
+  for (const consent of requiredConsents) {
+    const result = repository.queryByKeyPrefix({
+      pk: patientProfileKey(input.cognitoSub).pk,
+      skPrefix: `CONSENT#${consent.consentKind}#`,
+    });
+    if (!result.ok) {
+      return result;
+    }
+
+    for (const item of result.value.items) {
+      if (item.recordType !== "consentEvidence") {
+        return err("validation_failed", "Consent evidence query contained another record type");
+      }
+      records.push(item);
+    }
+  }
+
+  const evaluation = evaluateConsentRequirements(records, requiredConsents);
+  return ok({
+    accepted: evaluation.accepted,
+    records,
+    statuses: evaluation.statuses,
+  });
+}
+
+export function exportConsentEvidenceForReview(
+  repository: AppDataRepository,
+  input: { cognitoSub: string },
+): AppDataResult<Array<{
+  acceptedAt: string;
+  consentKind: ConsentKind;
+  ipHash?: string;
+  userAgentHash?: string;
+  version: string;
+}>> {
+  const records = repository.queryByKeyPrefix({
+    pk: patientProfileKey(input.cognitoSub).pk,
+    skPrefix: "CONSENT#",
+  });
+  if (!records.ok) {
+    return records;
+  }
+
+  const evidence = records.value.items.map((record) => {
+    if (record.recordType !== "consentEvidence") {
+      return null;
+    }
+    return {
+      acceptedAt: record.acceptedAt,
+      consentKind: record.consentKind,
+      ipHash: record.ipHash,
+      userAgentHash: record.userAgentHash,
+      version: record.version,
+    };
+  });
+  if (evidence.some((record) => record === null)) {
+    return err("validation_failed", "Consent export contained another record type");
+  }
+
+  return ok(evidence as Array<{
+    acceptedAt: string;
+    consentKind: ConsentKind;
+    ipHash?: string;
+    userAgentHash?: string;
+    version: string;
+  }>);
 }
 
 export function upsertPatientProfile(
@@ -958,6 +1061,7 @@ export function recordConsentEvidence(
   repository: AppDataRepository,
   input: {
     cognitoSub: string;
+    consentKind: ConsentKind;
     version: string;
     acceptedAt: string;
     now: string;
@@ -965,11 +1069,75 @@ export function recordConsentEvidence(
     userAgentHash?: string;
   },
 ): AppDataResult<ConsentEvidenceRecord> {
-  const record: ConsentEvidenceRecord = {
-    ...consentEvidenceKey(input.cognitoSub, input.version),
+  const record = createConsentEvidenceRecord(input);
+
+  return repository.put(record);
+}
+
+export function recordCurrentConsentAcceptance(
+  repository: AppDataRepository,
+  input: {
+    cognitoSub: string;
+    acceptedAt: string;
+    now: string;
+    ipHash?: string;
+    requiredConsents?: readonly RequiredConsentDocument[];
+    userAgentHash?: string;
+  },
+): AppDataResult<ConsentEvidenceRecord[]> {
+  const requiredConsents = input.requiredConsents ?? currentRequiredConsents;
+  const records = requiredConsents.map((consent) => createConsentEvidenceRecord({
+    acceptedAt: input.acceptedAt,
+    cognitoSub: input.cognitoSub,
+    consentKind: consent.consentKind,
+    ipHash: input.ipHash,
+    now: input.now,
+    userAgentHash: input.userAgentHash,
+    version: consent.version,
+  }));
+  const writes: TransactWriteOperation[] = [];
+  const acceptedRecords: ConsentEvidenceRecord[] = [];
+
+  for (const record of records) {
+    const existing = repository.get(record);
+    if (!existing.ok) {
+      return existing;
+    }
+    if (existing.value) {
+      if (existing.value.recordType !== "consentEvidence") {
+        return err("validation_failed", "Consent key contains another record type");
+      }
+      acceptedRecords.push(existing.value);
+      continue;
+    }
+
+    writes.push({ type: "put", record, ifNotExists: true });
+    acceptedRecords.push(record);
+  }
+
+  if (writes.length === 0) {
+    return ok(acceptedRecords);
+  }
+
+  const result = repository.transactWrite(writes);
+  return result.ok ? ok(acceptedRecords) : result;
+}
+
+export function createConsentEvidenceRecord(input: {
+  cognitoSub: string;
+  consentKind: ConsentKind;
+  version: string;
+  acceptedAt: string;
+  now: string;
+  ipHash?: string;
+  userAgentHash?: string;
+}): ConsentEvidenceRecord {
+  return {
+    ...consentEvidenceKey(input.cognitoSub, input.consentKind, input.version),
     recordType: "consentEvidence",
     schemaVersion: 1,
     cognitoSub: input.cognitoSub,
+    consentKind: input.consentKind,
     version: input.version,
     acceptedAt: input.acceptedAt,
     ipHash: input.ipHash,
@@ -977,8 +1145,6 @@ export function recordConsentEvidence(
     createdAt: input.now,
     updatedAt: input.now,
   };
-
-  return repository.put(record);
 }
 
 export function claimWebhookEvent(
@@ -1454,11 +1620,17 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
       return validateStripeReverse(record);
     case "consentEvidence":
       return typeof record.cognitoSub === "string" &&
+        isConsentKind(record.consentKind) &&
         typeof record.version === "string" &&
+        isConsentVersion(record.version) &&
         typeof record.acceptedAt === "string" &&
         optionalHash(record.ipHash) &&
         optionalHash(record.userAgentHash) &&
-        keysMatch(record, consentEvidenceKey(record.cognitoSub, record.version))
+        keysMatch(record, consentEvidenceKey(
+          record.cognitoSub,
+          record.consentKind,
+          record.version,
+        ))
         ? ok(record)
         : err("validation_failed", "Invalid consent evidence record");
     case "webhookIdempotency":
@@ -1914,7 +2086,13 @@ function optionalString(value: unknown) {
 }
 
 function optionalHash(value: unknown) {
-  return value === undefined || (typeof value === "string" && value.startsWith("sha256:"));
+  return value === undefined ||
+    (typeof value === "string" && /^sha256:[a-f0-9]{64}$/i.test(value));
+}
+
+function isConsentVersion(value: string) {
+  return /^[a-z][a-z0-9-]*-\d{4}-\d{2}-[a-z0-9-]+$/.test(value) &&
+    !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(value));
 }
 
 function optionalSource(value: unknown) {
@@ -2382,6 +2560,7 @@ const allowedFields: Record<string, Set<string>> = {
   ),
   consentEvidence: allow(
     "cognitoSub",
+    "consentKind",
     "version",
     "acceptedAt",
     "ipHash",

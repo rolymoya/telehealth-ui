@@ -1,3 +1,5 @@
+import { currentConsentVersion } from "@/lib/consents";
+
 export const cognitoUserFixture = {
   sub: "cognito-sub-0123456789abcdef",
   email: "patient@example.test",
@@ -11,6 +13,6 @@ export const patientLinkageFixture = {
   stripeSubscriptionId: null,
   onboardingStatus: "intake_started",
   billingStatus: "payment_method_pending",
-  consentVersion: "2026-06-legal-v1",
+  consentVersion: currentConsentVersion,
   consentAcceptedAt: "2026-06-05T12:00:00.000Z",
 };

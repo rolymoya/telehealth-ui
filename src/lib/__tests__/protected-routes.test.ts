@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createInMemoryAppDataRepository,
   createPatientProfileRecord,
-  recordConsentEvidence,
+  recordCurrentConsentAcceptance,
 } from "@/lib/dynamodb/app-data";
 import {
   cognitoIssuer,
@@ -33,7 +33,7 @@ describe("protected route access helper", () => {
     await expect(
       evaluateProtectedRouteAccess({
         config,
-        consentVersion: "consent-v1",
+        consentVersion: "unused-compat-version",
         now,
         pathname: "/dashboard",
         repository: createInMemoryAppDataRepository(),
@@ -56,17 +56,16 @@ describe("protected route access helper", () => {
       onboardingStatus: "intake_ready",
       now: nowIso,
     }));
-    recordConsentEvidence(repository, {
+    recordCurrentConsentAcceptance(repository, {
       acceptedAt: nowIso,
       cognitoSub: "cognito-sub-0123456789abcdef",
       now: nowIso,
-      version: "consent-v1",
     });
 
     await expect(
       evaluateProtectedRouteAccess({
         config,
-        consentVersion: "consent-v1",
+        consentVersion: "unused-compat-version",
         now,
         pathname: "/dashboard",
         repository,
@@ -91,6 +90,7 @@ describe("protected route access helper", () => {
         recordType: "consentEvidence",
         schemaVersion: 1,
         cognitoSub: "cognito-sub-0123456789abcdef",
+        consentKind: "platform_terms",
         version: "consent-v1",
         acceptedAt: nowIso,
         createdAt: nowIso,
@@ -101,7 +101,7 @@ describe("protected route access helper", () => {
     await expect(
       evaluateProtectedRouteAccess({
         config,
-        consentVersion: "consent-v1",
+        consentVersion: "unused-compat-version",
         now,
         pathname: "/dashboard",
         repository,
@@ -112,6 +112,27 @@ describe("protected route access helper", () => {
       ok: false,
       error: {
         kind: "validation_failed",
+      },
+    });
+  });
+
+  it("redirects stale or missing current consent to the consent route", async () => {
+    await expect(
+      evaluateProtectedRouteAccess({
+        config,
+        consentVersion: "unused-compat-version",
+        now,
+        pathname: "/intake",
+        repository: createInMemoryAppDataRepository(),
+        token: "valid-token",
+        verifier: validVerifier(),
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        decision: "redirect",
+        destination: "/onboarding/consent",
+        reason: "onboarding_step_required",
       },
     });
   });

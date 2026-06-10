@@ -2,6 +2,10 @@ import "server-only";
 
 import { createHmac, createHash } from "node:crypto";
 import {
+  currentRequiredConsents,
+  type RequiredConsentDocument,
+} from "@/lib/consents";
+import {
   type AppDataErrorKind,
   type AppDataKey,
   type AppDataRecord,
@@ -21,6 +25,7 @@ import {
   type WebhookIdempotencyRecord,
   type WebhookProcessingStatus,
   consentEvidenceKey,
+  createConsentEvidenceRecord,
   createEvidenceEventRecord,
   createEvidenceEventWriteOperations,
   createPatientProfileRecord,
@@ -411,9 +416,18 @@ export async function getStripeLinkageDynamoDb(
 
 export async function getConsentEvidenceDynamoDb(
   repository: Pick<DynamoDbAppDataRepository, "get">,
-  input: { cognitoSub: string; version: string },
+  input: Parameters<typeof consentEvidenceKey> extends [
+    infer CognitoSub,
+    infer ConsentKind,
+    infer Version,
+  ] ? { cognitoSub: CognitoSub; consentKind: ConsentKind; version: Version }
+    : never,
 ): Promise<AppDataResult<ConsentEvidenceRecord | null>> {
-  const record = await repository.get(consentEvidenceKey(input.cognitoSub, input.version));
+  const record = await repository.get(consentEvidenceKey(
+    input.cognitoSub,
+    input.consentKind,
+    input.version,
+  ));
   if (!record.ok || !record.value) {
     return record as AppDataResult<ConsentEvidenceRecord | null>;
   }
@@ -495,28 +509,58 @@ export async function transitionOnboardingStatusDynamoDb(
 
 export async function recordConsentEvidenceDynamoDb(
   repository: Pick<DynamoDbAppDataRepository, "put">,
+  input: Parameters<typeof createConsentEvidenceRecord>[0],
+): Promise<AppDataResult<ConsentEvidenceRecord>> {
+  return repository.put(createConsentEvidenceRecord(input), { ifNotExists: true });
+}
+
+export async function recordCurrentConsentAcceptanceDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
   input: {
     acceptedAt: string;
     cognitoSub: string;
     ipHash?: string;
     now: string;
+    requiredConsents?: readonly RequiredConsentDocument[];
     userAgentHash?: string;
-    version: string;
   },
-): Promise<AppDataResult<ConsentEvidenceRecord>> {
-  const record: ConsentEvidenceRecord = {
-    ...consentEvidenceKey(input.cognitoSub, input.version),
+): Promise<AppDataResult<ConsentEvidenceRecord[]>> {
+  const requiredConsents = input.requiredConsents ?? currentRequiredConsents;
+  const records = requiredConsents.map((consent) => createConsentEvidenceRecord({
     acceptedAt: input.acceptedAt,
     cognitoSub: input.cognitoSub,
-    createdAt: input.now,
+    consentKind: consent.consentKind,
     ipHash: input.ipHash,
-    recordType: "consentEvidence",
-    schemaVersion: 1,
-    updatedAt: input.now,
+    now: input.now,
     userAgentHash: input.userAgentHash,
-    version: input.version,
-  };
-  return repository.put(record);
+    version: consent.version,
+  }));
+  const writes: TransactWriteOperation[] = [];
+  const acceptedRecords: ConsentEvidenceRecord[] = [];
+
+  for (const record of records) {
+    const existing = await repository.get(record);
+    if (!existing.ok) {
+      return existing;
+    }
+    if (existing.value) {
+      if (existing.value.recordType !== "consentEvidence") {
+        return err("validation_failed", "Consent key contains another record type");
+      }
+      acceptedRecords.push(existing.value);
+      continue;
+    }
+
+    writes.push({ type: "put", record, ifNotExists: true });
+    acceptedRecords.push(record);
+  }
+
+  if (writes.length === 0) {
+    return ok(acceptedRecords);
+  }
+
+  const result = await repository.transactWrite(writes);
+  return result.ok ? ok(acceptedRecords) : result;
 }
 
 export async function recordEvidenceEventDynamoDb(
