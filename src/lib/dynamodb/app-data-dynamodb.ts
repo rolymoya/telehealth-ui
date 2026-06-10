@@ -10,7 +10,6 @@ import {
   type BillingStatus,
   type ConsentEvidenceRecord,
   type EvidenceEventRecord,
-  type EvidenceEventUniquenessRecord,
   type MdiLinkageRecord,
   type MdiReverseLookupRecord,
   type OnboardingStatus,
@@ -23,12 +22,12 @@ import {
   type WebhookProcessingStatus,
   consentEvidenceKey,
   createEvidenceEventRecord,
+  createEvidenceEventWriteOperations,
   createPatientProfileRecord,
-  evidenceEventUniquenessKey,
+  isIdempotentEvidenceReplay,
   mdiCaseReverseKey,
   mdiLinkageKey,
   mdiPatientReverseKey,
-  patientEvidenceEventUniquenessKey,
   patientProfileKey,
   stripeCustomerReverseKey,
   stripeLinkageKey,
@@ -525,31 +524,39 @@ export async function recordEvidenceEventDynamoDb(
   input: Parameters<typeof createEvidenceEventRecord>[0],
 ): Promise<AppDataResult<EvidenceEventRecord>> {
   const record = createEvidenceEventRecord(input);
-  const validation = validateAppDataRecord(record);
-  if (!validation.ok) {
-    return validation as AppDataResult<EvidenceEventRecord>;
+  const writes = createEvidenceEventWriteOperations(record);
+  if (!writes.ok) {
+    return writes as AppDataResult<EvidenceEventRecord>;
   }
 
-  const uniquenessKey = record.eventCategory === "webhook"
-    ? evidenceEventUniquenessKey(record.eventId)
-    : patientEvidenceEventUniquenessKey(record.cognitoSub, record.eventId);
-  const uniqueness: EvidenceEventUniquenessRecord = {
-    ...uniquenessKey,
-    cognitoSub: record.cognitoSub,
-    createdAt: record.recordedAt,
-    eventId: record.eventId,
-    evidencePk: record.pk,
-    evidenceSk: record.sk,
-    recordType: "evidenceEventUniqueness",
-    schemaVersion: 1,
-    updatedAt: record.recordedAt,
-  };
+  const written = await repository.transactWrite(writes.value.operations);
+  if (written.ok) {
+    return ok(record);
+  }
+  if (record.eventCategory !== "webhook" || written.error.kind !== "conditional_conflict") {
+    return written;
+  }
 
-  const written = await repository.transactWrite([
-    { type: "put", record: uniqueness, ifNotExists: true },
-    { type: "put", record, ifNotExists: true },
-  ]);
-  return written.ok ? ok(record) : written;
+  const existingUniqueness = await repository.get(writes.value.uniquenessKey);
+  if (!existingUniqueness.ok) {
+    return existingUniqueness;
+  }
+  if (existingUniqueness.value?.recordType !== "evidenceEventUniqueness") {
+    return written;
+  }
+
+  const existing = await repository.get({
+    pk: existingUniqueness.value.evidencePk,
+    sk: existingUniqueness.value.evidenceSk,
+  });
+  if (!existing.ok) {
+    return existing;
+  }
+
+  return existing.value?.recordType === "evidenceEvent" &&
+    isIdempotentEvidenceReplay(record, existing.value)
+    ? ok(existing.value)
+    : written;
 }
 
 export async function claimWebhookEventDynamoDb(

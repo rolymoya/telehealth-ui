@@ -54,6 +54,9 @@ directory.
 Launch-scale defaults are selected to stay low-cost:
 
 - DynamoDB is on-demand, with one table for minimal app/linkage records.
+- Evidence case timeline reads use case-scoped DynamoDB pointer rows in the app
+  table; do not add GSIs or table scans for case triage without a new
+  architecture decision.
 - Lambda/API Gateway scale to zero between requests.
 - SQS/DLQ exists only for webhook retry durability.
 - EventBridge invokes bounded scheduled Lambda jobs only; there is no

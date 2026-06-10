@@ -37,6 +37,7 @@ not scan the table or put PHI into third-party metadata.
 | Webhook idempotency | Apoth | `WEBHOOK#{provider}#EVENT#{eventId}` / `CLAIM` | Keep long enough to cover vendor retry windows and audit needs | Event IDs/status only |
 | Evidence event | Apoth | `PATIENT#{cognitoSub}` / `EVIDENCE#{occurredAt}#{eventId}` | Keep per counsel-approved evidence retention | Opaque timeline metadata only |
 | Evidence event uniqueness | Apoth | `PATIENT#{cognitoSub}` / `EVIDENCE_UNIQUE#EVENT#{eventId}` for patient-scoped events; `EVIDENCE#EVENT#{eventId}` / `UNIQUE` for webhook side effects | Same as evidence event | Duplicate guard and timeline pointer only |
+| Evidence case index | Apoth | `MDI#CASE#{mdiCaseId}` / `EVIDENCE#{occurredAt}#{eventId}` | Same as evidence event | Restricted case timeline pointer only |
 | Operational status | Apoth | `STATUS#{name}` / `CURRENT` | Keep while flag/status is relevant | No clinical content; scheduled jobs may store bounded metadata such as stage, job name, latest heartbeat/scheduled timestamps, and request ID |
 
 ## Field Policy
@@ -65,6 +66,7 @@ record-type labels, or redacted presence booleans.
 | Evidence event | `eventId`, `eventType`, `eventCategory`, `occurredAt`, `recordedAt`, `actorType`, `status`, `summaryCode`, `requestId`, `source`, `metadata` | Apoth/vendor systems | Keep per counsel-approved evidence retention | Type/category/status/summary codes are code/log-safe; IDs, timestamps, source, and metadata values are restricted |
 | Evidence event | `cognitoSub`, `mdiPatientId`, `mdiCaseId`, `stripeCustomerId`, `stripeSubscriptionId`, `webhookProvider`, `webhookEventId`, `adminActorId` | Cognito/MDI/Stripe/Apoth | Same as evidence event | Restricted; never log alongside clinical or payment-instrument context |
 | Evidence event uniqueness | `cognitoSub`, `eventId`, `evidencePk`, `evidenceSk` | Apoth | Same as evidence event | Restricted |
+| Evidence case index | `cognitoSub`, `mdiCaseId`, `eventId`, `evidencePk`, `evidenceSk` | Apoth/MDI | Same as evidence event | Restricted; event IDs may encode bounded workflow status, so do not log case-index keys or pointer fields |
 | Operational status | `name`, `status`, `stage`, `jobName`, `lastHeartbeatAt`, `lastScheduledAt`, `lastRequestId` | Apoth/AWS | Keep while flag/status is relevant | Code/log-safe if values remain bounded operational codes and request IDs |
 
 ## Data Boundaries
@@ -129,28 +131,31 @@ include MDI patient and case IDs. Evidence writes also create a uniqueness guard
 in the same transaction so the logical event ID is unique even if a retry uses a
 different `occurredAt`. Non-webhook evidence guards are scoped to the Cognito
 subject; webhook side-effect guards use the deterministic provider event ID.
-Webhook evidence retries return the already-recorded evidence item rather than
-creating a second timeline item.
+Events with `mdiCaseId` also write a case-scoped pointer at
+`MDI#CASE#{mdiCaseId}` / `EVIDENCE#{occurredAt}#{eventId}` in the same
+transaction. Webhook evidence retries return the already-recorded evidence item
+rather than creating a second timeline item, even when the uniqueness guard,
+event row, or case pointer already exists.
 
 Support reads do not scan the table. If support starts with a Cognito subject,
 query that patient's `PATIENT#{cognitoSub}` partition with the `EVIDENCE#`
 timeline prefix using bounded pagination. If support starts with an MDI case
 ID, first resolve `MDI#CASE#{mdiCaseId}` / `PATIENT` through the existing reverse
-lookup, then read the resolved patient timeline and filter to events for that
-`mdiCaseId`. Continue later case pages with the returned `cognitoSub` and
-`nextKey` so pagination remains bound to the same patient partition. Stripe
-customer or subscription IDs follow the same reverse-lookup pattern. Evidence
-timelines are ordered by `occurredAt`, not by write/recording time. A paginated
-read is therefore a moving operational view, not a snapshot isolation boundary:
-after a user has advanced past page 1, a concurrently written event with an
-older `occurredAt` can sort before the saved `nextKey` and will not appear by
-continuing from that cursor. Support tooling must treat `nextKey` as a
-continuation token for one live read, not as proof that earlier pages are
-complete forever. If support or compliance needs a complete point-in-time view,
-wait for the relevant write stream to settle and restart from the first page;
-refresh indicators should tell users when new earlier evidence may exist. A
-future append-ordered or case-scoped access path is required before offering
-snapshot-like timelines during active concurrent writes.
+lookup, then query the same case partition with the `EVIDENCE#` prefix and
+dereference each pointer to its patient timeline event. Continue later case
+pages with the returned `cognitoSub` and case-scoped `nextKey`; cursors from
+another case partition or a non-`EVIDENCE#` sort key must fail validation.
+Stripe customer or subscription IDs follow the reverse-lookup-to-patient pattern
+and then use patient timeline pagination. Evidence timelines are ordered by
+`occurredAt`, not by write/recording time. A paginated read is therefore a
+moving operational view, not a snapshot isolation boundary: after a user has
+advanced past page 1, a concurrently written event with an older `occurredAt`
+can sort before the saved `nextKey` and will not appear by continuing from that
+cursor. Support tooling must treat `nextKey` as a continuation token for one
+live read, not as proof that earlier pages are complete forever. If support or
+compliance needs a complete point-in-time view, wait for the relevant write
+stream to settle and restart from the first page; refresh indicators should
+tell users when new earlier evidence may exist.
 
 Evidence events are not a clinical note system, raw audit payload archive, or
 tamper-evident hash chain. Do not store raw support notes, message/file

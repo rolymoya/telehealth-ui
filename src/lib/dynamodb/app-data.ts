@@ -195,6 +195,15 @@ export type EvidenceEventUniquenessRecord = BaseRecord & {
   evidenceSk: string;
 };
 
+export type EvidenceCaseIndexRecord = BaseRecord & {
+  recordType: "evidenceCaseIndex";
+  cognitoSub: string;
+  mdiCaseId: string;
+  eventId: string;
+  evidencePk: string;
+  evidenceSk: string;
+};
+
 export type OperationalStatusRecord = BaseRecord & {
   recordType: "operationalStatus";
   name: string;
@@ -216,6 +225,7 @@ export type AppDataRecord =
   | WebhookIdempotencyRecord
   | EvidenceEventRecord
   | EvidenceEventUniquenessRecord
+  | EvidenceCaseIndexRecord
   | OperationalStatusRecord;
 
 export type AppDataRepository = {
@@ -308,6 +318,14 @@ export function patientEvidenceEventUniquenessKey(
   eventId: string,
 ): AppDataKey {
   return { pk: `PATIENT#${cognitoSub}`, sk: `EVIDENCE_UNIQUE#EVENT#${eventId}` };
+}
+
+export function evidenceCaseIndexKey(
+  mdiCaseId: string,
+  occurredAt: string,
+  eventId: string,
+): AppDataKey {
+  return { pk: `MDI#CASE#${mdiCaseId}`, sk: `EVIDENCE#${occurredAt}#${eventId}` };
 }
 
 export function createWebhookEvidenceEventId(
@@ -894,53 +912,61 @@ export function listEvidenceEventsForMdiCase(
     cognitoSub = patient.value;
   }
 
+  const caseIndexPk = mdiCaseReverseKey(input.mdiCaseId).pk;
+  if (
+    input.exclusiveStartKey !== undefined &&
+    (
+      input.exclusiveStartKey.pk !== caseIndexPk ||
+      !input.exclusiveStartKey.sk.startsWith("EVIDENCE#")
+    )
+  ) {
+    return err("validation_failed", "Invalid evidence case cursor");
+  }
+
+  const pointers = repository.queryByKeyPrefix({
+    pk: caseIndexPk,
+    skPrefix: "EVIDENCE#",
+    limit: limit.value,
+    exclusiveStartKey: input.exclusiveStartKey,
+  });
+  if (!pointers.ok) {
+    return pointers;
+  }
+
   const caseEvents: EvidenceEventRecord[] = [];
-  let nextKey = input.exclusiveStartKey;
-  let scannedPages = 0;
-
-  do {
-    const events = listEvidenceEventsForPatient(repository, {
-      cognitoSub,
-      limit: limit.value,
-      exclusiveStartKey: nextKey,
-    });
-    if (!events.ok) {
-      return events;
+  for (const pointer of pointers.value.items) {
+    if (pointer.recordType !== "evidenceCaseIndex") {
+      return err("validation_failed", "Evidence case timeline contained another record type");
     }
-    scannedPages += 1;
-
-    for (let index = 0; index < events.value.items.length; index += 1) {
-      const event = events.value.items[index];
-      if (event.mdiCaseId !== input.mdiCaseId) {
-        continue;
-      }
-
-      caseEvents.push(event);
-      if (caseEvents.length >= limit.value) {
-        const hasMoreInCurrentPage = index < events.value.items.length - 1;
-        const continuation = hasMoreInCurrentPage || events.value.nextKey
-          ? { pk: event.pk, sk: event.sk }
-          : undefined;
-        return ok({
-          cognitoSub,
-          items: caseEvents,
-          nextKey: continuation,
-        });
-      }
+    if (pointer.cognitoSub !== cognitoSub || pointer.mdiCaseId !== input.mdiCaseId) {
+      return err("validation_failed", "Evidence case pointer did not match lookup");
     }
-    nextKey = events.value.nextKey;
-    if (nextKey && scannedPages >= maxEvidenceCaseQueryPages) {
-      return ok({
-        cognitoSub,
-        items: caseEvents,
-        nextKey,
-      });
+
+    const event = repository.get({ pk: pointer.evidencePk, sk: pointer.evidenceSk });
+    if (!event.ok) {
+      return event;
     }
-  } while (nextKey);
+    if (!event.value) {
+      return err("validation_failed", "Evidence case pointer target was missing");
+    }
+    if (event.value.recordType !== "evidenceEvent") {
+      return err("validation_failed", "Evidence case pointer targeted another record type");
+    }
+    if (
+      event.value.cognitoSub !== pointer.cognitoSub ||
+      event.value.mdiCaseId !== pointer.mdiCaseId ||
+      event.value.eventId !== pointer.eventId
+    ) {
+      return err("validation_failed", "Evidence case pointer target did not match pointer");
+    }
+
+    caseEvents.push(event.value);
+  }
 
   return ok({
     cognitoSub,
     items: caseEvents,
+    nextKey: pointers.value.nextKey,
   });
 }
 
@@ -1244,11 +1270,33 @@ export function createEvidenceEventRecord(input: {
   };
 }
 
-export function recordEvidenceEvent(
-  repository: AppDataRepository,
-  input: Parameters<typeof createEvidenceEventRecord>[0],
-): AppDataResult<EvidenceEventRecord> {
-  const record = createEvidenceEventRecord(input);
+export function createEvidenceCaseIndexRecord(
+  record: EvidenceEventRecord,
+): EvidenceCaseIndexRecord | null {
+  if (record.mdiCaseId === undefined) {
+    return null;
+  }
+
+  return {
+    ...evidenceCaseIndexKey(record.mdiCaseId, record.occurredAt, record.eventId),
+    recordType: "evidenceCaseIndex",
+    schemaVersion: 1,
+    cognitoSub: record.cognitoSub,
+    mdiCaseId: record.mdiCaseId,
+    eventId: record.eventId,
+    evidencePk: record.pk,
+    evidenceSk: record.sk,
+    createdAt: record.recordedAt,
+    updatedAt: record.recordedAt,
+  };
+}
+
+export function createEvidenceEventWriteOperations(
+  record: EvidenceEventRecord,
+): AppDataResult<{
+  operations: TransactWriteOperation[];
+  uniquenessKey: AppDataKey;
+}> {
   const validation = validateAppDataRecord(record);
   if (!validation.ok) {
     return validation;
@@ -1268,11 +1316,30 @@ export function recordEvidenceEvent(
     createdAt: record.recordedAt,
     updatedAt: record.recordedAt,
   };
-
-  const written = repository.transactWrite([
+  const caseIndex = createEvidenceCaseIndexRecord(record);
+  const operations: TransactWriteOperation[] = [
     { type: "put", record: uniqueness, ifNotExists: true },
     { type: "put", record, ifNotExists: true },
-  ]);
+  ];
+
+  if (caseIndex) {
+    operations.push({ type: "put", record: caseIndex, ifNotExists: true });
+  }
+
+  return ok({ operations, uniquenessKey });
+}
+
+export function recordEvidenceEvent(
+  repository: AppDataRepository,
+  input: Parameters<typeof createEvidenceEventRecord>[0],
+): AppDataResult<EvidenceEventRecord> {
+  const record = createEvidenceEventRecord(input);
+  const writes = createEvidenceEventWriteOperations(record);
+  if (!writes.ok) {
+    return writes;
+  }
+
+  const written = repository.transactWrite(writes.value.operations);
 
   if (written.ok) {
     return ok(record);
@@ -1281,7 +1348,7 @@ export function recordEvidenceEvent(
     return written;
   }
 
-  const existingUniqueness = repository.get(uniquenessKey);
+  const existingUniqueness = repository.get(writes.value.uniquenessKey);
   if (!existingUniqueness.ok) {
     return existingUniqueness;
   }
@@ -1429,6 +1496,8 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
       return validateEvidenceEvent(record);
     case "evidenceEventUniqueness":
       return validateEvidenceEventUniqueness(record);
+    case "evidenceCaseIndex":
+      return validateEvidenceCaseIndex(record);
     case "operationalStatus":
       return typeof record.name === "string" &&
         typeof record.status === "string" &&
@@ -1607,6 +1676,22 @@ function validateEvidenceEventUniqueness(
     : err("validation_failed", "Invalid evidence event uniqueness record");
 }
 
+function validateEvidenceCaseIndex(
+  record: EvidenceCaseIndexRecord,
+): AppDataResult<AppDataRecord> {
+  return typeof record.cognitoSub === "string" &&
+    isCognitoSub(record.cognitoSub) &&
+    typeof record.mdiCaseId === "string" &&
+    isMdiCaseId(record.mdiCaseId) &&
+    isEvidenceEventIdValue(record.eventId) &&
+    typeof record.evidencePk === "string" &&
+    typeof record.evidenceSk === "string" &&
+    record.evidencePk === `PATIENT#${record.cognitoSub}` &&
+    isEvidenceCaseIndexPointer(record)
+    ? ok(record)
+    : err("validation_failed", "Invalid evidence case index record");
+}
+
 function isEvidenceEventPointer(record: EvidenceEventUniquenessRecord) {
   const suffix = `#${record.eventId}`;
   if (!record.evidenceSk.startsWith("EVIDENCE#") || !record.evidenceSk.endsWith(suffix)) {
@@ -1622,7 +1707,36 @@ function isEvidenceEventPointer(record: EvidenceEventUniquenessRecord) {
     ).sk;
 }
 
-function isIdempotentEvidenceReplay(
+function isEvidenceCaseIndexPointer(record: EvidenceCaseIndexRecord) {
+  const suffix = `#${record.eventId}`;
+  if (
+    !record.sk.startsWith("EVIDENCE#") ||
+    !record.sk.endsWith(suffix) ||
+    !record.evidenceSk.startsWith("EVIDENCE#") ||
+    !record.evidenceSk.endsWith(suffix)
+  ) {
+    return false;
+  }
+
+  const occurredAt = record.sk.slice("EVIDENCE#".length, -suffix.length);
+  if (
+    !isIsoTimestamp(occurredAt) ||
+    record.evidenceSk !== evidenceEventKey(
+      record.cognitoSub,
+      occurredAt,
+      record.eventId,
+    ).sk
+  ) {
+    return false;
+  }
+
+  return keysMatch(
+    record,
+    evidenceCaseIndexKey(record.mdiCaseId, occurredAt, record.eventId),
+  );
+}
+
+export function isIdempotentEvidenceReplay(
   incoming: EvidenceEventRecord,
   existing: EvidenceEventRecord,
 ) {
@@ -2108,7 +2222,6 @@ const webhookStatuses = new Set<WebhookProcessingStatus>([
 const defaultEvidenceEventPageLimit = 25;
 const maxEvidenceEventPageLimit = 100;
 const maxWebhookEventIdLength = 128;
-const maxEvidenceCaseQueryPages = 5;
 
 const evidenceEventCategories = new Set<EvidenceEventCategory>([
   "consent",
@@ -2489,6 +2602,13 @@ const allowedFields: Record<string, Set<string>> = {
   ),
   evidenceEventUniqueness: allow(
     "cognitoSub",
+    "eventId",
+    "evidencePk",
+    "evidenceSk",
+  ),
+  evidenceCaseIndex: allow(
+    "cognitoSub",
+    "mdiCaseId",
     "eventId",
     "evidencePk",
     "evidenceSk",

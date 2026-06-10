@@ -5,6 +5,7 @@ import {
   createInMemoryAppDataRepository,
   createPatientProfileRecord,
   createWebhookEvidenceEventId,
+  evidenceCaseIndexKey,
   evidenceEventKey,
   evidenceEventUniquenessKey,
   findPatientByMdiPointer,
@@ -1096,7 +1097,7 @@ describe("DynamoDB app-data helpers", () => {
     });
   });
 
-  it("paginates filtered MDI case evidence without skipping matching events", () => {
+  it("paginates MDI case evidence through the case-scoped index", () => {
     const repository = createInMemoryAppDataRepository();
 
     expect(
@@ -1179,8 +1180,8 @@ describe("DynamoDB app-data helpers", () => {
       },
     });
     expect(firstPage.ok && firstPage.value?.nextKey).toEqual(
-      evidenceEventKey(
-        "cognito-sub-001",
+      evidenceCaseIndexKey(
+        "mdi_case_001",
         "2026-06-04T18:02:00.000Z",
         "mdi:status:mdi_case_001:completed",
       ),
@@ -1214,6 +1215,37 @@ describe("DynamoDB app-data helpers", () => {
     ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
     expect(
       listEvidenceEventsForMdiCase(repository, {
+        mdiCaseId: "mdi_case_001",
+        limit: 2,
+        exclusiveStartKey: evidenceEventKey(
+          "cognito-sub-001",
+          "2026-06-04T18:02:00.000Z",
+          "mdi:status:mdi_case_001:completed",
+        ),
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+    expect(
+      listEvidenceEventsForMdiCase(repository, {
+        mdiCaseId: "mdi_case_001",
+        limit: 2,
+        exclusiveStartKey: evidenceCaseIndexKey(
+          "mdi_case_002",
+          "2026-06-04T18:02:00.000Z",
+          "mdi:status:mdi_case_001:completed",
+        ),
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+    expect(
+      repository.get(
+        evidenceCaseIndexKey(
+          "mdi_case_001",
+          "2026-06-04T18:01:00.000Z",
+          "consent:terms-2026-06-04",
+        ),
+      ),
+    ).toEqual({ ok: true, value: null });
+    expect(
+      listEvidenceEventsForMdiCase(repository, {
         mdiCaseId: "condition_context",
       }),
     ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
@@ -1227,6 +1259,185 @@ describe("DynamoDB app-data helpers", () => {
         cognitoSub: "cognito-sub-001",
         limit: 0,
       }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+  });
+
+  it("fails closed for corrupt MDI case evidence index pointers", () => {
+    const linkCase = (repository: AppDataRepository) => {
+      expect(
+        linkMdiPatientCase(repository, {
+          cognitoSub: "cognito-sub-001",
+          mdiPatientId: "mdi_patient_001",
+          mdiCaseId: "mdi_case_001",
+          now,
+        }).ok,
+      ).toBe(true);
+    };
+
+    const putCasePointer = (
+      repository: AppDataRepository,
+      input: {
+        cognitoSub: string;
+        eventId: string;
+        mdiCaseId: string;
+        occurredAt: string;
+      },
+    ) => repository.put({
+      ...evidenceCaseIndexKey(input.mdiCaseId, input.occurredAt, input.eventId),
+      recordType: "evidenceCaseIndex",
+      schemaVersion: 1,
+      cognitoSub: input.cognitoSub,
+      mdiCaseId: input.mdiCaseId,
+      eventId: input.eventId,
+      evidencePk: `PATIENT#${input.cognitoSub}`,
+      evidenceSk: `EVIDENCE#${input.occurredAt}#${input.eventId}`,
+      createdAt: input.occurredAt,
+      updatedAt: input.occurredAt,
+    });
+
+    const dangling = createInMemoryAppDataRepository();
+    linkCase(dangling);
+    expect(
+      putCasePointer(dangling, {
+        cognitoSub: "cognito-sub-001",
+        mdiCaseId: "mdi_case_001",
+        eventId: "mdi:status:mdi_case_001:cancelled",
+        occurredAt: "2026-06-04T18:10:00.000Z",
+      }).ok,
+    ).toBe(true);
+    expect(
+      listEvidenceEventsForMdiCase(dangling, { mdiCaseId: "mdi_case_001" }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+
+    const wrongCase = createInMemoryAppDataRepository();
+    linkCase(wrongCase);
+    expect(
+      recordEvidenceEvent(wrongCase, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:status:mdi_case_002:completed",
+        eventType: "mdi_status_updated",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:11:00.000Z",
+        recordedAt: "2026-06-04T18:11:00.000Z",
+        actorType: "vendor",
+        status: "recorded",
+        summaryCode: "MDI_STATUS_UPDATED",
+        mdiPatientId: "mdi_patient_001",
+        mdiCaseId: "mdi_case_002",
+        source: "mdi",
+        metadata: { status: "completed" },
+      }).ok,
+    ).toBe(true);
+    expect(
+      putCasePointer(wrongCase, {
+        cognitoSub: "cognito-sub-001",
+        mdiCaseId: "mdi_case_001",
+        eventId: "mdi:status:mdi_case_002:completed",
+        occurredAt: "2026-06-04T18:11:00.000Z",
+      }).ok,
+    ).toBe(true);
+    expect(
+      listEvidenceEventsForMdiCase(wrongCase, { mdiCaseId: "mdi_case_001" }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+
+    const wrongSubject = createInMemoryAppDataRepository([
+      {
+        pk: "MDI#CASE#mdi_case_001",
+        sk: "PATIENT",
+        recordType: "mdiReverseLookup",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-001",
+        pointerType: "case",
+        mdiCaseId: "mdi_case_001",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        ...evidenceCaseIndexKey(
+          "mdi_case_001",
+          "2026-06-04T18:12:00.000Z",
+          "mdi:status:mdi_case_001:completed",
+        ),
+        recordType: "evidenceCaseIndex",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-001",
+        mdiCaseId: "mdi_case_001",
+        eventId: "mdi:status:mdi_case_001:completed",
+        evidencePk: "PATIENT#cognito-sub-001",
+        evidenceSk:
+          "EVIDENCE#2026-06-04T18:12:00.000Z#mdi:status:mdi_case_001:completed",
+        createdAt: "2026-06-04T18:12:00.000Z",
+        updatedAt: "2026-06-04T18:12:00.000Z",
+      },
+      {
+        pk: "PATIENT#cognito-sub-001",
+        sk: "EVIDENCE#2026-06-04T18:12:00.000Z#mdi:status:mdi_case_001:completed",
+        recordType: "evidenceEvent",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-002",
+        eventId: "mdi:status:mdi_case_001:completed",
+        eventType: "mdi_status_updated",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:12:00.000Z",
+        recordedAt: "2026-06-04T18:12:00.000Z",
+        actorType: "vendor",
+        status: "recorded",
+        summaryCode: "MDI_STATUS_UPDATED",
+        mdiPatientId: "mdi_patient_001",
+        mdiCaseId: "mdi_case_001",
+        source: "mdi",
+        metadata: { status: "completed" },
+        createdAt: "2026-06-04T18:12:00.000Z",
+        updatedAt: "2026-06-04T18:12:00.000Z",
+      },
+    ], { validateSeed: false });
+    expect(
+      listEvidenceEventsForMdiCase(wrongSubject, { mdiCaseId: "mdi_case_001" }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+
+    const wrongRecordType = createInMemoryAppDataRepository([
+      {
+        pk: "MDI#CASE#mdi_case_001",
+        sk: "PATIENT",
+        recordType: "mdiReverseLookup",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-001",
+        pointerType: "case",
+        mdiCaseId: "mdi_case_001",
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        ...evidenceCaseIndexKey(
+          "mdi_case_001",
+          "2026-06-04T18:13:00.000Z",
+          "mdi:status:mdi_case_001:completed",
+        ),
+        recordType: "evidenceCaseIndex",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-001",
+        mdiCaseId: "mdi_case_001",
+        eventId: "mdi:status:mdi_case_001:completed",
+        evidencePk: "PATIENT#cognito-sub-001",
+        evidenceSk:
+          "EVIDENCE#2026-06-04T18:13:00.000Z#mdi:status:mdi_case_001:completed",
+        createdAt: "2026-06-04T18:13:00.000Z",
+        updatedAt: "2026-06-04T18:13:00.000Z",
+      },
+      {
+        pk: "PATIENT#cognito-sub-001",
+        sk: "EVIDENCE#2026-06-04T18:13:00.000Z#mdi:status:mdi_case_001:completed",
+        recordType: "consentEvidence",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-001",
+        version: "terms-2026-06-04",
+        acceptedAt: "2026-06-04T18:13:00.000Z",
+        createdAt: "2026-06-04T18:13:00.000Z",
+        updatedAt: "2026-06-04T18:13:00.000Z",
+      },
+    ], { validateSeed: false });
+    expect(
+      listEvidenceEventsForMdiCase(wrongRecordType, { mdiCaseId: "mdi_case_001" }),
     ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
   });
 
@@ -1267,6 +1478,22 @@ describe("DynamoDB app-data helpers", () => {
         "mdi_status_update",
       ),
     ).toBe(eventId);
+    expect(
+      repository.get(
+        evidenceCaseIndexKey(
+          "mdi_case_001",
+          "2026-06-04T18:05:00.000Z",
+          eventId,
+        ),
+      ),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        recordType: "evidenceCaseIndex",
+        evidencePk: "PATIENT#cognito-sub-001",
+        evidenceSk: `EVIDENCE#2026-06-04T18:05:00.000Z#${eventId}`,
+      },
+    });
     const duplicate = recordEvidenceEvent(repository, {
         cognitoSub: "cognito-sub-001",
         eventId,
@@ -1502,6 +1729,80 @@ describe("DynamoDB app-data helpers", () => {
       error: {
         kind: "validation_failed",
         message: "Invalid evidence event uniqueness record",
+      },
+    });
+  });
+
+  it("requires evidence case index records to point at canonical timeline keys", () => {
+    expect(
+      validateAppDataRecord({
+        ...evidenceCaseIndexKey(
+          "mdi_case_001",
+          "2026-06-04T18:00:00.000Z",
+          "mdi:status:mdi_case_001:completed",
+        ),
+        recordType: "evidenceCaseIndex",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-001",
+        mdiCaseId: "mdi_case_001",
+        eventId: "mdi:status:mdi_case_001:completed",
+        evidencePk: "PATIENT#cognito-sub-001",
+        evidenceSk:
+          "EVIDENCE#2026-06-04T18:00:00.000Z#mdi:status:mdi_case_001:completed",
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ).toMatchObject({ ok: true });
+
+    expect(
+      validateAppDataRecord({
+        ...evidenceCaseIndexKey(
+          "mdi_case_001",
+          "2026-06-04T18:00:00.000Z",
+          "mdi:status:mdi_case_001:completed",
+        ),
+        recordType: "evidenceCaseIndex",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-001",
+        mdiCaseId: "mdi_case_001",
+        eventId: "mdi:status:mdi_case_001:completed",
+        evidencePk: "PATIENT#cognito-sub-002",
+        evidenceSk:
+          "EVIDENCE#2026-06-04T18:00:00.000Z#mdi:status:mdi_case_001:completed",
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "validation_failed",
+        message: "Invalid evidence case index record",
+      },
+    });
+
+    expect(
+      validateAppDataRecord({
+        ...evidenceCaseIndexKey(
+          "mdi_case_001",
+          "2026-06-04T18:00:00.000Z",
+          "mdi:status:mdi_case_001:completed",
+        ),
+        recordType: "evidenceCaseIndex",
+        schemaVersion: 1,
+        cognitoSub: "cognito-sub-001",
+        mdiCaseId: "mdi_case_001",
+        eventId: "mdi:status:mdi_case_001:completed",
+        evidencePk: "PATIENT#cognito-sub-001",
+        evidenceSk:
+          "EVIDENCE#not-a-timestamp#mdi:status:mdi_case_001:completed",
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "validation_failed",
+        message: "Invalid evidence case index record",
       },
     });
   });
