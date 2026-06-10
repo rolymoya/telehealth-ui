@@ -10,13 +10,13 @@
     "package.json",
     "package-lock.json"
   ],
-  "phase": "infrastructure",
+  "phase": null,
   "relatedTickets": [
     "T-017"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Added an explicit npm override for postcss 8.5.10 and aligned the direct PostCSS devDependency to the same patched version. The regenerated lockfile removes Next's nested postcss 8.4.31 copy, dedupes Next/autoprefixer/tailwind/vite to postcss 8.5.10, and `npm audit --omit=dev` reports 0 vulnerabilities. Tests, typecheck, and staging build pass.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "Production npm audit flags Next bundled PostCSS advisory"
 }
