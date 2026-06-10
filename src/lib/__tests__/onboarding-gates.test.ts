@@ -71,11 +71,22 @@ describe("onboarding route gates", () => {
     ).toEqual("mdi");
   });
 
-  it("routes MDI-complete patients without billing status to billing", () => {
+  it("keeps clinical review patients in the MDI step until billing is explicitly ready", () => {
     expect(
       earliestIncompleteOnboardingStep({
         consentAccepted: true,
         onboardingStatus: "clinical_review",
+        mdiCaseId: "mdi_case_001",
+        mdiPatientId: "mdi_patient_001",
+      }),
+    ).toEqual("mdi");
+  });
+
+  it("routes billing-ready patients without billing status to billing", () => {
+    expect(
+      earliestIncompleteOnboardingStep({
+        consentAccepted: true,
+        onboardingStatus: "billing_ready",
         mdiCaseId: "mdi_case_001",
         mdiPatientId: "mdi_patient_001",
       }),
@@ -117,7 +128,7 @@ describe("onboarding route gates", () => {
   it("allows current and earlier onboarding steps", () => {
     const snapshot: OnboardingGateSnapshot = {
       consentAccepted: true,
-      onboardingStatus: "clinical_review",
+      onboardingStatus: "billing_ready",
       mdiCaseId: "mdi_case_001",
       mdiPatientId: "mdi_patient_001",
     };

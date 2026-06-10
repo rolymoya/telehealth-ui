@@ -28,7 +28,7 @@ export function ProductPlaceholder({
                 TODO:
               </span>
               <span className="ml-2 text-[1rem] text-ink/65">
-                Connect this route to the live backend workflow.
+                Live workflow details for this step are being connected.
               </span>
             </p>
           </div>

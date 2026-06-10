@@ -47,6 +47,10 @@ const stepRoutes = {
   complete: "/dashboard",
 } as const satisfies Record<OnboardingStep, string>;
 
+export function onboardingRouteForStep(step: OnboardingStep) {
+  return stepRoutes[step];
+}
+
 export function decideProtectedRouteAccess(input: {
   authenticated: boolean;
   pathname: string;
@@ -95,6 +99,7 @@ export function earliestIncompleteOnboardingStep(
 
   if (
     snapshot.onboardingStatus === "mdi_submitted" ||
+    snapshot.onboardingStatus !== "billing_ready" ||
     !snapshot.mdiPatientId ||
     !snapshot.mdiCaseId
   ) {
