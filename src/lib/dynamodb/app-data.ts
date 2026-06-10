@@ -53,6 +53,14 @@ export type EvidenceActorType = "patient" | "system" | "admin" | "vendor" | "cog
 
 export type EvidenceEventStatus = "recorded" | "succeeded" | "failed" | "skipped";
 
+type EvidenceLinkageRequirement =
+  | "mdi_case"
+  | "mdi_failure"
+  | "stripe_customer"
+  | "stripe_subscription"
+  | "webhook"
+  | "webhook_side_effect";
+
 const evidenceEventSchema = {
   consent_granted: {
     category: "consent",
@@ -71,6 +79,7 @@ const evidenceEventSchema = {
     summaryCode: "MDI_HANDOFF_SUBMITTED",
     statuses: ["succeeded"],
     metadata: { status: ["submitted"] },
+    linkage: "mdi_case",
   },
   mdi_handoff_failed: {
     category: "mdi_handoff",
@@ -80,24 +89,28 @@ const evidenceEventSchema = {
       status: ["failed"],
       reason_code: ["MDI_UNAVAILABLE", "MDI_TIMEOUT", "MDI_VALIDATION_FAILED"],
     },
+    linkage: "mdi_failure",
   },
   mdi_status_updated: {
     category: "mdi_handoff",
     summaryCode: "MDI_STATUS_UPDATED",
     statuses: ["recorded"],
     metadata: { status: ["clinical_review", "completed", "declined", "cancelled"] },
+    linkage: "mdi_case",
   },
   stripe_payment_method_collected: {
     category: "stripe_billing",
     summaryCode: "STRIPE_PAYMENT_METHOD_COLLECTED",
     statuses: ["succeeded"],
     metadata: { status: ["payment_method_collected"] },
+    linkage: "stripe_customer",
   },
   stripe_billing_activated: {
     category: "stripe_billing",
     summaryCode: "STRIPE_BILLING_ACTIVATED",
     statuses: ["succeeded"],
     metadata: { status: ["active"] },
+    linkage: "stripe_subscription",
   },
   stripe_billing_status_changed: {
     category: "stripe_billing",
@@ -120,6 +133,7 @@ const evidenceEventSchema = {
         "canceled",
       ],
     },
+    linkage: "stripe_subscription",
   },
   webhook_claimed: {
     category: "webhook",
@@ -139,12 +153,14 @@ const evidenceEventSchema = {
         "conflict",
       ],
     },
+    linkage: "webhook",
   },
   webhook_processed: {
     category: "webhook",
     summaryCode: "WEBHOOK_PROCESSED",
     statuses: ["succeeded"],
     metadata: { outcome: ["processed", "skipped_duplicate"] },
+    linkage: "webhook",
   },
   webhook_failed: {
     category: "webhook",
@@ -153,6 +169,7 @@ const evidenceEventSchema = {
     metadata: {
       reason_code: ["SIGNATURE_INVALID", "HANDLER_FAILED", "RETRYABLE_FAILURE", "TERMINAL_FAILURE"],
     },
+    linkage: "webhook",
   },
   webhook_side_effect_applied: {
     category: "webhook",
@@ -166,6 +183,7 @@ const evidenceEventSchema = {
         "webhook_idempotency_update",
       ],
     },
+    linkage: "webhook_side_effect",
   },
   support_action_recorded: {
     category: "support_admin",
@@ -208,6 +226,7 @@ const evidenceEventSchema = {
   summaryCode: string;
   statuses: readonly EvidenceEventStatus[];
   metadata: Record<string, readonly string[]>;
+  linkage?: EvidenceLinkageRequirement;
 }>;
 
 export type EvidenceEventType = keyof typeof evidenceEventSchema;
@@ -1763,42 +1782,46 @@ function validateWebhookEvidenceIdentity(record: EvidenceEventRecord) {
 }
 
 function validateEvidenceLinkage(record: EvidenceEventRecord) {
-  switch (record.eventType) {
-    case "mdi_handoff_submitted":
-    case "mdi_status_updated":
-      return record.mdiPatientId !== undefined && record.mdiCaseId !== undefined;
-    case "mdi_handoff_failed":
-      return record.requestId !== undefined ||
-        record.mdiPatientId !== undefined ||
-        record.mdiCaseId !== undefined;
-    case "stripe_payment_method_collected":
-      return record.stripeCustomerId !== undefined;
-    case "stripe_billing_activated":
-    case "stripe_billing_status_changed":
-      return record.stripeCustomerId !== undefined &&
-        record.stripeSubscriptionId !== undefined;
-    case "webhook_claimed":
-    case "webhook_processed":
-    case "webhook_failed":
-      return record.webhookProvider !== undefined && record.webhookEventId !== undefined;
-    case "webhook_side_effect_applied":
-      if (record.webhookProvider === undefined || record.webhookEventId === undefined) {
-        return false;
-      }
-      if (record.metadata?.side_effect === undefined) {
-        return false;
-      }
-      if (record.metadata?.side_effect === "billing_status_update") {
-        return record.stripeCustomerId !== undefined &&
-          record.stripeSubscriptionId !== undefined;
-      }
-      if (record.metadata?.side_effect === "mdi_status_update") {
-        return record.mdiPatientId !== undefined && record.mdiCaseId !== undefined;
-      }
-      return true;
-    default:
-      return true;
+  const requirement = (
+    evidenceEventSchema[record.eventType] as { linkage?: EvidenceLinkageRequirement }
+  ).linkage;
+  if (requirement === undefined) {
+    return true;
   }
+
+  if (requirement === "mdi_case") {
+    return record.mdiPatientId !== undefined && record.mdiCaseId !== undefined;
+  }
+  if (requirement === "mdi_failure") {
+    return record.requestId !== undefined ||
+      record.mdiPatientId !== undefined ||
+      record.mdiCaseId !== undefined;
+  }
+  if (requirement === "stripe_customer") {
+    return record.stripeCustomerId !== undefined;
+  }
+  if (requirement === "stripe_subscription") {
+    return record.stripeCustomerId !== undefined &&
+      record.stripeSubscriptionId !== undefined;
+  }
+  if (requirement === "webhook") {
+    return record.webhookProvider !== undefined && record.webhookEventId !== undefined;
+  }
+
+  if (record.webhookProvider === undefined || record.webhookEventId === undefined) {
+    return false;
+  }
+  if (record.metadata?.side_effect === undefined) {
+    return false;
+  }
+  if (record.metadata?.side_effect === "billing_status_update") {
+    return record.stripeCustomerId !== undefined &&
+      record.stripeSubscriptionId !== undefined;
+  }
+  if (record.metadata?.side_effect === "mdi_status_update") {
+    return record.mdiPatientId !== undefined && record.mdiCaseId !== undefined;
+  }
+  return true;
 }
 
 function validateEvidenceEventUniqueness(
