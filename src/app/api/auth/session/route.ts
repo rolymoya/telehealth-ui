@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   const accessToken = typeof body.accessToken === "string" ? body.accessToken : "";
   const result = await createAuthSessionCookie({
     config: config.value,
-    secure: process.env.NODE_ENV !== "development",
+    secure: true,
     token: accessToken,
   });
   if (!result.ok) {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE() {
   const cookie = createClearedAuthSessionCookie({
-    secure: process.env.NODE_ENV !== "development",
+    secure: true,
   });
   const response = NextResponse.json({ status: "session_cleared" });
   response.cookies.set(cookie.name, cookie.value, {

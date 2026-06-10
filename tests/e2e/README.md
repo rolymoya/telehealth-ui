@@ -13,9 +13,13 @@ credentials.
 - `npx playwright install`: install browser binaries on a new machine or CI
   image before the first run.
 
-By default, Playwright starts or reuses the local Next.js dev server at
+By default, Playwright starts the local Next.js dev server at
 `http://127.0.0.1:3000`. Set `PLAYWRIGHT_BASE_URL` to run the same tests against
 an already-running app or a deployed staging URL.
+
+Local E2E starts its own server by default so the process has the expected test
+environment. Set `PLAYWRIGHT_REUSE_SERVER=1` only when the existing local server
+was started with the same E2E environment.
 
 ## Fixture Safety
 
@@ -32,6 +36,20 @@ MDI, Stripe, Cognito, and AWS behavior should be mocked by default in local and
 CI E2E runs. Staging smoke tests may use approved synthetic accounts and
 secret-store configuration, but credentials must never be stored in this
 directory.
+
+## Local Auth Seam
+
+Protected-route E2E specs use a local-only auth seam. The Playwright web server
+sets `APOTH_E2E_AUTH_ENABLED=1` and a per-run opaque `APOTH_E2E_AUTH_TOKEN`, and
+authenticated specs send that value as `x-apoth-e2e-auth`. Set
+`APOTH_E2E_AUTH_TOKEN` only when the target environment has been explicitly
+configured for that same synthetic test token.
+
+This token is not a credential and must not be reused for staging or production.
+The app ignores the seam unless it is explicitly enabled, a token is configured,
+the header matches exactly, and `NODE_ENV` is not `production`. The seam renders
+protected shells for synthetic browser tests only; it does not mint session
+cookies, call Cognito, call DynamoDB, or store patient data.
 
 ## Conventions
 

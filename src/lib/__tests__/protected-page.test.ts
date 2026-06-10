@@ -10,6 +10,7 @@ import {
   patientProfileKey,
   recordConsentEvidence,
 } from "@/lib/dynamodb/app-data";
+import { allowsE2eProtectedRouteBypass } from "@/lib/e2e-auth";
 import {
   createProtectedPageRepository,
   requireProtectedPageAccess,
@@ -92,6 +93,26 @@ describe("protected page access", () => {
     ).rejects.toThrow("redirect:/intake");
   });
 
+  it("allows protected shells through the explicit non-production E2E auth seam", async () => {
+    redirectMock.mockClear();
+
+    await expect(
+      requireProtectedPageAccess({
+        e2eAuth: {
+          env: {
+            APOTH_E2E_AUTH_ENABLED: "1",
+            APOTH_E2E_AUTH_TOKEN: "opaque-local-e2e-token",
+            NODE_ENV: "development",
+          },
+          headerValue: "opaque-local-e2e-token",
+        },
+        pathname: "/dashboard",
+        token: null,
+      }),
+    ).resolves.toBeUndefined();
+    expect(redirectMock).not.toHaveBeenCalled();
+  });
+
   it("uses the configured DynamoDB app-data table for the live repository path", async () => {
     const fetchMock = vi.fn(async (_url: string, init: { body: string }) => {
       expect(JSON.parse(init.body).TableName).toBe("apoth-staging-app");
@@ -118,6 +139,58 @@ describe("protected page access", () => {
       repository.get(patientProfileKey("cognito-sub-0123456789abcdef")),
     ).resolves.toEqual({ ok: true, value: null });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("E2E protected route bypass", () => {
+  it.each([
+    ["disabled by default", {}, "opaque-local-e2e-token"],
+    [
+      "disabled in production",
+      {
+        APOTH_E2E_AUTH_ENABLED: "1",
+        APOTH_E2E_AUTH_TOKEN: "opaque-local-e2e-token",
+        NODE_ENV: "production",
+      },
+      "opaque-local-e2e-token",
+    ],
+    [
+      "rejects missing token configuration",
+      {
+        APOTH_E2E_AUTH_ENABLED: "1",
+        NODE_ENV: "development",
+      },
+      "opaque-local-e2e-token",
+    ],
+    [
+      "rejects wrong header token",
+      {
+        APOTH_E2E_AUTH_ENABLED: "1",
+        APOTH_E2E_AUTH_TOKEN: "opaque-local-e2e-token",
+        NODE_ENV: "development",
+      },
+      "wrong-token",
+    ],
+  ])("%s", async (_name, env, headerValue) => {
+    await expect(
+      allowsE2eProtectedRouteBypass({
+        env,
+        headerValue,
+      }),
+    ).toBe(false);
+  });
+
+  it("allows only an exact matching token outside production", async () => {
+    await expect(
+      allowsE2eProtectedRouteBypass({
+        env: {
+          APOTH_E2E_AUTH_ENABLED: "1",
+          APOTH_E2E_AUTH_TOKEN: "opaque-local-e2e-token",
+          NODE_ENV: "development",
+        },
+        headerValue: "opaque-local-e2e-token",
+      }),
+    ).toBe(true);
   });
 });
 

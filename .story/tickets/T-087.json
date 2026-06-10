@@ -1,0 +1,18 @@
+{
+  "blockedBy": [
+    "T-085",
+    "T-013",
+    "T-015",
+    "T-016"
+  ],
+  "claimedBySession": "b12bf652-61c3-4189-959e-a318f0e68374",
+  "completedDate": "2026-06-10",
+  "createdDate": "2026-06-09",
+  "description": "Exercise patient authentication and protected product routes in a browser while keeping live Cognito usage out of the default local suite.\n\n**Scope**\n- Cover sign-up, sign-in, reset-password, verify-email, sign-out, and signed-out redirect behavior for `/account`, `/dashboard`, `/billing`, and onboarding routes.\n- Use a deterministic local auth test seam or mocked Cognito session fixture for default E2E runs.\n- Add an optional staging smoke profile that can use approved secret-store test credentials without committing credentials or relying on real patient data.\n- Assert secure session-cookie behavior and redirect gating at the browser level, complementing the existing Vitest contracts.\n\n**Acceptance**\n- Default auth E2E specs run locally without live Cognito credentials.\n- Protected routes redirect unauthenticated users and allow authenticated synthetic sessions to reach the expected shell/state.\n- Sign-out clears the browser session and returns protected routes to signed-out behavior.\n- Any staging credentials are referenced only through environment variables or approved secret retrieval, never fixtures committed to the repo.",
+  "id": "T-087",
+  "order": 30,
+  "phase": "playwright-e2e",
+  "status": "complete",
+  "title": "Auth and protected-route E2E specs with Cognito-safe test seams",
+  "type": "task"
+}

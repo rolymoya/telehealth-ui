@@ -1,6 +1,6 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
   resolveCognitoAuthConfig,
@@ -13,6 +13,10 @@ import {
   resolveDynamoDbAppDataConfig,
 } from "@/lib/dynamodb/app-data-dynamodb";
 import { signInRedirectFor } from "@/lib/onboarding-gates";
+import {
+  e2eAuthHeaderName,
+  type E2eProtectedRouteBypassInput,
+} from "@/lib/e2e-auth";
 import type { AppDataReadRepository } from "@/lib/onboarding-status";
 import { evaluateProtectedRouteAccess } from "@/lib/protected-routes";
 
@@ -21,6 +25,7 @@ export const currentConsentVersion = "2026-06-legal-v1";
 export type ProtectedPageAccessInput = {
   config?: CognitoAuthConfig;
   consentVersion?: string;
+  e2eAuth?: E2eProtectedRouteBypassInput;
   now?: Date;
   pathname: string;
   repository?: AppDataReadRepository;
@@ -32,6 +37,10 @@ export type ProtectedPageAccessInput = {
 export async function requireProtectedPageAccess(
   input: ProtectedPageAccessInput,
 ): Promise<void> {
+  if (await allowsE2eProtectedRouteBypass(input.e2eAuth)) {
+    return;
+  }
+
   const token = input.token === undefined
     ? await readAccessCookie()
     : input.token;
@@ -64,6 +73,30 @@ export async function requireProtectedPageAccess(
 async function readAccessCookie() {
   const cookieStore = await cookies();
   return cookieStore.get(patientAccessCookieName)?.value ?? null;
+}
+
+export async function allowsE2eProtectedRouteBypass(
+  input: E2eProtectedRouteBypassInput = {},
+) {
+  const e2eAuthEnabled = input.env?.APOTH_E2E_AUTH_ENABLED
+    ?? process.env.APOTH_E2E_AUTH_ENABLED;
+  const e2eAuthNodeEnv = input.env?.NODE_ENV ?? process.env.NODE_ENV;
+  const e2eAuthToken = (
+    input.env?.APOTH_E2E_AUTH_TOKEN ?? process.env.APOTH_E2E_AUTH_TOKEN
+  )?.trim();
+  if (
+    e2eAuthNodeEnv === "production" ||
+    e2eAuthEnabled !== "1" ||
+    !e2eAuthToken
+  ) {
+    return false;
+  }
+
+  const headerValue = input.headerValue === undefined
+    ? (await headers()).get(e2eAuthHeaderName)
+    : input.headerValue;
+
+  return headerValue === e2eAuthToken;
 }
 
 function requireCognitoAuthConfig() {

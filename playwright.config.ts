@@ -1,9 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 
 const localBaseURL = "http://127.0.0.1:3000";
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
 const baseURL = externalBaseURL ?? localBaseURL;
+const e2eAuthToken = process.env.APOTH_E2E_AUTH_TOKEN ?? `apoth-e2e-${randomUUID()}`;
+process.env.APOTH_E2E_AUTH_TOKEN = e2eAuthToken;
 const isCI = Boolean(process.env.CI);
+const reuseExistingServer = process.env.PLAYWRIGHT_REUSE_SERVER === "1";
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -35,7 +39,12 @@ export default defineConfig({
     ? undefined
     : {
         command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
-        reuseExistingServer: !isCI,
+        env: {
+          ...process.env,
+          APOTH_E2E_AUTH_ENABLED: "1",
+          APOTH_E2E_AUTH_TOKEN: e2eAuthToken,
+        },
+        reuseExistingServer,
         timeout: 120_000,
         url: localBaseURL,
       },
