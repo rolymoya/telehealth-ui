@@ -1,15 +1,16 @@
 {
   "blockedBy": [
     "T-017",
-    "T-018"
+    "T-018",
+    "T-093"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Implement only the pre-MDI eligibility checks Apoth needs for routing and patient safety; MDI remains the clinical system of record.\n\n**Scope**\n- Add age/condition/offering prechecks that determine whether a user may proceed to MDI-backed intake.\n- Keep state-of-residence handling limited to capture/validation for clinician and pharmacy routing; all 50 U.S. states are in launch scope.\n- Keep any deep clinical questionnaire answers transient in request/component state until submitted to MDI.\n- Add tests that fail if answers are written to DynamoDB, Stripe metadata, logs, analytics, or local storage after submission.\n\n**Acceptance**\n- Eligibility tests cover pass, fail, and incomplete states without using unsupported-state allowlists.\n- Failed precheck creates no Stripe customer/subscription and no MDI case.\n- Successful MDI submission leaves only pointers/status in Apoth storage.",
+  "description": "Implement the pre-MDI residency and lightweight eligibility screen Apoth needs for routing and patient safety; MDI remains the clinical system of record.\n\n**Scope**\n- Replace the intake placeholder with a patient-facing residency/eligibility step before MDI questionnaire rendering.\n- Add age/condition/offering prechecks that determine whether a user may proceed to MDI-backed intake.\n- Capture, normalize, and validate state of residence for clinician assignment, pharmacy routing, consent evidence, and support workflows; all 50 U.S. states are in launch scope.\n- Treat invalid or missing state values as incomplete intake data, not unsupported-state refusals.\n- Keep any deep clinical questionnaire answers transient in request/component state until submitted to MDI.\n- Add tests that fail if answers are written to DynamoDB, Stripe metadata, logs, analytics, or local storage after submission.\n\n**Acceptance**\n- The intake route presents and validates the residency/eligibility step after current consent is accepted.\n- Eligibility tests cover pass, fail, and incomplete states without using unsupported-state allowlists.\n- Residency tests cover valid state normalization plus missing/invalid state validation.\n- Failed precheck creates no Stripe customer/subscription and no MDI case.\n- Successful MDI submission leaves only pointers/status in Apoth storage.",
   "id": "T-021",
   "order": 50,
   "phase": "intake-flow",
   "status": "open",
-  "title": "Lightweight eligibility screening + no-answer-retention tests",
+  "title": "Eligibility and residency intake screen",
   "type": "task"
 }

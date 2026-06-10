@@ -38,11 +38,11 @@
       "summary": "Patient auth, sessions, account/profile"
     },
     {
-      "description": "Replace the /get-started stub with the real Cognito-gated patient intake flow: route structure, error/404/loading routes, state-availability logic, lightweight eligibility screening, MDI-provided questionnaire UI, submit-to-MDI handoff, and no local questionnaire-answer retention after successful submission.",
+      "description": "Replace the /get-started stub with the real Cognito-gated patient intake flow: route structure, error/404/loading routes, consent acceptance, residency capture, lightweight eligibility screening, MDI-provided questionnaire UI, submit-to-MDI handoff, and no local questionnaire-answer retention after successful submission.",
       "id": "intake-flow",
       "label": "PHASE 5",
       "name": "Intake Flow",
-      "summary": "Real intake flow + eligibility gating"
+      "summary": "Real intake flow + consent, residency, eligibility"
     },
     {
       "description": "Stripe payment processor integration under the thin-PHI boundary: account and SDK setup, opaque non-PHI metadata policy, payment-method/checkout flow that cannot charge before the selected MDI clinical approval event, webhook handling with DynamoDB idempotency, and refunds/cancellation handling matching the Terms matrix.",

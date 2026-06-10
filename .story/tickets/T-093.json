@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-018",
+    "T-047"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-06-10",
+  "description": "Turn the protected consent placeholder into the real required-consent step for intake.\n\n**Scope**\n- Render current required consent versions for Terms, Privacy/NPP, telehealth consent, and any launch disclosure versions defined by T-047.\n- Add an acceptance action that writes consent evidence through the minimal DynamoDB consent record path.\n- Redirect accepted users to the next incomplete onboarding step and re-prompt when a required consent version changes.\n- Keep evidence records limited to version/timestamp and approved operational metadata; do not store questionnaire answers or clinical content.\n\n**Acceptance**\n- Users cannot proceed to intake until current required consents are accepted.\n- Accepting consent writes the expected minimal evidence record and advances onboarding without creating MDI or Stripe side effects.\n- Version bumps cause a re-prompt on the next authenticated visit.\n- Tests cover accept, already-current, and stale-version paths.",
+  "id": "T-093",
+  "order": 45,
+  "phase": "intake-flow",
+  "status": "open",
+  "title": "Consent acceptance screen and evidence write",
+  "type": "task"
+}
