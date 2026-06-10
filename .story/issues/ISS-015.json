@@ -8,9 +8,9 @@
   "location": [],
   "phase": null,
   "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Split evidence-specific event schema definitions out of the large general DynamoDB app-data module into src/lib/dynamodb/evidence-schema.ts. app-data.ts now imports the schema for validation and re-exports the public evidence types to preserve existing callers, while record shapes and repository behavior remain in app-data.ts.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[maintainability] Evidence-specific definitions could eventually be split from the large general a"
 }
