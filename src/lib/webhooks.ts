@@ -106,6 +106,7 @@ export type WebhookProcessingRepository = {
     now: string;
     deliverySource?: "provider" | "queue";
     expectedAttempts?: number;
+    processingLeaseSeconds?: number;
     maxAttempts?: number;
   }): Promise<{ outcome: WebhookClaimState; record: ClaimedWebhookRecord }>;
   markProcessed(input: {
@@ -347,6 +348,7 @@ export async function processVerifiedWebhook(input: {
   enqueue?: (message: WebhookQueueMessage) => Promise<void>;
   deliverySource?: "provider" | "queue";
   queueMessageAttempt?: number;
+  processingLeaseSeconds?: number;
   retryBackoffSeconds?: number;
   maxAttempts?: number;
   clock?: () => string;
@@ -360,6 +362,7 @@ export async function processVerifiedWebhook(input: {
     now: input.now,
     deliverySource,
     expectedAttempts: deliverySource === "queue" ? input.queueMessageAttempt : undefined,
+    processingLeaseSeconds: input.processingLeaseSeconds,
     maxAttempts,
   });
 

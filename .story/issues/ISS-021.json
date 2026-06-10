@@ -8,9 +8,9 @@
   "location": [],
   "phase": null,
   "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Exposed processingLeaseSeconds on WebhookProcessingRepository.claim and processVerifiedWebhook, then passed the value through to claim adapters so callers can configure processing lease duration without bypassing the repository abstraction. Added a regulated invariant test covering queue delivery claim inputs with a custom lease.",
+  "resolvedDate": "2026-06-10",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[clean-code] WebhookProcessingRepository.claim does not expose processingLeaseSeconds althoug"
 }

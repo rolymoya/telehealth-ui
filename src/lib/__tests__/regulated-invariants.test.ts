@@ -942,6 +942,53 @@ describe("regulated launch invariants", () => {
     ).rejects.toThrow("Webhook claim is no longer current");
   });
 
+  it("passes custom processing lease seconds through the webhook repository claim", async () => {
+    const envelope: VerifiedWebhookEnvelope = {
+      provider: "stripe",
+      eventId: "evt_opaque_custom_lease_001",
+      eventCategory: "billing",
+      routeCode: "stripe.billing",
+      receivedAt: "2026-06-05T12:00:00.000Z",
+    };
+    const claim = vi.fn(async () => ({
+      outcome: "claimed" as const,
+      record: {
+        provider: "stripe" as const,
+        eventId: "evt_opaque_custom_lease_001",
+        status: "processing" as const,
+        retryable: false,
+        attempts: 1,
+        processingExpiresAt: "2026-06-05T12:02:00.000Z",
+      },
+    }));
+
+    await expect(
+      processTestWebhook({
+        envelope,
+        now: "2026-06-05T12:00:00.000Z",
+        deliverySource: "queue",
+        queueMessageAttempt: 2,
+        processingLeaseSeconds: 120,
+        repository: {
+          claim,
+          markProcessed: async () => {},
+          markFailed: async () => {},
+        },
+        handler: async () => ({ outcome: "processed" }),
+      }),
+    ).resolves.toEqual({ status: "accepted", action: "processed" });
+
+    expect(claim).toHaveBeenCalledWith({
+      provider: "stripe",
+      eventId: "evt_opaque_custom_lease_001",
+      now: "2026-06-05T12:00:00.000Z",
+      deliverySource: "queue",
+      expectedAttempts: 2,
+      processingLeaseSeconds: 120,
+      maxAttempts: 3,
+    });
+  });
+
   it("reports queue-owner promotion failures after enqueue without reprocessing", async () => {
     const envelope: VerifiedWebhookEnvelope = {
       provider: "stripe",
