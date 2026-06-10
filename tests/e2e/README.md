@@ -42,3 +42,5 @@ directory.
   clinical content is not.
 - Failed runs retain traces and full-page screenshots. CI also writes JUnit,
   HTML, and blob reports for artifact upload.
+- Put shared helpers under `tests/e2e/support` and keep them generic enough for
+  local, CI, and staging smoke profiles.
