@@ -82,6 +82,38 @@ describe("protected route access helper", () => {
     });
   });
 
+  it("allows precheck-complete patients to reach the MDI onboarding step", async () => {
+    const repository = createInMemoryAppDataRepository();
+    repository.put(createPatientProfileRecord({
+      cognitoSub: "cognito-sub-0123456789abcdef",
+      onboardingStatus: "intake_ready",
+      now: nowIso,
+      residencyState: "IL",
+    }));
+    recordCurrentConsentAcceptance(repository, {
+      acceptedAt: nowIso,
+      cognitoSub: "cognito-sub-0123456789abcdef",
+      now: nowIso,
+    });
+
+    await expect(
+      evaluateProtectedRouteAccess({
+        config,
+        consentVersion: "unused-compat-version",
+        now,
+        pathname: "/onboarding/mdi",
+        repository,
+        token: "valid-token",
+        verifier: validVerifier(),
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        decision: "allow",
+      },
+    });
+  });
+
   it("fails closed on DynamoDB status read errors", async () => {
     const repository = createInMemoryAppDataRepository([
       {
@@ -122,7 +154,7 @@ describe("protected route access helper", () => {
         config,
         consentVersion: "unused-compat-version",
         now,
-        pathname: "/intake",
+        pathname: "/onboarding/mdi",
         repository: createInMemoryAppDataRepository(),
         token: "valid-token",
         verifier: validVerifier(),

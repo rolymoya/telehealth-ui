@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:static": "node scripts/assert-static-compatible.mjs && next build && node scripts/export-static-routes.mjs",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",

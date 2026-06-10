@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   FormEvent,
   InputHTMLAttributes,
@@ -162,6 +162,7 @@ function SignInForm({
   client: PatientAuthAdapter;
   returnTo?: string | null;
 }) {
+  const resolvedReturnTo = useResolvedReturnTo(returnTo);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -176,7 +177,7 @@ function SignInForm({
       onSuccess: (value) => {
         setChallenge(value);
         setStatus(value.status === "signed_in" ? "Signed in." : "MFA verification required.");
-        redirectAfterSignIn(value, returnTo);
+        redirectAfterSignIn(value, resolvedReturnTo);
       },
       action: () =>
         client.signIn({
@@ -198,7 +199,7 @@ function SignInForm({
       onSuccess: (value) => {
         setChallenge(value);
         setStatus(value.status === "signed_in" ? "Signed in." : "MFA verification required.");
-        redirectAfterSignIn(value, returnTo);
+        redirectAfterSignIn(value, resolvedReturnTo);
       },
       action: () =>
         client.completeTotpChallenge({
@@ -233,6 +234,22 @@ function SignInForm({
       <SecondaryLink href="/sign-up">Create an account</SecondaryLink>
     </form>
   );
+}
+
+function useResolvedReturnTo(returnTo: string | null | undefined) {
+  const [resolvedReturnTo, setResolvedReturnTo] = useState(returnTo);
+
+  useEffect(() => {
+    if (returnTo !== undefined) {
+      setResolvedReturnTo(returnTo);
+      return;
+    }
+
+    const params = new URLSearchParams(globalThis.location?.search ?? "");
+    setResolvedReturnTo(params.get("returnTo"));
+  }, [returnTo]);
+
+  return resolvedReturnTo;
 }
 
 function ResetPasswordForm({ client }: { client: PatientAuthAdapter }) {

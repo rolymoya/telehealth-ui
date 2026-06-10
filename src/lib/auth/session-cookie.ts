@@ -9,8 +9,12 @@ import {
   verifyCognitoAccessToken,
   type AuthTokenVerifier,
 } from "@/lib/auth";
+import {
+  patientAccessCookieAttributes,
+  patientAccessCookieName,
+} from "../../../shared/auth/session-cookie";
 
-export const patientAccessCookieName = "__Host-apoth_access";
+export { patientAccessCookieAttributes, patientAccessCookieName };
 
 export type AuthSessionCookie = {
   httpOnly: true;
@@ -59,10 +63,10 @@ export async function createAuthSessionCookie(input: {
 
   return authOk({
     cookie: {
-      httpOnly: true,
+      httpOnly: patientAccessCookieAttributes.httpOnly,
       maxAge,
       name: patientAccessCookieName,
-      path: "/",
+      path: patientAccessCookieAttributes.path,
       sameSite: "lax",
       secure: input.secure,
       value: input.token,
@@ -82,7 +86,7 @@ export function createClearedAuthSessionCookie(input: {
     httpOnly: true,
     maxAge: 0,
     name: patientAccessCookieName,
-    path: "/",
+    path: patientAccessCookieAttributes.path,
     sameSite: "lax",
     secure: input.secure,
     value: "",

@@ -61,6 +61,36 @@ describe("onboarding status snapshot reads", () => {
     });
   });
 
+  it("includes residency state as the intake precheck completion marker", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    repository.put(createPatientProfileRecord({
+      cognitoSub,
+      onboardingStatus: "intake_ready",
+      now,
+      residencyState: "IL",
+    }));
+    recordCurrentConsentAcceptance(repository, {
+      cognitoSub,
+      acceptedAt: now,
+      now,
+    });
+
+    expect(
+      readOnboardingGateSnapshot(repository, {
+        cognitoSub,
+        consentVersion: "unused-compat-version",
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        consentAccepted: true,
+        onboardingStatus: "intake_ready",
+        residencyState: "IL",
+      },
+    });
+  });
+
   it("treats missing records as incomplete status without creating data", () => {
     const repository = createInMemoryAppDataRepository();
 

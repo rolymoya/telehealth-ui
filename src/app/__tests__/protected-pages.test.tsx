@@ -14,16 +14,25 @@ vi.mock("@/lib/protected-page", () => ({
 describe("protected app pages", () => {
   it.each([
     ["account", AccountPage, "/account"],
-    ["billing", BillingPage, "/billing"],
-    ["dashboard", DashboardPage, "/dashboard"],
-    ["intake", IntakePage, "/intake"],
-    ["consent", ConsentPage, "/onboarding/consent"],
-    ["mdi", MdiHandoffPage, "/onboarding/mdi"],
   ])("requires verified route access before rendering %s", async (_name, Page, pathname) => {
     vi.mocked(requireProtectedPageAccess).mockClear();
 
     await Page();
 
     expect(requireProtectedPageAccess).toHaveBeenCalledWith({ pathname });
+  });
+
+  it.each([
+    ["billing", BillingPage],
+    ["dashboard", DashboardPage],
+    ["intake", IntakePage],
+    ["consent", ConsentPage],
+    ["mdi", MdiHandoffPage],
+  ])("keeps %s as a static shell without server-side route access", async (_name, Page) => {
+    vi.mocked(requireProtectedPageAccess).mockClear();
+
+    await Page();
+
+    expect(requireProtectedPageAccess).not.toHaveBeenCalled();
   });
 });

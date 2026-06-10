@@ -212,6 +212,5 @@ const defaultProtectedPrefixes = [
   "/account",
   "/billing",
   "/dashboard",
-  "/intake",
   "/onboarding",
 ];

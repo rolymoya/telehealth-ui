@@ -7,6 +7,7 @@ import {
   type ConsentRequirementStatus,
   type RequiredConsentDocument,
 } from "@/lib/consents";
+import { isUsStateCode, type UsStateCode } from "../../../shared/intake/us-states";
 import {
   evidenceEventSchema,
   type EvidenceActorType,
@@ -79,6 +80,7 @@ export type PatientProfileRecord = BaseRecord & {
   recordType: "patientProfile";
   cognitoSub: string;
   onboardingStatus: OnboardingStatus;
+  residencyState?: UsStateCode;
 };
 
 export type MdiLinkageRecord = BaseRecord & {
@@ -535,6 +537,7 @@ export function createPatientProfileRecord(input: {
   cognitoSub: string;
   onboardingStatus: OnboardingStatus;
   now: string;
+  residencyState?: UsStateCode;
 }): PatientProfileRecord {
   return {
     ...patientProfileKey(input.cognitoSub),
@@ -542,6 +545,7 @@ export function createPatientProfileRecord(input: {
     schemaVersion: 1,
     cognitoSub: input.cognitoSub,
     onboardingStatus: input.onboardingStatus,
+    ...(input.residencyState ? { residencyState: input.residencyState } : {}),
     createdAt: input.now,
     updatedAt: input.now,
   };
@@ -1549,6 +1553,88 @@ export function transitionOnboardingStatus(
   return repository.update(record, { expected: existing.value });
 }
 
+export function completeIntakePrecheckProfile(
+  repository: AppDataRepository,
+  input: {
+    cognitoSub: string;
+    now: string;
+    residencyState: UsStateCode;
+  },
+): AppDataResult<PatientProfileRecord> {
+  const existing = repository.get(patientProfileKey(input.cognitoSub));
+  if (!existing.ok) {
+    return existing;
+  }
+  if (!existing.value) {
+    const created = createPatientProfileRecord({
+      cognitoSub: input.cognitoSub,
+      now: input.now,
+      onboardingStatus: "intake_ready",
+      residencyState: input.residencyState,
+    });
+    const put = repository.put(created, { ifNotExists: true });
+    return put.ok || put.error.kind !== "conditional_conflict"
+      ? put
+      : readCompletedIntakePrecheckProfile(repository, input);
+  }
+  if (existing.value.recordType !== "patientProfile") {
+    return err("validation_failed", "Patient profile key contains another record type");
+  }
+  if (
+    existing.value.onboardingStatus !== "profile_pending" &&
+    existing.value.onboardingStatus !== "intake_ready"
+  ) {
+    return ok(existing.value);
+  }
+  if (
+    existing.value.onboardingStatus === "intake_ready" &&
+    existing.value.residencyState === input.residencyState
+  ) {
+    return ok(existing.value);
+  }
+  if (
+    existing.value.onboardingStatus === "intake_ready" &&
+    existing.value.residencyState &&
+    existing.value.residencyState !== input.residencyState
+  ) {
+    return err("stale_transition", "Residency state did not match existing intake-ready profile");
+  }
+
+  const next: PatientProfileRecord = {
+    ...existing.value,
+    onboardingStatus: "intake_ready",
+    residencyState: input.residencyState,
+    updatedAt: input.now,
+  };
+  const updated = repository.update(next, { expected: existing.value });
+  return updated.ok || updated.error.kind !== "conditional_conflict"
+    ? updated
+    : readCompletedIntakePrecheckProfile(repository, input);
+}
+
+function readCompletedIntakePrecheckProfile(
+  repository: AppDataRepository,
+  input: {
+    cognitoSub: string;
+    residencyState: UsStateCode;
+  },
+): AppDataResult<PatientProfileRecord> {
+  const reread = repository.get(patientProfileKey(input.cognitoSub));
+  if (!reread.ok) {
+    return reread;
+  }
+  if (!reread.value || reread.value.recordType !== "patientProfile") {
+    return err("conditional_conflict", "Intake profile write conflicted but no profile could be read");
+  }
+  if (
+    reread.value.onboardingStatus === "intake_ready" &&
+    reread.value.residencyState === input.residencyState
+  ) {
+    return ok(reread.value);
+  }
+  return err("conditional_conflict", "Intake profile write conflicted before residency was current");
+}
+
 export function validateAppDataRecord(
   record: unknown,
 ): AppDataResult<AppDataRecord> {
@@ -1595,6 +1681,7 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
     case "patientProfile":
       return typeof record.cognitoSub === "string" &&
         isOnboardingStatus(record.onboardingStatus) &&
+        optionalUsStateCode(record.residencyState) &&
         keysMatch(record, patientProfileKey(record.cognitoSub))
         ? ok(record)
         : err("validation_failed", "Invalid patient profile record");
@@ -2258,6 +2345,10 @@ function isOnboardingStatus(value: unknown): value is OnboardingStatus {
   return onboardingStatuses.has(value as OnboardingStatus);
 }
 
+function optionalUsStateCode(value: unknown): value is UsStateCode | undefined {
+  return value === undefined || isUsStateCode(value);
+}
+
 function isBillingStatus(value: unknown): value is BillingStatus {
   return billingStatuses.has(value as BillingStatus);
 }
@@ -2542,7 +2633,7 @@ const baseFields = [
 ];
 
 const allowedFields: Record<string, Set<string>> = {
-  patientProfile: allow("cognitoSub", "onboardingStatus"),
+  patientProfile: allow("cognitoSub", "onboardingStatus", "residencyState"),
   mdiLinkage: allow("cognitoSub", "mdiPatientId", "mdiCaseId"),
   mdiReverseLookup: allow("cognitoSub", "pointerType", "mdiPatientId", "mdiCaseId"),
   stripeLinkage: allow(

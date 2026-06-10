@@ -46,12 +46,16 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
     template.resourceCountIs("AWS::DynamoDB::Table", 1);
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 3);
+    template.resourceCountIs("AWS::Lambda::Function", 8);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
     template.resourceCountIs("AWS::CloudWatch::Dashboard", 1);
+    template.resourceCountIs("AWS::CloudFront::Distribution", 1);
+    template.resourceCountIs("AWS::CloudFront::Function", 1);
+    template.resourceCountIs("AWS::CloudFront::OriginAccessControl", 1);
     template.resourceCountIs("AWS::Events::Rule", 1);
+    template.resourceCountIs("AWS::S3::Bucket", 1);
     template.resourceCountIs("AWS::SQS::Queue", 2);
 
     const queues = Object.values(resources).filter(
@@ -78,7 +82,7 @@ describe("ServerlessPlatformStack", () => {
     expect(dlq?.Properties.RedrivePolicy).toBeUndefined();
   });
 
-  it("keeps health public and protects the authenticated bootstrap route", () => {
+  it("keeps health public and protects authenticated API routes", () => {
     const template = synthesizeTemplate();
 
     template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
@@ -91,6 +95,193 @@ describe("ServerlessPlatformStack", () => {
       AuthorizationType: "JWT",
       AuthorizerId: Match.anyValue(),
     });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "GET /api/intake/bootstrap",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "POST /api/intake/precheck",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "POST /api/auth/session",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "DELETE /api/auth/session",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "POST /api/onboarding/consent",
+      AuthorizationType: "NONE",
+    });
+  });
+
+  it("creates cookie-verified intake API lambdas with bounded table access", () => {
+    const template = synthesizeTemplate();
+
+    for (const [functionName, handler] of [
+      ["apoth-staging-intake-bootstrap", "index.bootstrapHandler"],
+      ["apoth-staging-intake-precheck", "index.precheckHandler"],
+    ]) {
+      template.hasResourceProperties("AWS::Lambda::Function", {
+        FunctionName: functionName,
+        Handler: handler,
+        Runtime: "nodejs20.x",
+        Timeout: 10,
+        Environment: {
+          Variables: {
+            APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
+            APOTH_ALLOWED_ORIGINS: Match.anyValue(),
+            APOTH_STAGE: "staging",
+            APP_TABLE_NAME: Match.anyValue(),
+            COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
+            COGNITO_USER_POOL_ID: Match.anyValue(),
+          },
+        },
+      });
+    }
+
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+    expect(policies).toContain("dynamodb:GetItem");
+    expect(policies).toContain("dynamodb:PutItem");
+    expect(policies).toContain("dynamodb:UpdateItem");
+    expect(policies).not.toContain("dynamodb:DeleteItem");
+  });
+
+  it("creates static auth session API lambdas for same-origin cookie management", () => {
+    const template = synthesizeTemplate();
+
+    for (const [functionName, handler] of [
+      ["apoth-staging-auth-session-post", "index.postHandler"],
+      ["apoth-staging-auth-session-delete", "index.deleteHandler"],
+    ]) {
+      template.hasResourceProperties("AWS::Lambda::Function", {
+        FunctionName: functionName,
+        Handler: handler,
+        Runtime: "nodejs20.x",
+        Timeout: 10,
+        Environment: {
+          Variables: {
+            APOTH_STAGE: "staging",
+            COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
+            COGNITO_USER_POOL_ID: Match.anyValue(),
+          },
+        },
+      });
+    }
+  });
+
+  it("creates static consent acceptance API lambda with bounded table access", () => {
+    const template = synthesizeTemplate();
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-consent-acceptance",
+      Handler: "index.acceptHandler",
+      Runtime: "nodejs20.x",
+      Timeout: 10,
+      Environment: {
+        Variables: {
+          APP_TABLE_NAME: Match.anyValue(),
+          APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
+          APOTH_ALLOWED_ORIGINS: Match.anyValue(),
+          APOTH_STAGE: "staging",
+          COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
+          COGNITO_USER_POOL_ID: Match.anyValue(),
+        },
+      },
+    });
+
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+    expect(policies).toContain("dynamodb:TransactWriteItems");
+    expect(policies).not.toContain("dynamodb:DeleteItem");
+  });
+
+  it("serves static assets and same-origin API paths through CloudFront", () => {
+    const template = synthesizeTemplate();
+    const resources = template.toJSON().Resources as Record<string, SynthResource>;
+
+    template.hasResourceProperties("AWS::S3::Bucket", {
+      BucketName: "apoth-staging-static-assets",
+      BucketEncryption: {
+        ServerSideEncryptionConfiguration: [
+          {
+            ServerSideEncryptionByDefault: {
+              SSEAlgorithm: "AES256",
+            },
+          },
+        ],
+      },
+      PublicAccessBlockConfiguration: {
+        BlockPublicAcls: true,
+        BlockPublicPolicy: true,
+        IgnorePublicAcls: true,
+        RestrictPublicBuckets: true,
+      },
+    });
+
+    template.hasResourceProperties("AWS::CloudFront::Distribution", {
+      DistributionConfig: Match.objectLike({
+        DefaultCacheBehavior: Match.objectLike({
+          FunctionAssociations: [
+            {
+              EventType: "viewer-request",
+              FunctionARN: Match.anyValue(),
+            },
+          ],
+          ViewerProtocolPolicy: "redirect-to-https",
+        }),
+        CacheBehaviors: Match.arrayWith([
+          Match.objectLike({
+            AllowedMethods: [
+              "GET",
+              "HEAD",
+              "OPTIONS",
+              "PUT",
+              "PATCH",
+              "POST",
+              "DELETE",
+            ],
+            PathPattern: "api/*",
+            ViewerProtocolPolicy: "redirect-to-https",
+          }),
+        ]),
+      }),
+    });
+
+    const distribution = Object.values(resources).find(
+      (resource) => resource.Type === "AWS::CloudFront::Distribution",
+    ) as SynthResource & {
+      Properties: { DistributionConfig: { Origins: unknown[] } };
+    } | undefined;
+    expect(JSON.stringify(distribution?.Properties.DistributionConfig.Origins))
+      .toContain("execute-api");
+
+    template.hasResourceProperties("AWS::CloudFront::Function", {
+      Name: "apoth-staging-static-clean-routes",
+      FunctionCode: Match.stringLikeRegexp('/index\\.html'),
+    });
+  });
+
+  it("allows runtime API posts from the generated static distribution origin", () => {
+    const template = synthesizeTemplate();
+    const rendered = JSON.stringify(
+      Object.values(template.findResources("AWS::Lambda::Function")),
+    );
+
+    expect(rendered).toContain("APOTH_ALLOWED_ORIGINS");
+    expect(rendered).toContain("http://localhost:3000");
+    expect(rendered).toContain("StaticWebDistribution");
+    expect(rendered).toContain("DomainName");
   });
 
   it("creates a bounded scheduled heartbeat job", () => {
@@ -200,12 +391,16 @@ describe("ServerlessPlatformStack", () => {
 
     stagingTemplate.hasResourceProperties("AWS::ApiGatewayV2::Api", {
       CorsConfiguration: {
+        AllowCredentials: true,
+        AllowHeaders: Match.arrayWith(["x-apoth-csrf"]),
         AllowOrigins: ["http://localhost:3000"],
       },
     });
 
     productionTemplate.hasResourceProperties("AWS::ApiGatewayV2::Api", {
       CorsConfiguration: {
+        AllowCredentials: true,
+        AllowHeaders: Match.arrayWith(["x-apoth-csrf"]),
         AllowOrigins: ["https://apoth.health"],
       },
     });
@@ -405,6 +600,8 @@ describe("ServerlessPlatformStack", () => {
     for (const logGroupName of [
       "/aws/lambda/apoth-staging-health",
       "/aws/lambda/apoth-staging-authenticated-bootstrap",
+      "/aws/lambda/apoth-staging-intake-bootstrap",
+      "/aws/lambda/apoth-staging-intake-precheck",
       "/aws/lambda/apoth-staging-scheduled-heartbeat",
       "/aws/apigateway/apoth-staging-api-access",
     ]) {
@@ -415,7 +612,7 @@ describe("ServerlessPlatformStack", () => {
     }
   });
 
-  it("grants data permissions only to the scheduled heartbeat job", () => {
+  it("grants bounded DynamoDB data permissions to runtime jobs", () => {
     const resources = synthesizeTemplate().toJSON().Resources as Record<
       string,
       SynthResource
@@ -424,17 +621,17 @@ describe("ServerlessPlatformStack", () => {
       (resource) => resource.Type === "AWS::IAM::Policy",
     );
 
-    expect(policies).toHaveLength(1);
     const statements = policies.flatMap((policy) =>
       Array.isArray(policy.Properties.PolicyDocument?.Statement)
         ? policy.Properties.PolicyDocument.Statement
         : [],
     );
-    expect(statements).toHaveLength(1);
-    expect(statements[0]).toMatchObject({
-      Action: "dynamodb:UpdateItem",
-      Effect: "Allow",
-    });
+    const rendered = JSON.stringify(statements);
+    expect(rendered).toContain("dynamodb:GetItem");
+    expect(rendered).toContain("dynamodb:PutItem");
+    expect(rendered).toContain("dynamodb:UpdateItem");
+    expect(rendered).not.toContain("dynamodb:DeleteItem");
+    expect(rendered).not.toContain("dynamodb:Scan");
   });
 
   it("applies Apoth environment tags", () => {
@@ -524,7 +721,6 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::ECS::TaskDefinition", 0);
     template.resourceCountIs("AWS::AppRunner::Service", 0);
     template.resourceCountIs("AWS::ECR::Repository", 0);
-    template.resourceCountIs("AWS::S3::Bucket", 0);
   });
 
   it("outputs app integration identifiers", () => {
@@ -535,6 +731,8 @@ describe("ServerlessPlatformStack", () => {
       "PatientUserPoolClientId",
       "AppTableName",
       "ApiEndpoint",
+      "StaticAssetsBucketName",
+      "StaticWebDistributionDomainName",
       "WebhookQueueUrl",
       "WebhookQueueArn",
       "WebhookDeadLetterQueueUrl",

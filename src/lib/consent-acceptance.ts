@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth";
 import { patientAccessCookieName } from "@/lib/auth/session-cookie";
 import {
+  consentAcknowledgementFieldName,
   currentConsentVersion,
   currentRequiredConsents,
   type RequiredConsentDocument,
@@ -47,11 +48,7 @@ export type ConsentAcknowledgementInput =
   | FormData
   | Record<string, FormDataEntryValue | boolean | undefined>;
 
-export function consentAcknowledgementFieldName(
-  consent: RequiredConsentDocument,
-) {
-  return `consent:${consent.consentKind}:${consent.version}`;
-}
+export { consentAcknowledgementFieldName } from "@/lib/consents";
 
 export function validateCurrentConsentAcknowledgements(
   acknowledgements: ConsentAcknowledgementInput,

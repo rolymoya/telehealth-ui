@@ -21,6 +21,7 @@ export type OnboardingGateSnapshot = {
   mdiCaseId?: string;
   mdiPatientId?: string;
   onboardingStatus?: GateOnboardingStatus;
+  residencyState?: string;
 };
 
 export type RouteGateDecision =
@@ -92,7 +93,7 @@ export function earliestIncompleteOnboardingStep(
   if (
     !snapshot.onboardingStatus ||
     snapshot.onboardingStatus === "profile_pending" ||
-    snapshot.onboardingStatus === "intake_ready"
+    (snapshot.onboardingStatus === "intake_ready" && !snapshot.residencyState)
   ) {
     return "intake";
   }

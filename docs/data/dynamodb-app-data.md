@@ -28,7 +28,7 @@ not scan the table or put PHI into third-party metadata.
 
 | Record | Owner system | Key | Retention expectation | PHI posture |
 | --- | --- | --- | --- | --- |
-| Patient profile | Apoth/Cognito | `PATIENT#{cognitoSub}` / `PROFILE` | Keep while account is active; delete or archive per retention policy | Minimal account status only |
+| Patient profile | Apoth/Cognito | `PATIENT#{cognitoSub}` / `PROFILE` | Keep while account is active; delete or archive per retention policy | Minimal account status and routing state only |
 | MDI linkage | MDI/Apoth | `PATIENT#{cognitoSub}` / `MDI#LINKAGE` | Keep while care workflow is active and per legal retention policy | MDI pointer IDs only |
 | MDI reverse lookup | MDI/Apoth | `MDI#PATIENT#{mdiPatientId}` or `MDI#CASE#{mdiCaseId}` / `PATIENT` | Same as MDI linkage | Opaque reverse pointer only |
 | Stripe linkage | Stripe/Apoth | `PATIENT#{cognitoSub}` / `STRIPE#LINKAGE` | Keep while billing relationship is active and per finance/legal retention | Opaque Stripe IDs and billing status only |
@@ -52,6 +52,7 @@ record-type labels, or redacted presence booleans.
 | All app-data records | `pk`, `sk`, `recordType`, `schemaVersion`, `createdAt`, `updatedAt` | Apoth | Same as containing record | `recordType` and schema/version are code/log-safe; keys and timestamps are restricted |
 | Patient profile | `cognitoSub` | Cognito/Apoth | Keep while account is active; delete/archive per retention policy | Restricted; use stable request IDs or aggregate counts in logs |
 | Patient profile | `onboardingStatus` | Apoth | Keep while account is active | Code/log-safe when not combined with patient identifiers |
+| Patient profile | `residencyState` | Patient/Apoth | Keep while account is active; update when patient reconfirms residence | Restricted PHI-adjacent routing field; normalized two-letter U.S. state only, not an unsupported-state allowlist |
 | Consent evidence | `cognitoSub` | Cognito/Apoth | Keep per counsel-approved consent retention | Restricted |
 | Consent evidence | `consentKind`, `version`, `acceptedAt` | Apoth/legal content source | Keep per counsel-approved consent retention | Kind/version are code/log-safe when not combined with patient identifiers |
 | Consent evidence | `ipHash`, `userAgentHash` | Apoth | Keep only if counsel approves minimized evidence retention | Restricted; never log raw IP or raw user-agent values |
@@ -77,6 +78,9 @@ record-type labels, or redacted presence booleans.
 - Stripe owns payment instruments, charges, invoices, and subscriptions.
 - DynamoDB stores only Apoth linkage/status records needed to connect those
   systems.
+- `residencyState` is the only T-021 precheck value persisted locally. All 50
+  U.S. state codes are valid after normalization. Missing or invalid state input
+  is incomplete intake data, not an unsupported-state refusal.
 
 Never store condition names, symptoms, diagnoses, medication names,
 questionnaire answers, clinical notes, photos, labs, or clinician messages in

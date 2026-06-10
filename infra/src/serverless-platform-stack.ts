@@ -30,6 +30,21 @@ import { LogGroupLogDestination } from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import {
+  AllowedMethods,
+  CachePolicy,
+  Distribution,
+  Function as CloudFrontFunction,
+  FunctionCode,
+  FunctionEventType,
+  OriginProtocolPolicy,
+  OriginRequestPolicy,
+  ViewerProtocolPolicy,
+} from "aws-cdk-lib/aws-cloudfront";
+import {
+  HttpOrigin,
+  S3BucketOrigin,
+} from "aws-cdk-lib/aws-cloudfront-origins";
+import {
   Alarm,
   ComparisonOperator,
   Dashboard,
@@ -42,6 +57,11 @@ import {
 import { Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { LogGroup } from "aws-cdk-lib/aws-logs";
+import {
+  BlockPublicAccess,
+  Bucket,
+  BucketEncryption,
+} from "aws-cdk-lib/aws-s3";
 import { Queue, QueueEncryption } from "aws-cdk-lib/aws-sqs";
 import { CfnSecret } from "aws-cdk-lib/aws-secretsmanager";
 import type { Construct } from "constructs";
@@ -273,9 +293,10 @@ exports.handler = async () => ({
       apiName: `apoth-${props.config.stage}-api`,
       createDefaultStage: false,
       corsPreflight: {
-        allowHeaders: ["authorization", "content-type"],
+        allowHeaders: ["authorization", "content-type", "x-apoth-csrf"],
         allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.OPTIONS],
         allowOrigins: props.config.allowedOrigins,
+        allowCredentials: true,
         maxAge: Duration.days(1),
       },
     });
@@ -363,12 +384,292 @@ exports.handler = async () => ({
       authorizer: jwtAuthorizer,
     });
 
+    const intakeBootstrapFunction = new NodejsFunction(
+      this,
+      "IntakeBootstrapFunction",
+      {
+        functionName: `apoth-${props.config.stage}-intake-bootstrap`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "bootstrapHandler",
+        entry: path.join(__dirname, "lambda", "intake.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "IntakeBootstrapFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-intake-bootstrap`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(intakeBootstrapFunction, "dynamodb:GetItem");
+
+    const intakePrecheckFunction = new NodejsFunction(
+      this,
+      "IntakePrecheckFunction",
+      {
+        functionName: `apoth-${props.config.stage}-intake-precheck`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "precheckHandler",
+        entry: path.join(__dirname, "lambda", "intake.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "IntakePrecheckFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-intake-precheck`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      intakePrecheckFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+    );
+
+    api.addRoutes({
+      path: "/api/intake/bootstrap",
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        "IntakeBootstrapIntegration",
+        intakeBootstrapFunction,
+      ),
+    });
+
+    api.addRoutes({
+      path: "/api/intake/precheck",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "IntakePrecheckIntegration",
+        intakePrecheckFunction,
+      ),
+    });
+
+    const authSessionPostFunction = new NodejsFunction(
+      this,
+      "AuthSessionPostFunction",
+      {
+        functionName: `apoth-${props.config.stage}-auth-session-post`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "postHandler",
+        entry: path.join(__dirname, "lambda", "auth-session.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "AuthSessionPostFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-auth-session-post`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+
+    const authSessionDeleteFunction = new NodejsFunction(
+      this,
+      "AuthSessionDeleteFunction",
+      {
+        functionName: `apoth-${props.config.stage}-auth-session-delete`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "deleteHandler",
+        entry: path.join(__dirname, "lambda", "auth-session.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "AuthSessionDeleteFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-auth-session-delete`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+
+    api.addRoutes({
+      path: "/api/auth/session",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "AuthSessionPostIntegration",
+        authSessionPostFunction,
+      ),
+    });
+
+    api.addRoutes({
+      path: "/api/auth/session",
+      methods: [HttpMethod.DELETE],
+      integration: new HttpLambdaIntegration(
+        "AuthSessionDeleteIntegration",
+        authSessionDeleteFunction,
+      ),
+    });
+
+    const consentAcceptanceFunction = new NodejsFunction(
+      this,
+      "ConsentAcceptanceFunction",
+      {
+        functionName: `apoth-${props.config.stage}-consent-acceptance`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "acceptHandler",
+        entry: path.join(__dirname, "lambda", "consent.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "ConsentAcceptanceFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-consent-acceptance`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      consentAcceptanceFunction,
+      "dynamodb:GetItem",
+      "dynamodb:TransactWriteItems",
+    );
+
+    api.addRoutes({
+      path: "/api/onboarding/consent",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "ConsentAcceptanceIntegration",
+        consentAcceptanceFunction,
+      ),
+    });
+
+    const staticAssetsBucket = new Bucket(this, "StaticAssetsBucket", {
+      bucketName: `apoth-${props.config.stage}-static-assets`,
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      encryption: BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      removalPolicy: props.config.removalPolicy,
+    });
+
+    const staticCleanRouteFunction = new CloudFrontFunction(
+      this,
+      "StaticCleanRouteFunction",
+      {
+        functionName: `apoth-${props.config.stage}-static-clean-routes`,
+        code: FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  if (uri === "/") {
+    request.uri = "/index.html";
+    return request;
+  }
+  if (!uri.includes(".") && !uri.endsWith("/")) {
+    request.uri = uri + "/index.html";
+    return request;
+  }
+  if (uri.endsWith("/")) {
+    request.uri = uri + "index.html";
+  }
+  return request;
+}
+`),
+      },
+    );
+
+    const staticWebDistribution = new Distribution(this, "StaticWebDistribution", {
+      comment: `Apoth ${props.config.stage} static web and same-origin API`,
+      defaultBehavior: {
+        origin: S3BucketOrigin.withOriginAccessControl(staticAssetsBucket),
+        allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        cachePolicy: CachePolicy.CACHING_OPTIMIZED,
+        functionAssociations: [
+          {
+            eventType: FunctionEventType.VIEWER_REQUEST,
+            function: staticCleanRouteFunction,
+          },
+        ],
+        viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      },
+      additionalBehaviors: {
+        "api/*": {
+          origin: new HttpOrigin(
+            `${api.apiId}.execute-api.${this.region}.amazonaws.com`,
+            {
+              protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY,
+            },
+          ),
+          allowedMethods: AllowedMethods.ALLOW_ALL,
+          cachePolicy: CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        },
+      },
+    });
+
+    const runtimeAllowedOrigins = [
+      ...props.config.allowedOrigins,
+      `https://${staticWebDistribution.distributionDomainName}`,
+    ].join(",");
+    for (const fn of [
+      intakeBootstrapFunction,
+      intakePrecheckFunction,
+      consentAcceptanceFunction,
+    ]) {
+      fn.addEnvironment("APOTH_ALLOWED_ORIGINS", runtimeAllowedOrigins);
+    }
+
     new CfnOutput(this, "PatientUserPoolId", { value: userPool.userPoolId });
     new CfnOutput(this, "PatientUserPoolClientId", {
       value: userPoolClient.userPoolClientId,
     });
     new CfnOutput(this, "AppTableName", { value: appTable.tableName });
     new CfnOutput(this, "ApiEndpoint", { value: api.apiEndpoint });
+    new CfnOutput(this, "StaticAssetsBucketName", {
+      value: staticAssetsBucket.bucketName,
+    });
+    new CfnOutput(this, "StaticWebDistributionDomainName", {
+      value: staticWebDistribution.distributionDomainName,
+    });
     new CfnOutput(this, "WebhookQueueUrl", { value: webhookQueue.queueUrl });
     new CfnOutput(this, "WebhookQueueArn", { value: webhookQueue.queueArn });
     new CfnOutput(this, "WebhookDeadLetterQueueUrl", {

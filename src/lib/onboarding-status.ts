@@ -59,7 +59,14 @@ export function readOnboardingGateSnapshot(
     ok: true,
     value: {
       consentAccepted: consent.value.accepted,
-      ...(profile.value ? { onboardingStatus: profile.value.onboardingStatus } : {}),
+      ...(profile.value
+        ? {
+            onboardingStatus: profile.value.onboardingStatus,
+            ...(profile.value.residencyState
+              ? { residencyState: profile.value.residencyState }
+              : {}),
+          }
+        : {}),
       ...(mdi.value
         ? {
             mdiPatientId: mdi.value.mdiPatientId,
@@ -113,7 +120,14 @@ export async function readOnboardingGateSnapshotAsync(
     ok: true,
     value: {
       consentAccepted: consentAccepted.value,
-      ...(profile.value ? { onboardingStatus: profile.value.onboardingStatus } : {}),
+      ...(profile.value
+        ? {
+            onboardingStatus: profile.value.onboardingStatus,
+            ...(profile.value.residencyState
+              ? { residencyState: profile.value.residencyState }
+              : {}),
+          }
+        : {}),
       ...(mdi.value
         ? {
             mdiPatientId: mdi.value.mdiPatientId,

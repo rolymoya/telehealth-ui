@@ -1,24 +1,16 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import ConsentPage from "@/app/onboarding/consent/page";
 import { currentRequiredConsents } from "@/lib/consents";
-import { requireProtectedPageAccess } from "@/lib/protected-page";
 
-vi.mock("@/lib/protected-page", () => ({
-  requireProtectedPageAccess: vi.fn(async () => undefined),
-}));
-
-vi.mock("@/app/onboarding/consent/actions", () => ({
-  acceptCurrentConsentsAction: vi.fn(),
-}));
+afterEach(() => {
+  window.history.replaceState({}, "", "/");
+});
 
 describe("consent page", () => {
-  it("renders current required consent versions with required acknowledgements", async () => {
-    render(await ConsentPage({ searchParams: Promise.resolve({}) }));
+  it("renders current required consent versions with required acknowledgements", () => {
+    render(<ConsentPage />);
 
-    expect(requireProtectedPageAccess).toHaveBeenCalledWith({
-      pathname: "/onboarding/consent",
-    });
     for (const consent of currentRequiredConsents) {
       expect(screen.getByText(consent.label)).toBeInTheDocument();
       expect(screen.getByText(consent.version)).toBeInTheDocument();
@@ -44,11 +36,15 @@ describe("consent page", () => {
   });
 
   it("renders a patient-safe acceptance error", async () => {
-    render(await ConsentPage({
-      searchParams: Promise.resolve({ error: "acceptance_failed" }),
-    }));
+    window.history.replaceState(
+      {},
+      "",
+      "/onboarding/consent?error=acceptance_failed",
+    );
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
+    render(<ConsentPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
       "We could not record consent.",
     );
   });

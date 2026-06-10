@@ -1,30 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import GetStartedPage from "@/app/get-started/page";
-import { resolveOnboardingStartRedirect } from "@/lib/onboarding-start";
-
-const redirectMock = vi.hoisted(() => vi.fn((destination: string) => {
-  throw new Error(`redirect:${destination}`);
-}));
-
-vi.mock("next/navigation", () => ({
-  redirect: redirectMock,
-}));
-
-vi.mock("@/lib/onboarding-start", () => ({
-  resolveOnboardingStartRedirect: vi.fn(async () => ({
-    ok: true,
-    value: {
-      destination: "/onboarding/consent",
-    },
-  })),
-}));
 
 describe("get started page", () => {
-  it("resolves onboarding start and redirects to the returned step", async () => {
-    await expect(GetStartedPage()).rejects.toThrow("redirect:/onboarding/consent");
+  it("renders as a static shell with an intake fallback link", () => {
+    render(<GetStartedPage />);
 
-    expect(resolveOnboardingStartRedirect).toHaveBeenCalledWith({
-      pathname: "/get-started",
-    });
+    expect(screen.getByRole("heading", { name: "Continue to intake." }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Continue" }))
+      .toHaveAttribute("href", "/intake");
   });
 });

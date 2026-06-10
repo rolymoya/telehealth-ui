@@ -61,6 +61,16 @@ describe("onboarding route gates", () => {
     ).toEqual("intake");
   });
 
+  it("routes intake-ready patients with residency state to the MDI step", () => {
+    expect(
+      earliestIncompleteOnboardingStep({
+        consentAccepted: true,
+        onboardingStatus: "intake_ready",
+        residencyState: "IL",
+      }),
+    ).toEqual("mdi");
+  });
+
   it("routes MDI handoff gaps to the MDI step", () => {
     expect(
       earliestIncompleteOnboardingStep({
@@ -123,6 +133,18 @@ describe("onboarding route gates", () => {
       reason: "onboarding_step_required",
       destination: "/intake",
     });
+
+    expect(
+      decideProtectedRouteAccess({
+        authenticated: true,
+        pathname: "/onboarding/mdi",
+        snapshot: {
+          consentAccepted: true,
+          onboardingStatus: "intake_ready",
+          residencyState: "IL",
+        },
+      }),
+    ).toEqual({ decision: "allow" });
   });
 
   it("allows current and earlier onboarding steps", () => {

@@ -16,6 +16,7 @@ describe("protected route middleware", () => {
 
   it("allows public routes and protected routes with a session cookie through", () => {
     expect(proxy(new NextRequest("https://apoth.test/privacy")).status).toBe(200);
+    expect(proxy(new NextRequest("https://apoth.test/intake")).status).toBe(200);
 
     const request = new NextRequest("https://apoth.test/dashboard");
     request.cookies.set(patientAccessCookieName, "opaque-token");

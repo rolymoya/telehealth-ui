@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
 import { ProductPlaceholder } from "@/components/product/ProductPlaceholder";
-import { requireProtectedPageAccess } from "@/lib/protected-page";
 
 export const metadata: Metadata = {
   title: "Care workflow · Apoth",
   description: "Continue the MDI-backed care workflow connection.",
 };
 
-export default async function MdiHandoffPage() {
-  await requireProtectedPageAccess({ pathname: "/onboarding/mdi" });
-
+export default function MdiHandoffPage() {
   return (
     <ProductPlaceholder
       eyebrow="Onboarding"
