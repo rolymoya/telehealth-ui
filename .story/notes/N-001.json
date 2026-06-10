@@ -1,0 +1,14 @@
+{
+  "content": "# Playwright E2E Suite Plan\n\n## Test Tiers\n- PR smoke: fastest browser coverage for public routes, auth redirects, and one protected-route shell.\n- Full E2E: local/CI mocked-vendor suite across marketing/legal, auth, intake, MDI dashboard states, billing timing, accessibility, responsive, and scoped visual checks.\n- Staging smoke: deployed-environment checks using only synthetic non-PHI accounts and approved secret-store configuration.\n\n## Safety Boundaries\n- No real PHI, clinical questionnaire answers, secrets, or live patient data in committed fixtures.\n- MDI, Stripe, and Cognito are mocked by default for local/CI runs unless a ticket explicitly marks staging smoke behavior.\n- Stripe metadata assertions must use only opaque IDs and enforce `docs/stripe-data-policy.md`.\n- Intake specs must include explicit no-local-answer-retention assertions after submit-to-MDI handoff.\n\n## Coverage Map\n- T-085: harness, scripts, artifacts, fixture safety.\n- T-086: public marketing/legal/compliance pages.\n- T-087: Cognito-safe auth and protected-route flows.\n- T-088: intake, consent, eligibility, and no-answer-retention.\n- T-089: MDI-backed dashboard and care-workflow states.\n- T-090: Stripe billing timing and no-PHI metadata invariants.\n- T-091: accessibility, responsive, and focused visual regression checks.\n- T-092: CI integration, staging smoke, and production launch gate.",
+  "createdDate": "2026-06-09",
+  "id": "N-001",
+  "status": "active",
+  "tags": [
+    "playwright",
+    "e2e",
+    "testing",
+    "launch-readiness"
+  ],
+  "title": "Playwright E2E suite plan",
+  "updatedDate": "2026-06-09"
+}

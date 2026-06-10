@@ -1,0 +1,20 @@
+{
+  "blockedBy": [
+    "T-012",
+    "T-085",
+    "T-086",
+    "T-087",
+    "T-088",
+    "T-089",
+    "T-090"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-06-09",
+  "description": "Add cross-flow browser checks that catch patient-facing accessibility, responsive, and visual regressions before launch.\n\n**Scope**\n- Add Playwright accessibility checks for critical pages and flow states, using `@axe-core/playwright` or an equivalent maintained tool if selected.\n- Capture responsive coverage for mobile, tablet, and desktop viewport groups on marketing, auth, intake, dashboard, and billing paths.\n- Add focused visual snapshots only for stable surfaces where they provide useful regression signal without excessive churn.\n- Include checks for no obvious text overlap/clipping, visible focus order, sufficient landmark structure, and design-system constraints such as no clinical blue.\n\n**Acceptance**\n- Critical launch flows have automated accessibility checks with documented exceptions, if any.\n- Responsive specs prove major patient journeys remain usable on mobile and desktop.\n- Visual snapshots are scoped, deterministic, and documented so legitimate design changes are easy to review.\n- The checks integrate into the E2E command set without making basic smoke runs unreasonably slow.",
+  "id": "T-091",
+  "order": 70,
+  "phase": "playwright-e2e",
+  "status": "open",
+  "title": "Accessibility, responsive, and visual regression Playwright checks",
+  "type": "task"
+}

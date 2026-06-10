@@ -1,0 +1,22 @@
+{
+  "blockedBy": [
+    "T-085",
+    "T-086",
+    "T-087",
+    "T-088",
+    "T-089",
+    "T-090",
+    "T-091",
+    "T-036",
+    "T-071"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-06-09",
+  "description": "Make the Playwright suite operational in CI and define the staging smoke gate required before production launch.\n\n**Scope**\n- Add CI workflow steps or documented pipeline commands for Playwright browser install/cache, app build/start, E2E execution, and artifact upload.\n- Split commands into fast PR smoke, full local/CI E2E, and staging smoke profiles.\n- Define staging smoke coverage: marketing route, auth route, intake start, protected dashboard redirect, webhook health endpoint or equivalent health route, and any vendor-safe billing/MDI status smoke available at that stage.\n- Document triage expectations for traces/screenshots/videos, flaky-test handling, and release-blocking criteria.\n\n**Acceptance**\n- CI publishes Playwright reports and traces for failed runs.\n- PR smoke and full E2E commands are documented and runnable by developers.\n- Staging smoke can run against the deployed staging URL with only approved non-PHI synthetic accounts and secret-store configuration.\n- Production deployment is blocked until the staging smoke gate is passing or a documented launch exception is approved.",
+  "id": "T-092",
+  "order": 80,
+  "phase": "playwright-e2e",
+  "status": "open",
+  "title": "CI integration, staging smoke suite, and launch E2E gate",
+  "type": "chore"
+}

@@ -1,0 +1,20 @@
+{
+  "blockedBy": [
+    "T-018",
+    "T-020",
+    "T-021",
+    "T-022",
+    "T-047",
+    "T-085",
+    "T-087"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-06-09",
+  "description": "Build browser-level coverage for the full patient intake path while preserving the MDI system-of-record boundary.\n\n**Scope**\n- Test `/get-started` start/resume behavior through auth, current consent capture, state-availability gate, lightweight eligibility screening, MDI questionnaire rendering, submission, and pending dashboard landing.\n- Cover skip-ahead redirects to the earliest incomplete onboarding step.\n- Exercise ineligible, unavailable-state, MDI-maintenance, and successful-submit paths with synthetic fixtures.\n- Assert no clinical questionnaire answers are persisted in local browser storage, app APIs, mocked DynamoDB records, Stripe metadata, logs visible to the test harness, or route payloads after successful submission.\n\n**Acceptance**\n- A synthetic eligible patient can complete the implemented intake path and reach the expected pending state.\n- Ineligible/unavailable branches stop before billing and present the correct non-clinical next step.\n- The E2E suite includes explicit negative assertions for local questionnaire-answer retention.\n- The specs use synthetic non-PHI answers and mocked MDI seams by default.",
+  "id": "T-088",
+  "order": 40,
+  "phase": "playwright-e2e",
+  "status": "open",
+  "title": "Intake, consent, eligibility, and no-answer-retention E2E specs",
+  "type": "task"
+}
