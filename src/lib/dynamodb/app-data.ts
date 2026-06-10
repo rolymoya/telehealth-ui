@@ -120,6 +120,7 @@ export type StripeLinkageRecord = BaseRecord & {
   stripeCustomerId: string;
   stripeSubscriptionId?: string;
   billingStatus: BillingStatus;
+  stripeBillingStatusObservedAt?: string;
 };
 
 export type StripeReverseLookupRecord = BaseRecord &
@@ -700,6 +701,7 @@ export function linkStripeCustomer(
     stripeCustomerId: string;
     stripeSubscriptionId?: string;
     billingStatus: BillingStatus;
+    stripeBillingStatusObservedAt?: string;
     now: string;
   },
 ): AppDataResult<StripeLinkageRecord> {
@@ -719,6 +721,7 @@ export function linkStripeCustomer(
     stripeCustomerId: input.stripeCustomerId,
     stripeSubscriptionId: input.stripeSubscriptionId,
     billingStatus: input.billingStatus,
+    stripeBillingStatusObservedAt: input.stripeBillingStatusObservedAt,
     createdAt: existingLinkage.value?.createdAt ?? input.now,
     updatedAt: input.now,
   };
@@ -1392,6 +1395,7 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         typeof record.stripeCustomerId === "string" &&
         optionalString(record.stripeSubscriptionId) &&
         isBillingStatus(record.billingStatus) &&
+        optionalIsoDate(record.stripeBillingStatusObservedAt) &&
         keysMatch(record, stripeLinkageKey(record.cognitoSub))
         ? ok(record)
         : err("validation_failed", "Invalid Stripe linkage record");
@@ -2435,6 +2439,7 @@ const allowedFields: Record<string, Set<string>> = {
     "stripeCustomerId",
     "stripeSubscriptionId",
     "billingStatus",
+    "stripeBillingStatusObservedAt",
   ),
   stripeReverseLookup: allow(
     "cognitoSub",

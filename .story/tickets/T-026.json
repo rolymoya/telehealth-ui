@@ -3,13 +3,14 @@
     "T-023",
     "T-045"
   ],
-  "completedDate": null,
+  "claimedBySession": "3c71e9f5-9ea1-49b1-995c-c68fb6b02fd4",
+  "completedDate": "2026-06-10",
   "createdDate": "2026-05-18",
   "description": "Receive Stripe webhook events through the shared serverless webhook pattern.\n\n**Scope**\n- Verify Stripe signatures from the raw request body.\n- Record event ID/status in DynamoDB before side effects.\n- Process simple mirror updates inline when safe; use SQS/DLQ for retryable downstream actions.\n- Handle SetupIntent/payment method, subscription, invoice, refund, dispute, and payment-failure events needed for launch.\n\n**Acceptance**\n- Invalid signature produces no state changes.\n- Duplicate Stripe event ID is idempotent.\n- Stripe CLI test events exercise the full route/Lambda path and update only allowed local fields.",
   "id": "T-026",
   "order": 40,
   "phase": "payments",
-  "status": "open",
+  "status": "complete",
   "title": "Stripe webhook receiver: signature verification + DynamoDB idempotency",
   "type": "task"
 }

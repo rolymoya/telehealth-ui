@@ -9,6 +9,8 @@ import {
   type AppDataResult,
   type BillingStatus,
   type ConsentEvidenceRecord,
+  type EvidenceEventRecord,
+  type EvidenceEventUniquenessRecord,
   type MdiLinkageRecord,
   type MdiReverseLookupRecord,
   type OnboardingStatus,
@@ -16,16 +18,23 @@ import {
   type StripeLinkageRecord,
   type StripeReverseLookupRecord,
   type TransactWriteOperation,
+  type WebhookClaimOutcome,
+  type WebhookIdempotencyRecord,
+  type WebhookProcessingStatus,
   consentEvidenceKey,
+  createEvidenceEventRecord,
   createPatientProfileRecord,
+  evidenceEventUniquenessKey,
   mdiCaseReverseKey,
   mdiLinkageKey,
   mdiPatientReverseKey,
+  patientEvidenceEventUniquenessKey,
   patientProfileKey,
   stripeCustomerReverseKey,
   stripeLinkageKey,
   stripeSubscriptionReverseKey,
   validateAppDataRecord,
+  webhookIdempotencyKey,
 } from "@/lib/dynamodb/app-data";
 import type { AppDataReadRepository } from "@/lib/onboarding-status";
 
@@ -415,6 +424,27 @@ export async function getConsentEvidenceDynamoDb(
   return ok(record.value);
 }
 
+export async function findPatientByStripePointerDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  pointer:
+    | { pointerType: "customer"; stripeCustomerId: string }
+    | { pointerType: "subscription"; stripeSubscriptionId: string },
+): Promise<AppDataResult<string | null>> {
+  const key = pointer.pointerType === "customer"
+    ? stripeCustomerReverseKey(pointer.stripeCustomerId)
+    : stripeSubscriptionReverseKey(pointer.stripeSubscriptionId);
+  const record = await repository.get(key);
+  if (!record.ok) {
+    return record;
+  }
+  if (!record.value) {
+    return ok(null);
+  }
+  return record.value.recordType === "stripeReverseLookup"
+    ? ok(record.value.cognitoSub)
+    : err("validation_failed", "Stripe reverse key contains another record type");
+}
+
 export async function upsertPatientProfileDynamoDb(
   repository: Pick<DynamoDbAppDataRepository, "get" | "put" | "update">,
   input: {
@@ -488,6 +518,248 @@ export async function recordConsentEvidenceDynamoDb(
     version: input.version,
   };
   return repository.put(record);
+}
+
+export async function recordEvidenceEventDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
+  input: Parameters<typeof createEvidenceEventRecord>[0],
+): Promise<AppDataResult<EvidenceEventRecord>> {
+  const record = createEvidenceEventRecord(input);
+  const validation = validateAppDataRecord(record);
+  if (!validation.ok) {
+    return validation as AppDataResult<EvidenceEventRecord>;
+  }
+
+  const uniquenessKey = record.eventCategory === "webhook"
+    ? evidenceEventUniquenessKey(record.eventId)
+    : patientEvidenceEventUniquenessKey(record.cognitoSub, record.eventId);
+  const uniqueness: EvidenceEventUniquenessRecord = {
+    ...uniquenessKey,
+    cognitoSub: record.cognitoSub,
+    createdAt: record.recordedAt,
+    eventId: record.eventId,
+    evidencePk: record.pk,
+    evidenceSk: record.sk,
+    recordType: "evidenceEventUniqueness",
+    schemaVersion: 1,
+    updatedAt: record.recordedAt,
+  };
+
+  const written = await repository.transactWrite([
+    { type: "put", record: uniqueness, ifNotExists: true },
+    { type: "put", record, ifNotExists: true },
+  ]);
+  return written.ok ? ok(record) : written;
+}
+
+export async function claimWebhookEventDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "put" | "update">,
+  input: {
+    provider: "stripe" | "mdi";
+    eventId: string;
+    now: string;
+    deliverySource?: "provider" | "queue";
+    expectedAttempts?: number;
+    processingLeaseSeconds?: number;
+    maxAttempts?: number;
+  },
+): Promise<AppDataResult<WebhookClaimOutcome>> {
+  const key = webhookIdempotencyKey(input.provider, input.eventId);
+  const processingExpiresAt = addSecondsIso(input.now, input.processingLeaseSeconds ?? 300);
+  const existing = await repository.get(key);
+  if (!existing.ok) {
+    return existing;
+  }
+
+  if (existing.value) {
+    if (existing.value.recordType !== "webhookIdempotency") {
+      return err("validation_failed", "Webhook key contains another record type");
+    }
+    const record = existing.value;
+    if (record.status === "processing") {
+      if (record.processingExpiresAt && isAtOrBefore(record.processingExpiresAt, input.now)) {
+        if (record.maxAttempts !== undefined && record.attempts >= record.maxAttempts) {
+          const exhaustedRecord: WebhookIdempotencyRecord = {
+            ...record,
+            nextAttemptAfter: undefined,
+            processingExpiresAt: undefined,
+            retryExhaustedAt: record.retryExhaustedAt ?? input.now,
+            retryOwner: undefined,
+            retryable: false,
+            status: "failed",
+            updatedAt: input.now,
+          };
+          const exhausted = await repository.update(exhaustedRecord, { expected: record });
+          return exhausted.ok
+            ? ok({ outcome: "retryExhausted", record: exhausted.value })
+            : exhausted.error.kind === "conditional_conflict"
+              ? err("duplicate_webhook_claim", "Webhook event was claimed concurrently")
+              : exhausted;
+        }
+        const retryRecord = {
+          ...record,
+          attempts: record.attempts + 1,
+          maxAttempts: record.maxAttempts ?? input.maxAttempts,
+          nextAttemptAfter: undefined,
+          processingExpiresAt,
+          retryOwner: undefined,
+          retryable: false,
+          status: "processing" as const,
+          updatedAt: input.now,
+        };
+        const claimed = await repository.update(retryRecord, { expected: record });
+        return claimed.ok
+          ? ok({ outcome: "processingLeaseExpired", record: claimed.value })
+          : claimed.error.kind === "conditional_conflict"
+            ? err("duplicate_webhook_claim", "Webhook event was claimed concurrently")
+            : claimed;
+      }
+      return ok({ outcome: "alreadyProcessing", record });
+    }
+    if (record.status === "processed") {
+      return ok({ outcome: "alreadyProcessed", record });
+    }
+    if (record.retryable) {
+      if (
+        input.deliverySource === "queue" &&
+        (record.retryOwner !== "queue" ||
+          input.expectedAttempts === undefined ||
+          record.attempts !== input.expectedAttempts)
+      ) {
+        return ok({ outcome: "staleQueueDelivery", record });
+      }
+      if (record.retryOwner === "queue" && input.deliverySource !== "queue") {
+        return ok({ outcome: "queueOwnedRetry", record });
+      }
+      if (
+        record.retryOwner !== "queue" &&
+        record.maxAttempts !== undefined &&
+        record.attempts >= record.maxAttempts
+      ) {
+        const exhaustedRecord: WebhookIdempotencyRecord = {
+          ...record,
+          nextAttemptAfter: undefined,
+          processingExpiresAt: undefined,
+          retryExhaustedAt: record.retryExhaustedAt ?? input.now,
+          retryOwner: undefined,
+          retryable: false,
+          status: "failed",
+          updatedAt: input.now,
+        };
+        const exhausted = await repository.update(exhaustedRecord, { expected: record });
+        return exhausted.ok
+          ? ok({ outcome: "retryExhausted", record: exhausted.value })
+          : exhausted.error.kind === "conditional_conflict"
+            ? err("duplicate_webhook_claim", "Webhook event was claimed concurrently")
+            : exhausted;
+      }
+      if (
+        record.nextAttemptAfter &&
+        input.deliverySource !== "queue" &&
+        isAfter(record.nextAttemptAfter, input.now)
+      ) {
+        return ok({ outcome: "retryNotDue", record });
+      }
+      const retryRecord = {
+        ...record,
+        attempts: record.attempts + 1,
+        maxAttempts: record.maxAttempts ?? input.maxAttempts,
+        nextAttemptAfter: undefined,
+        processingExpiresAt,
+        retryOwner: undefined,
+        retryable: false,
+        status: "processing" as const,
+        updatedAt: input.now,
+      };
+      const claimed = await repository.update(retryRecord, { expected: record });
+      return claimed.ok
+        ? ok({ outcome: "failedRetryable", record: claimed.value })
+        : claimed.error.kind === "conditional_conflict"
+          ? err("duplicate_webhook_claim", "Webhook event was claimed concurrently")
+          : claimed;
+    }
+    return ok({ outcome: "conflict", record });
+  }
+
+  const record = {
+    ...key,
+    attempts: 1,
+    createdAt: input.now,
+    eventId: input.eventId,
+    maxAttempts: input.maxAttempts,
+    processingExpiresAt,
+    provider: input.provider,
+    recordType: "webhookIdempotency" as const,
+    retryable: false,
+    schemaVersion: 1 as const,
+    status: "processing" as const,
+    updatedAt: input.now,
+  };
+  const claimed = await repository.put(record, { ifNotExists: true });
+  return claimed.ok
+    ? ok({ outcome: "claimed", record: claimed.value })
+    : claimed.error.kind === "conditional_conflict"
+      ? err("duplicate_webhook_claim", "Webhook event was claimed concurrently")
+      : claimed;
+}
+
+export async function markWebhookEventStatusDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "update">,
+  input: {
+    provider: "stripe" | "mdi";
+    eventId: string;
+    status: WebhookProcessingStatus;
+    retryable: boolean;
+    now: string;
+    expectedAttempts?: number;
+    expectedProcessingExpiresAt?: string;
+    retryOwner?: "provider" | "queue" | "handoff";
+    nextAttemptAfter?: string;
+    maxAttempts?: number;
+  },
+) {
+  const existing = await repository.get(webhookIdempotencyKey(input.provider, input.eventId));
+  if (!existing.ok) {
+    return existing;
+  }
+  if (!existing.value || existing.value.recordType !== "webhookIdempotency") {
+    return err("not_found", "Webhook event has not been claimed");
+  }
+  const isCurrentProcessingClaim = existing.value.status === "processing";
+  const isRetryOwnerTransition =
+    existing.value.status === "failed" &&
+    existing.value.retryable &&
+    (existing.value.retryOwner === "provider" || existing.value.retryOwner === "handoff") &&
+    input.status === "failed" &&
+    input.retryable &&
+    (input.retryOwner === "queue" || input.retryOwner === "provider");
+
+  if (
+    (!isCurrentProcessingClaim && !isRetryOwnerTransition) ||
+    (isCurrentProcessingClaim &&
+      existing.value.processingExpiresAt !== undefined &&
+      isAtOrBefore(existing.value.processingExpiresAt, input.now)) ||
+    (input.expectedAttempts !== undefined &&
+      existing.value.attempts !== input.expectedAttempts) ||
+    (isCurrentProcessingClaim &&
+      input.expectedProcessingExpiresAt !== undefined &&
+      existing.value.processingExpiresAt !== input.expectedProcessingExpiresAt)
+  ) {
+    return err("stale_webhook_claim", "Webhook claim is no longer current");
+  }
+
+  return repository.update({
+    ...existing.value,
+    maxAttempts: input.maxAttempts ?? existing.value.maxAttempts,
+    nextAttemptAfter: input.nextAttemptAfter,
+    processingExpiresAt: input.status === "processing"
+      ? existing.value.processingExpiresAt
+      : undefined,
+    retryOwner: input.retryable ? (input.retryOwner ?? "provider") : undefined,
+    retryable: input.retryable,
+    status: input.status,
+    updatedAt: input.now,
+  }, { expected: existing.value });
 }
 
 export async function linkMdiPatientCaseDynamoDb(
@@ -569,6 +841,7 @@ export async function linkStripeCustomerDynamoDb(
     cognitoSub: string;
     now: string;
     stripeCustomerId: string;
+    stripeBillingStatusObservedAt?: string;
     stripeSubscriptionId?: string;
   },
 ): Promise<AppDataResult<StripeLinkageRecord>> {
@@ -584,6 +857,7 @@ export async function linkStripeCustomerDynamoDb(
     createdAt: existing.value?.createdAt ?? input.now,
     recordType: "stripeLinkage",
     schemaVersion: 1,
+    stripeBillingStatusObservedAt: input.stripeBillingStatusObservedAt,
     stripeCustomerId: input.stripeCustomerId,
     stripeSubscriptionId: input.stripeSubscriptionId,
     updatedAt: input.now,
@@ -1016,6 +1290,18 @@ function hmac(key: string | Buffer, value: string) {
 function cleanEnv(value: string | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function addSecondsIso(value: string, seconds: number) {
+  return new Date(new Date(value).getTime() + seconds * 1000).toISOString();
+}
+
+function isAtOrBefore(left: string, right: string) {
+  return new Date(left).getTime() <= new Date(right).getTime();
+}
+
+function isAfter(left: string, right: string) {
+  return new Date(left).getTime() > new Date(right).getTime();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

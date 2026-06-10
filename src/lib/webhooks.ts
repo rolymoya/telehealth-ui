@@ -696,6 +696,8 @@ function webhookPayloadByteLength(payload: string | Buffer) {
 }
 
 const stripeBillingEvents = new Set([
+  "setup_intent.succeeded",
+  "setup_intent.setup_failed",
   "checkout.session.completed",
   "customer.subscription.created",
   "customer.subscription.updated",
@@ -703,6 +705,12 @@ const stripeBillingEvents = new Set([
   "invoice.payment_succeeded",
   "invoice.payment_failed",
   "payment_method.attached",
+  "charge.refunded",
+  "refund.created",
+  "refund.updated",
+  "charge.dispute.created",
+  "charge.dispute.closed",
+  "payment_intent.payment_failed",
 ]);
 
 const stripeIdentityEvents = new Set([
