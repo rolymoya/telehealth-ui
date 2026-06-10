@@ -46,14 +46,14 @@ export const currentRequiredConsents = [
   },
   {
     consentKind: "telehealth_consent",
-    documentPath: "/terms#telehealth-consent",
+    documentPath: "/terms#telehealth-disclosure",
     label: "Telehealth consent",
     owner: "third_party_clinician",
     version: "telehealth-2026-06-legal-v1",
   },
   {
     consentKind: "compounded_medication_disclosure",
-    documentPath: "/terms#compounded-medications",
+    documentPath: "/terms#prescriptions",
     label: "Compounded medication disclosure",
     owner: "apoth",
     version: "compound-disclosure-2026-06-legal-v1",

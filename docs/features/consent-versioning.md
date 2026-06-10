@@ -42,3 +42,16 @@ evidence and does not create a public route or document archive.
 
 Rendered legal document snapshots are out of scope until counsel or
 LegitScript explicitly requires byte-level archival evidence.
+
+## Acceptance Action
+
+The consent page requires an explicit checked acknowledgement for every current
+required consent kind and version. The server action validates those current
+fields before writing evidence; a bare authenticated POST, missing field, or
+stale-version acknowledgement does not record consent.
+
+Accepting consent writes consent evidence only. It does not create or mutate
+patient profile status, MDI linkage/case records, Stripe records, billing
+state, Persona/KYC records, or questionnaire-answer records. After evidence is
+written, routing uses the existing onboarding gate snapshot to continue to the
+next incomplete step.
