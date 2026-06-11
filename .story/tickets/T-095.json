@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-083"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-06-11",
+  "description": "Set up an automated CI/CD path for deploying the static Next.js UI artifact to the S3/CloudFront hosting target without expanding the broader production deployment scope owned by T-037.\n\n**Scope**\n- Add a GitHub Actions workflow or equivalent documented CI job that builds the app with `npm run build:static`.\n- Discover `StaticAssetsBucketName` and `StaticWebDistributionDomainName`/distribution ID from the staging CloudFormation stack outputs instead of hard-coding generated values.\n- Sync `out/` to the staging S3 static assets bucket with deletion of removed assets.\n- Create a CloudFront invalidation for changed static routes/assets after upload.\n- Use GitHub OIDC/AWS role assumption; do not introduce long-lived AWS access keys or store secrets in GitHub variables.\n- Keep API/Lambda/CDK infrastructure deployment separate from this UI asset publish workflow unless explicitly invoked.\n- Document manual fallback commands for local/operator-driven staging publishes.\n\n**Acceptance**\n- A clean run publishes the current static UI to the staging S3 bucket and invalidates CloudFront.\n- The workflow can be run manually against staging and is safe to wire to `main` once owner trust restrictions from T-084 are confirmed.\n- The deployed CloudFront URL serves `/`, `/intake`, and `/onboarding/mdi` with API paths still routed to API Gateway.\n- Failed builds or failed sync/invalidation stop the workflow and do not partially claim success.\n- No PHI, vendor secrets, Cognito secrets, or AWS long-lived credentials are stored in repo or GitHub secrets.",
+  "id": "T-095",
+  "order": 50,
+  "phase": "deploy",
+  "status": "open",
+  "title": "CI/CD workflow: publish static UI to S3/CloudFront",
+  "type": "chore"
+}
