@@ -1,0 +1,34 @@
+{
+  "fixture": "mdi-patient-workflow-events",
+  "source": "sanitized-shape-only",
+  "events": [
+    {
+      "provider": "mdi",
+      "eventId": "mdi_evt_patient_created_001",
+      "type": "patient_created",
+      "mdiPatientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+      "workflow": "created",
+      "status": "complete",
+      "occurredAt": "2026-06-05T12:00:00.000Z"
+    },
+    {
+      "provider": "mdi",
+      "eventId": "mdi_evt_patient_workflow_001",
+      "type": "patient_workflow_updated",
+      "mdiPatientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+      "workflow": "identity_pointer",
+      "status": "complete",
+      "occurredAt": "2026-06-05T12:05:00.000Z"
+    },
+    {
+      "provider": "mdi",
+      "eventId": "mdi_evt_patient_opt_in_001",
+      "type": "patient_notification_opt_in",
+      "mdiPatientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+      "channel": "sms",
+      "status": "enabled",
+      "occurredAt": "2026-06-05T12:06:00.000Z"
+    }
+  ],
+  "localPersistence": "opaque_patient_pointer_and_workflow_status_only"
+}

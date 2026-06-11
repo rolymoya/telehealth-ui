@@ -1,0 +1,11 @@
+{
+  "fixture": "mdi-token-success",
+  "source": "sanitized-shape-only",
+  "response": {
+    "access_token": "ACCESS_TOKEN_SENTINEL",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "scope": "partner"
+  },
+  "localPersistence": "none"
+}

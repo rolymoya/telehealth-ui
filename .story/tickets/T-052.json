@@ -2,13 +2,14 @@
   "blockedBy": [
     "T-041"
   ],
-  "completedDate": null,
+  "claimedBySession": "658313d7-d19a-4749-aadc-90c6af7fc643",
+  "completedDate": "2026-06-10",
   "createdDate": "2026-05-19",
-  "description": "Run a short discovery spike against MDI before building production integration code.\n\n**Scope**\n- Obtain sandbox credentials and validate client-credentials authentication.\n- Create a test patient and case, exercise the expected case lifecycle, and observe webhook ordering/timing.\n- Catalog MDI questionnaire/question payload shapes needed for Apoth-rendered intake.\n- Capture sanitized fixtures only. Do not commit real PHI or raw patient questionnaire answers.\n- Deliver `docs/external/mdi-event-catalog.md` with event names, payload shape, ordering notes, triage tier, and whether Apoth should mirror status, show a dashboard cue, ignore, or route to ops.\n\n**Acceptance**\n- Event catalog covers the webhook/API surface used for launch.\n- Sanitized fixtures exist under `tests/fixtures/mdi/` for must-handle events and at least one questionnaire flow.\n- Open questions are filed for any MDI workflow that affects payment unlock, dashboard scope, or no-answer-retention behavior.",
+  "description": "Run a short discovery spike against MDI before building production integration code.\n\n**Scope**\n- Use the existing MDI Postman collection to catalog launch-relevant API/webhook/questionnaire shapes.\n- Capture sanitized fixtures only. Do not commit real PHI, bearer tokens, credentials, or raw patient questionnaire answers.\n- Deliver `docs/external/mdi-event-catalog.md` with event names, payload shape, ordering notes, triage tier, and whether Apoth should mirror status, show a dashboard cue, ignore, or route to ops.\n- Live sandbox credential validation, patient/case lifecycle exercise, and webhook timing observation are split to T-094 because approved sandbox credentials are not available in this workspace.\n\n**Acceptance**\n- Event catalog covers the documented webhook/API surface used for launch from available MDI examples.\n- Sanitized fixtures exist under `tests/fixtures/mdi/` for must-handle events and at least one questionnaire flow using shape-only non-clinical sentinel placeholders.\n- Open questions are filed or documented for any MDI workflow that affects payment unlock, dashboard scope, live sandbox validation, or no-answer-retention behavior.\n- T-094 remains the follow-up for live sandbox proof before production integration relies on these shapes.",
   "id": "T-052",
   "order": 10,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI sandbox PoC + event/questionnaire catalog",
   "type": "task"
 }

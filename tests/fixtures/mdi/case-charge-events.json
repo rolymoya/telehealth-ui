@@ -1,0 +1,29 @@
+{
+  "fixture": "mdi-case-charge-events",
+  "source": "sanitized-shape-only",
+  "events": [
+    {
+      "provider": "mdi",
+      "eventId": "mdi_evt_partner_charge_001",
+      "type": "partner_additional_charge",
+      "mdiPatientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+      "mdiCaseId": "mdi_case_00000000-0000-4000-8000-000000000001",
+      "amountCents": 1000,
+      "currency": "usd",
+      "chargeReferenceId": "mdi_charge_00000000-0000-4000-8000-000000000001",
+      "occurredAt": "2026-06-05T13:00:00.000Z"
+    },
+    {
+      "provider": "mdi",
+      "eventId": "mdi_evt_vouched_amount_charge_001",
+      "type": "vouched_amount_charge",
+      "mdiPatientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+      "mdiCaseId": "mdi_case_00000000-0000-4000-8000-000000000001",
+      "amountCents": 2500,
+      "currency": "usd",
+      "voucherId": "mdi_voucher_00000000-0000-4000-8000-000000000001",
+      "occurredAt": "2026-06-05T13:05:00.000Z"
+    }
+  ],
+  "localPersistence": "opaque_charge_reference_and_amount_only"
+}

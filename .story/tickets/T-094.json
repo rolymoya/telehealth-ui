@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-06-10",
+  "description": "Owner/manual follow-up for T-052 live sandbox validation.\n\n**Scope**\n- Provide approved MDI sandbox client credentials through the existing Secrets Manager/local secret contract path; do not paste secrets into docs, chat, tickets, commits, or fixtures.\n- Run the live T-052 PoC once credentials are available: validate client-credentials authentication, create a sandbox test patient/case, exercise the expected case lifecycle, and observe webhook ordering/timing.\n- Record only sanitized evidence and non-secret operational notes in `docs/external/mdi-event-catalog.md`.\n\n**Acceptance**\n- MDI sandbox secret exists using the `mdiApi` contract for the relevant stage.\n- Live authentication, patient/case lifecycle, and webhook timing observations are recorded without secrets, tokens, PHI, or raw questionnaire answers.\n- T-052 can be unblocked or closed according to the accepted split.",
+  "id": "T-094",
+  "order": 160,
+  "phase": "mdi-integration",
+  "status": "open",
+  "title": "Provide MDI sandbox credentials and live PoC evidence",
+  "type": "task"
+}

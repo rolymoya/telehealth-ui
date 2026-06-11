@@ -2,8 +2,8 @@ export const mdiQuestionnaireFixture = {
   patientId: "mdi_patient_opaque_001",
   caseId: "mdi_case_opaque_001",
   answers: [
-    { questionId: "q_height", value: "68" },
-    { questionId: "q_medications", value: "No current medications" },
+    { questionId: "mdi_question_shape_001", value: "ANSWER_VALUE_SENTINEL" },
+    { questionId: "mdi_question_shape_002", value: ["ANSWER_VALUE_SENTINEL"] },
   ],
 };
 

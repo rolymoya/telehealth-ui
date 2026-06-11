@@ -1,0 +1,45 @@
+{
+  "fixture": "mdi-questionnaire-flow",
+  "source": "sanitized-shape-only",
+  "questionnaire": {
+    "questionnaireId": "mdi_questionnaire_00000000-0000-4000-8000-000000000001",
+    "version": "QUESTIONNAIRE_VERSION_SENTINEL",
+    "caseId": "mdi_case_00000000-0000-4000-8000-000000000001",
+    "patientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+    "questions": [
+      {
+        "questionId": "mdi_question_00000000-0000-4000-8000-000000000001",
+        "text": "QUESTION_TEXT_SENTINEL",
+        "controlType": "single_select",
+        "required": true,
+        "options": [
+          {
+            "optionId": "mdi_option_00000000-0000-4000-8000-000000000001",
+            "label": "OPTION_LABEL_SENTINEL"
+          }
+        ]
+      },
+      {
+        "questionId": "mdi_question_00000000-0000-4000-8000-000000000002",
+        "text": "QUESTION_TEXT_SENTINEL",
+        "controlType": "free_text",
+        "required": false,
+        "constraints": {
+          "maxLength": 256
+        }
+      }
+    ]
+  },
+  "submissionShape": {
+    "questionnaireId": "mdi_questionnaire_00000000-0000-4000-8000-000000000001",
+    "caseId": "mdi_case_00000000-0000-4000-8000-000000000001",
+    "patientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+    "responses": [
+      {
+        "questionId": "mdi_question_00000000-0000-4000-8000-000000000001",
+        "value": "ANSWER_VALUE_SENTINEL"
+      }
+    ]
+  },
+  "localPersistence": "responses_transient_only"
+}
