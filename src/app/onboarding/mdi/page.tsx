@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ProductPlaceholder } from "@/components/product/ProductPlaceholder";
+import { MdiUnavailableState } from "@/components/product/ProviderUnavailableStates";
 
 export const metadata: Metadata = {
   title: "Care workflow · Apoth",
@@ -7,11 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function MdiHandoffPage() {
-  return (
-    <ProductPlaceholder
-      eyebrow="Onboarding"
-      title="Care workflow"
-      body="Continue after Apoth links your account to the MDI-backed workflow."
-    />
-  );
+  return <MdiUnavailableState />;
 }

@@ -81,6 +81,37 @@ describe("intake page", () => {
     });
     expect(String(precheckCall?.[0])).not.toContain("weight");
     expect(navigate).toHaveBeenCalledWith("/onboarding/mdi");
+    expect(window.localStorage.getItem("age")).toBeNull();
+    expect(window.localStorage.getItem("offering")).toBeNull();
+    expect(window.localStorage.getItem("state")).toBeNull();
+  });
+
+  it("allows a bootstrap retry without retaining form values", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(
+        { code: "temporary_unavailable" },
+        { status: 503 },
+      ))
+      .mockResolvedValueOnce(jsonResponse({
+        csrfToken: "csrf_retry",
+        status: "ready_for_precheck",
+      }));
+
+    render(<IntakePrecheckClient fetchImpl={fetchMock as typeof fetch} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not prepare intake/i,
+    );
+    expect(screen.queryByLabelText(/State of residence/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /try again/i }));
+
+    expect(await screen.findByLabelText(/State of residence/i))
+      .toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(window.localStorage.getItem("state")).toBeNull();
   });
 
   it("redirects already precheck-complete patients to the MDI step during bootstrap", async () => {

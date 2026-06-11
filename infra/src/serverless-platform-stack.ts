@@ -599,16 +599,36 @@ exports.handler = async () => ({
 function handler(event) {
   var request = event.request;
   var uri = request.uri;
+  var staticRoutes = {
+    "/": true,
+    "/about": true,
+    "/account": true,
+    "/billing": true,
+    "/dashboard": true,
+    "/get-started": true,
+    "/intake": true,
+    "/onboarding/consent": true,
+    "/onboarding/mdi": true,
+    "/privacy": true,
+    "/reset-password": true,
+    "/sign-in": true,
+    "/sign-up": true,
+    "/terms": true,
+    "/verify-email": true
+  };
+  if (uri.length > 1 && uri.endsWith("/")) {
+    uri = uri.slice(0, -1);
+  }
   if (uri === "/") {
     request.uri = "/index.html";
     return request;
   }
   if (!uri.includes(".") && !uri.endsWith("/")) {
-    request.uri = uri + "/index.html";
+    request.uri = staticRoutes[uri] ? uri + "/index.html" : "/404.html";
     return request;
   }
   if (uri.endsWith("/")) {
-    request.uri = uri + "index.html";
+    request.uri = staticRoutes[uri] ? uri + "/index.html" : "/404.html";
   }
   return request;
 }

@@ -4,7 +4,10 @@ import { describe, expect, it } from "vitest";
 
 describe("intake static compatibility", () => {
   it("does not import request-time Next APIs", () => {
-    const sources = Array.from(walk(join(process.cwd(), "src/app/intake")))
+    const sources = [
+      ...Array.from(walk(join(process.cwd(), "src/app/intake"))),
+      ...Array.from(walk(join(process.cwd(), "src/app/account"))),
+    ]
       .filter((file) => /\.(ts|tsx)$/.test(file))
       .map((file) => readFileSync(file, "utf8"))
       .join("\n");
@@ -31,6 +34,7 @@ describe("intake static compatibility", () => {
 
     expect(packageJson.scripts["build:static"]).toContain("next build");
     expect(packageJson.scripts["build:static"]).toContain("export-static-routes.mjs");
+    expect(exportScript).toContain("\"/account\"");
     expect(exportScript).toContain("\"/billing\"");
     expect(exportScript).toContain("\"/dashboard\"");
     expect(exportScript).toContain("\"/get-started\"");
@@ -41,6 +45,8 @@ describe("intake static compatibility", () => {
     expect(exportScript).toContain("\"/onboarding/consent\"");
     expect(exportScript).toContain("\"/onboarding/mdi\"");
     expect(exportScript).toContain("\"/verify-email\"");
+    expect(exportScript).toContain("_not-found.html");
+    expect(exportScript).toContain("404.html");
     expect(exportScript).toContain("htmlDestinationForRoute");
     expect(exportScript).toContain("index.html");
   });

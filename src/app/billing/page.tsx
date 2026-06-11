@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ProductPlaceholder } from "@/components/product/ProductPlaceholder";
+import { BillingUnavailableState } from "@/components/product/ProviderUnavailableStates";
 
 export const metadata: Metadata = {
   title: "Billing · Apoth",
@@ -7,11 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function BillingPage() {
-  return (
-    <ProductPlaceholder
-      eyebrow="Billing"
-      title="Billing"
-      body="Complete billing setup when your account reaches the billing step."
-    />
-  );
+  return <BillingUnavailableState />;
 }

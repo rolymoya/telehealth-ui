@@ -255,6 +255,7 @@ describe("ServerlessPlatformStack", () => {
             ViewerProtocolPolicy: "redirect-to-https",
           }),
         ]),
+        CustomErrorResponses: Match.absent(),
       }),
     });
 
@@ -269,6 +270,14 @@ describe("ServerlessPlatformStack", () => {
     template.hasResourceProperties("AWS::CloudFront::Function", {
       Name: "apoth-staging-static-clean-routes",
       FunctionCode: Match.stringLikeRegexp('/index\\.html'),
+    });
+    template.hasResourceProperties("AWS::CloudFront::Function", {
+      Name: "apoth-staging-static-clean-routes",
+      FunctionCode: Match.stringLikeRegexp('/404\\.html'),
+    });
+    template.hasResourceProperties("AWS::CloudFront::Function", {
+      Name: "apoth-staging-static-clean-routes",
+      FunctionCode: Match.stringLikeRegexp('"/account"'),
     });
   });
 

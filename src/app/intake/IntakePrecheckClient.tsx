@@ -32,10 +32,12 @@ export function IntakePrecheckClient({
 }) {
   const [gate, setGate] = useState<GateState>({ status: "checking" });
   const [message, setMessage] = useState<string | null>(null);
+  const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let active = true;
+    setGate({ status: "checking" });
     void fetchImpl("/api/intake/bootstrap", {
       credentials: "include",
       headers: {
@@ -79,7 +81,12 @@ export function IntakePrecheckClient({
     return () => {
       active = false;
     };
-  }, [fetchImpl, navigate]);
+  }, [bootstrapAttempt, fetchImpl, navigate]);
+
+  function retryBootstrap() {
+    setMessage(null);
+    setBootstrapAttempt((attempt) => attempt + 1);
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,9 +139,18 @@ export function IntakePrecheckClient({
           Confirming your account and required consents.
         </p>
         {message ? (
-          <p className="mt-4 border border-clay-deep px-4 py-3 text-[1rem] text-clay-deep" role="alert">
-            {message}
-          </p>
+          <>
+            <p className="mt-4 border border-clay-deep px-4 py-3 text-[1rem] text-clay-deep" role="alert">
+              {message}
+            </p>
+            <button
+              className="mt-5 rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors hover:bg-clay"
+              onClick={retryBootstrap}
+              type="button"
+            >
+              Try again
+            </button>
+          </>
         ) : null}
       </div>
     );

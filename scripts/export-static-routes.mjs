@@ -9,6 +9,7 @@ const outputDir = path.join(projectRoot, "out");
 const requiredRoutes = [
   "/",
   "/about",
+  "/account",
   "/billing",
   "/dashboard",
   "/get-started",
@@ -38,6 +39,8 @@ for (const route of requiredRoutes) {
   copyFileSync(source, destination);
 }
 
+copyNotFoundArtifact();
+
 for (const route of requiredRoutes) {
   const destination = htmlDestinationForRoute(route);
   if (!existsSync(destination)) {
@@ -53,6 +56,14 @@ function copyStaticAssets() {
   cpSync(nextStatic, path.join(outputDir, "_next", "static"), {
     recursive: true,
   });
+}
+
+function copyNotFoundArtifact() {
+  const source = path.join(serverAppDir, "_not-found.html");
+  if (!existsSync(source)) {
+    throw new Error(`Missing prerendered not-found HTML: ${source}`);
+  }
+  copyFileSync(source, path.join(outputDir, "404.html"));
 }
 
 function htmlSourceForRoute(route) {

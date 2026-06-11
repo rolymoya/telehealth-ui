@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
 import { ProductPlaceholder } from "@/components/product/ProductPlaceholder";
-import { requireProtectedPageAccess } from "@/lib/protected-page";
 
 export const metadata: Metadata = {
   title: "Account · Apoth",
   description: "Manage your Apoth account settings.",
 };
 
-export default async function AccountPage() {
-  await requireProtectedPageAccess({ pathname: "/account" });
-
+export default function AccountPage() {
   return (
     <ProductPlaceholder
       eyebrow="Patient account"
