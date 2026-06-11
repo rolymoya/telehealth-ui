@@ -6,13 +6,14 @@
     "T-021",
     "T-054"
   ],
-  "completedDate": null,
+  "claimedBySession": "658313d7-d19a-4749-aadc-90c6af7fc643",
+  "completedDate": "2026-06-10",
   "createdDate": "2026-05-18",
   "description": "Build the patient intake UI that renders MDI-provided questions in Apoth while keeping MDI as the clinical record.\n\n**Scope**\n- Load or map MDI questionnaire questions for the selected condition/offering, using sanitized fixtures/mocks until production submission helpers land.\n- Render accessible, mobile-friendly form controls in the Apoth design system.\n- Submit answers through the MDI integration layer once available.\n- Clear transient answer state after successful submission and persist only MDI IDs/status in DynamoDB.\n- Avoid putting condition/medication/answer details in Stripe, logs, analytics, or support metadata.\n\n**Acceptance**\n- A test fixture questionnaire renders correctly and submits through a mocked MDI client.\n- After success, refreshing the page shows status from MDI/DynamoDB pointers, not saved answers.\n- Network/server logs and DynamoDB writes are inspected by tests for answer leakage.",
   "id": "T-022",
   "order": 60,
   "phase": "intake-flow",
-  "status": "open",
+  "status": "complete",
   "title": "MDI-backed intake UI: render, submit, discard",
   "type": "task"
 }

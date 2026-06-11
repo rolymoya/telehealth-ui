@@ -46,7 +46,7 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
     template.resourceCountIs("AWS::DynamoDB::Table", 1);
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 8);
+    template.resourceCountIs("AWS::Lambda::Function", 10);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
@@ -107,6 +107,16 @@ describe("ServerlessPlatformStack", () => {
     });
 
     template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "GET /api/onboarding/mdi/bootstrap",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "POST /api/onboarding/mdi/submit",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
       RouteKey: "POST /api/auth/session",
       AuthorizationType: "NONE",
     });
@@ -153,6 +163,43 @@ describe("ServerlessPlatformStack", () => {
     expect(policies).toContain("dynamodb:GetItem");
     expect(policies).toContain("dynamodb:PutItem");
     expect(policies).toContain("dynamodb:UpdateItem");
+    expect(policies).not.toContain("dynamodb:DeleteItem");
+  });
+
+  it("creates MDI intake API lambdas that use cookie auth and pointer-only table writes", () => {
+    const template = synthesizeTemplate();
+
+    for (const [functionName, handler] of [
+      ["apoth-staging-mdi-intake-bootstrap", "index.bootstrapHandler"],
+      ["apoth-staging-mdi-intake-submit", "index.submitHandler"],
+    ]) {
+      template.hasResourceProperties("AWS::Lambda::Function", {
+        FunctionName: functionName,
+        Handler: handler,
+        Runtime: "nodejs20.x",
+        Timeout: 10,
+        Environment: {
+          Variables: {
+            APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
+            APOTH_ALLOWED_ORIGINS: Match.anyValue(),
+            APOTH_MDI_QUESTIONNAIRE_ID: "mdi_questionnaire_launch",
+            APOTH_STAGE: "staging",
+            APOTH_SECRET_MDI_API_ID: "/apoth/staging/mdi/api",
+            APP_TABLE_NAME: Match.anyValue(),
+            COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
+            COGNITO_USER_POOL_ID: Match.anyValue(),
+          },
+        },
+      });
+    }
+
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+    expect(policies).toContain("dynamodb:GetItem");
+    expect(policies).toContain("dynamodb:PutItem");
+    expect(policies).toContain("dynamodb:TransactWriteItems");
+    expect(policies).toContain("secretsmanager:GetSecretValue");
     expect(policies).not.toContain("dynamodb:DeleteItem");
   });
 

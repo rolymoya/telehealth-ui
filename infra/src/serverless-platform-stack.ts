@@ -55,6 +55,7 @@ import {
   Unit,
 } from "aws-cdk-lib/aws-cloudwatch";
 import { Code, Function, Runtime } from "aws-cdk-lib/aws-lambda";
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { LogGroup } from "aws-cdk-lib/aws-logs";
 import {
@@ -467,6 +468,105 @@ exports.handler = async () => ({
       ),
     });
 
+    const mdiIntakeBootstrapFunction = new NodejsFunction(
+      this,
+      "MdiIntakeBootstrapFunction",
+      {
+        functionName: `apoth-${props.config.stage}-mdi-intake-bootstrap`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "bootstrapHandler",
+        entry: path.join(__dirname, "lambda", "mdi-intake.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_MDI_QUESTIONNAIRE_ID: props.config.mdiQuestionnaireId,
+          APOTH_STAGE: props.config.stage,
+          APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "MdiIntakeBootstrapFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-mdi-intake-bootstrap`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(mdiIntakeBootstrapFunction, "dynamodb:GetItem");
+
+    const mdiIntakeSubmitFunction = new NodejsFunction(
+      this,
+      "MdiIntakeSubmitFunction",
+      {
+        functionName: `apoth-${props.config.stage}-mdi-intake-submit`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "submitHandler",
+        entry: path.join(__dirname, "lambda", "mdi-intake.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_MDI_QUESTIONNAIRE_ID: props.config.mdiQuestionnaireId,
+          APOTH_STAGE: props.config.stage,
+          APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "MdiIntakeSubmitFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-mdi-intake-submit`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      mdiIntakeSubmitFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:TransactWriteItems",
+    );
+    for (const fn of [mdiIntakeBootstrapFunction, mdiIntakeSubmitFunction]) {
+      fn.addToRolePolicy(new PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          this.formatArn({
+            service: "secretsmanager",
+            resource: "secret",
+            resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
+          }),
+        ],
+      }));
+    }
+
+    api.addRoutes({
+      path: "/api/onboarding/mdi/bootstrap",
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        "MdiIntakeBootstrapIntegration",
+        mdiIntakeBootstrapFunction,
+      ),
+    });
+
+    api.addRoutes({
+      path: "/api/onboarding/mdi/submit",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "MdiIntakeSubmitIntegration",
+        mdiIntakeSubmitFunction,
+      ),
+    });
+
     const authSessionPostFunction = new NodejsFunction(
       this,
       "AuthSessionPostFunction",
@@ -673,6 +773,8 @@ function handler(event) {
     for (const fn of [
       intakeBootstrapFunction,
       intakePrecheckFunction,
+      mdiIntakeBootstrapFunction,
+      mdiIntakeSubmitFunction,
       consentAcceptanceFunction,
     ]) {
       fn.addEnvironment("APOTH_ALLOWED_ORIGINS", runtimeAllowedOrigins);

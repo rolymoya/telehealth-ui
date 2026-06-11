@@ -89,9 +89,9 @@ describe("route states", () => {
   it("surfaces provider unavailable states through current placeholder routes", () => {
     render(<MdiHandoffPage />);
     expect(screen.getByRole("heading", {
-      name: /care workflow is temporarily unavailable/i,
+      name: /^clinical intake$/i,
     })).toBeInTheDocument();
-    expect(screen.getByText(/not stored on this Apoth page/i))
+    expect(screen.getByText(/keeps only the handoff status and opaque case pointers/i))
       .toBeInTheDocument();
 
     render(<BillingPage />);

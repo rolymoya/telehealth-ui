@@ -10,6 +10,7 @@ export type StageConfig = {
   logRetention: RetentionDays;
   deletionProtection: boolean;
   allowedOrigins: string[];
+  mdiQuestionnaireId: string;
   tags: Record<string, string>;
 };
 
@@ -35,6 +36,8 @@ export function getStageConfig(stage: string): StageConfig {
     allowedOrigins: isProduction
       ? ["https://apoth.health"]
       : ["http://localhost:3000"],
+    mdiQuestionnaireId: process.env.APOTH_MDI_QUESTIONNAIRE_ID ??
+      "mdi_questionnaire_launch",
     tags: {
       "apoth:app": "telehealth-ui",
       "apoth:stage": stage,
