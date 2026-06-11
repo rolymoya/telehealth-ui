@@ -3,13 +3,14 @@
     "T-041",
     "T-052"
   ],
-  "completedDate": null,
+  "claimedBySession": "658313d7-d19a-4749-aadc-90c6af7fc643",
+  "completedDate": "2026-06-10",
   "createdDate": "2026-05-19",
   "description": "Implement MDI OAuth client-credentials token handling for serverless runtimes.\n\n**Scope**\n- Add `src/lib/mdi/token.ts` as the only token acquisition helper.\n- Cache tokens in Lambda/container memory when available and refresh before expiry; do not require Redis.\n- Use Secrets Manager for MDI client credentials.\n- Handle 401 by forcing a single refresh/retry path and then failing loudly.\n- Add tests for concurrent token requests within one runtime and refresh-on-401 behavior.\n\n**Acceptance**\n- First request fetches a token and subsequent same-runtime requests reuse it until near expiry.\n- No Redis, ElastiCache, or shared token-cache infrastructure is required.\n- Credential and token values never appear in logs.",
   "id": "T-053",
   "order": 20,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI token client without Redis",
   "type": "task"
 }
