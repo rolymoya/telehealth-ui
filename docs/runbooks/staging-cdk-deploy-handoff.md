@@ -201,6 +201,7 @@ Manual operator fallback from the repo root:
 ```bash
 export AWS_PROFILE=apoth-staging
 export AWS_REGION=us-east-1
+export APOTH_STAGE=staging
 export STACK_NAME=Apoth-staging-ServerlessPlatform
 ```
 
