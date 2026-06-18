@@ -789,6 +789,7 @@ describe("ServerlessPlatformStack", () => {
       "ApiEndpoint",
       "StaticAssetsBucketName",
       "StaticWebDistributionDomainName",
+      "StaticWebDistributionId",
       "WebhookQueueUrl",
       "WebhookQueueArn",
       "WebhookDeadLetterQueueUrl",

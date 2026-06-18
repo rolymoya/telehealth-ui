@@ -51,7 +51,7 @@ resource names, deploy roles, secrets, and runbook evidence.
 
 | Role | ARN | Trust source | Notes |
 | --- | --- | --- | --- |
-| Staging deploy | `arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy` | `repo:rolymoya/telehealth-ui:ref:refs/heads/main` | AWS-side OIDC provider and role are active. Owner-selected environment/workflow-specific trust tightening remains in `T-084`; first GitHub Actions smoke run is still pending. |
+| Staging deploy | `arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy` | `repo:rolymoya/telehealth-ui:ref:refs/heads/main` | AWS-side OIDC provider and role are active. Role supports CDK bootstrap role assumption plus narrow static UI publish permissions for the staging S3/CloudFront target. Owner-selected environment/workflow-specific trust tightening remains in `T-084`; first GitHub Actions smoke run is still pending. |
 | Production deploy | TODO: protected same-account production deploy role ARN | TODO: GitHub org/repo/workflow subject | Same AWS account as staging for now. Production deploys should require protected branches/environments and review gates. |
 
 4. CloudTrail
@@ -289,7 +289,12 @@ roles:
 - `cdk-hnb659fds-lookup-role-329425487030-us-east-1`
 
 It also allows `cloudformation:DescribeStacks` on `CDKToolkit` and
-`ssm:GetParameter` for `/cdk-bootstrap/hnb659fds/version`.
+`Apoth-staging-ServerlessPlatform`, `ssm:GetParameter` for
+`/cdk-bootstrap/hnb659fds/version`, `s3:ListBucket`/`s3:GetBucketLocation` on
+`apoth-staging-static-assets`, `s3:PutObject`/`s3:DeleteObject` on objects in
+that bucket, and `cloudfront:CreateInvalidation`/`cloudfront:GetInvalidation`
+for account distributions so the static UI workflow can publish without
+long-lived AWS keys.
 
 Effective deploy permissions: the GitHub role has no attached managed policies
 and no direct `AdministratorAccess`. The account-baseline stack defines

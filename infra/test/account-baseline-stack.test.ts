@@ -164,6 +164,27 @@ describe("AccountBaselineStack", () => {
             ],
             Effect: "Allow",
           }),
+          Match.objectLike({
+            Action: [
+              "s3:GetBucketLocation",
+              "s3:ListBucket",
+            ],
+            Effect: "Allow",
+          }),
+          Match.objectLike({
+            Action: [
+              "s3:DeleteObject",
+              "s3:PutObject",
+            ],
+            Effect: "Allow",
+          }),
+          Match.objectLike({
+            Action: [
+              "cloudfront:CreateInvalidation",
+              "cloudfront:GetInvalidation",
+            ],
+            Effect: "Allow",
+          }),
         ]),
       },
     });
@@ -177,6 +198,10 @@ describe("AccountBaselineStack", () => {
       "cdk-hnb659fds-file-publishing-role-",
       "cdk-hnb659fds-image-publishing-role-",
       "cdk-hnb659fds-lookup-role-",
+      "apoth-staging-static-assets",
+      "cloudfront",
+      "distribution/*",
+      "stack/Apoth-staging-ServerlessPlatform/*",
       "stack/CDKToolkit/*",
       "parameter/cdk-bootstrap/hnb659fds/version",
     ]) {

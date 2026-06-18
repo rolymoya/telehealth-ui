@@ -146,9 +146,11 @@ GithubActionsDeployTrustSubject=repo:rolymoya/telehealth-ui:ref:refs/heads/main
 StackArn=arn:aws:cloudformation:us-east-1:329425487030:stack/Apoth-staging-AccountBaseline/7ec00270-63b1-11f1-8e5c-12bdeb8afd65
 ```
 
-Effective deploy permissions: the GitHub role itself has no managed policies
-and can assume only CDK bootstrap roles. The account-baseline stack now defines
-the launch-scoped replacement policy
+Effective deploy permissions: the GitHub role itself has no managed policies.
+It can assume only CDK bootstrap roles for CDK deploys, describe the staging
+serverless stack outputs, sync the `apoth-staging-static-assets` bucket, and
+create/read CloudFront invalidations for static UI publishes. The
+account-baseline stack now defines the launch-scoped replacement policy
 `arn:aws:iam::329425487030:policy/apoth-staging-cdk-cloudformation-execution-launch`
 for the CDK CloudFormation execution role. After deploying the updated
 account-baseline stack, re-bootstrap CDK with that policy and verify
@@ -179,6 +181,84 @@ with `permissions: id-token: write` and
 `aws-actions/configure-aws-credentials@v4` against
 `arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy`, then run
 `aws sts get-caller-identity`. Do not add AWS access keys to GitHub Secrets.
+
+## Static UI Publish
+
+The static UI publish path is intentionally separate from CDK/API deployment.
+It builds the Next.js static artifact, discovers the staging S3 bucket and
+CloudFront distribution from CloudFormation outputs, uploads only `out/`, and
+invalidates CloudFront.
+
+Use the GitHub Actions workflow `Deploy static UI` from the `main` branch for
+the standard staging publish. The current AWS OIDC trust policy accepts only
+`repo:rolymoya/telehealth-ui:ref:refs/heads/main`, so manual runs from other
+branches should fail before attempting AWS access. Do not add AWS access keys,
+vendor secrets, PHI, Cognito secrets, or Stripe secrets to GitHub secrets or
+variables for this workflow.
+
+Manual operator fallback from the repo root:
+
+```bash
+export AWS_PROFILE=apoth-staging
+export AWS_REGION=us-east-1
+export STACK_NAME=Apoth-staging-ServerlessPlatform
+```
+
+```bash
+outputs_json="$(aws cloudformation describe-stacks \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --stack-name "$STACK_NAME" \
+  --query 'Stacks[0].Outputs' \
+  --output json)"
+```
+
+```bash
+export STATIC_BUCKET_NAME="$(jq -r '.[] | select(.OutputKey == "StaticAssetsBucketName") | .OutputValue' <<<"$outputs_json")"
+export STATIC_DISTRIBUTION_DOMAIN="$(jq -r '.[] | select(.OutputKey == "StaticWebDistributionDomainName") | .OutputValue' <<<"$outputs_json")"
+export STATIC_DISTRIBUTION_ID="$(jq -r '.[] | select(.OutputKey == "StaticWebDistributionId") | .OutputValue' <<<"$outputs_json")"
+export NEXT_PUBLIC_COGNITO_REGION="$AWS_REGION"
+export NEXT_PUBLIC_COGNITO_USER_POOL_ID="$(jq -r '.[] | select(.OutputKey == "PatientUserPoolId") | .OutputValue' <<<"$outputs_json")"
+export NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID="$(jq -r '.[] | select(.OutputKey == "PatientUserPoolClientId") | .OutputValue' <<<"$outputs_json")"
+export NEXT_PUBLIC_SITE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}"
+```
+
+```bash
+npm ci
+npm run build:static
+test -f out/index.html
+test -f out/intake/index.html
+test -f out/onboarding/mdi/index.html
+aws s3 sync out/ "s3://${STATIC_BUCKET_NAME}/" \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --delete \
+  --only-show-errors
+invalidation_id="$(aws cloudfront create-invalidation \
+  --profile "$AWS_PROFILE" \
+  --distribution-id "$STATIC_DISTRIBUTION_ID" \
+  --paths "/*" \
+  --query 'Invalidation.Id' \
+  --output text)"
+aws cloudfront wait invalidation-completed \
+  --profile "$AWS_PROFILE" \
+  --distribution-id "$STATIC_DISTRIBUTION_ID" \
+  --id "$invalidation_id"
+curl --fail --silent --show-error "https://${STATIC_DISTRIBUTION_DOMAIN}/" >/dev/null
+curl --fail --silent --show-error "https://${STATIC_DISTRIBUTION_DOMAIN}/intake" >/dev/null
+curl --fail --silent --show-error "https://${STATIC_DISTRIBUTION_DOMAIN}/onboarding/mdi" >/dev/null
+api_status="$(curl --silent --show-error --output /tmp/apoth-api-smoke.json \
+  --write-out '%{http_code}' \
+  "https://${STATIC_DISTRIBUTION_DOMAIN}/api/intake/bootstrap")"
+test "$api_status" = "401"
+grep -q '"code":"missing_session"' /tmp/apoth-api-smoke.json
+```
+
+If `StaticWebDistributionId` is missing, deploy the updated staging CDK stack
+first and then retry the UI publish. If S3 sync or CloudFront invalidation is
+denied, deploy the updated account-baseline stack so the GitHub OIDC role has
+the narrow static publish policy. Do not hard-code generated bucket names or
+distribution IDs into the workflow.
 
 ## Tasks Codex Can Do Via CLI
 

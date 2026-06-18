@@ -792,6 +792,9 @@ function handler(event) {
     new CfnOutput(this, "StaticWebDistributionDomainName", {
       value: staticWebDistribution.distributionDomainName,
     });
+    new CfnOutput(this, "StaticWebDistributionId", {
+      value: staticWebDistribution.distributionId,
+    });
     new CfnOutput(this, "WebhookQueueUrl", { value: webhookQueue.queueUrl });
     new CfnOutput(this, "WebhookQueueArn", { value: webhookQueue.queueArn });
     new CfnOutput(this, "WebhookDeadLetterQueueUrl", {

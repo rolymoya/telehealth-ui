@@ -106,7 +106,7 @@ export class AccountBaselineStack extends Stack {
         },
       }),
       description: [
-        "GitHub Actions OIDC role for Apoth CDK deploys.",
+        "GitHub Actions OIDC role for Apoth CDK deploys and static UI publishes.",
         "Trust is restricted to rolymoya/telehealth-ui main branch.",
       ].join(" "),
     });
@@ -120,8 +120,36 @@ export class AccountBaselineStack extends Stack {
         "ssm:GetParameter",
       ],
       resources: [
+        `arn:${this.partition}:cloudformation:${this.region}:${this.account}:stack/Apoth-${props.config.stage}-ServerlessPlatform/*`,
         `arn:${this.partition}:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`,
         `arn:${this.partition}:ssm:${this.region}:${this.account}:parameter/cdk-bootstrap/hnb659fds/version`,
+      ],
+    }));
+    githubDeployRole.addToPolicy(new PolicyStatement({
+      actions: [
+        "s3:GetBucketLocation",
+        "s3:ListBucket",
+      ],
+      resources: [
+        `arn:${this.partition}:s3:::apoth-${props.config.stage}-static-assets`,
+      ],
+    }));
+    githubDeployRole.addToPolicy(new PolicyStatement({
+      actions: [
+        "s3:DeleteObject",
+        "s3:PutObject",
+      ],
+      resources: [
+        `arn:${this.partition}:s3:::apoth-${props.config.stage}-static-assets/*`,
+      ],
+    }));
+    githubDeployRole.addToPolicy(new PolicyStatement({
+      actions: [
+        "cloudfront:CreateInvalidation",
+        "cloudfront:GetInvalidation",
+      ],
+      resources: [
+        `arn:${this.partition}:cloudfront::${this.account}:distribution/*`,
       ],
     }));
 

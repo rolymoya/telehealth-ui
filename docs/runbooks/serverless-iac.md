@@ -77,6 +77,8 @@ The stack outputs identifiers needed by app configuration:
 - Cognito app client ID.
 - DynamoDB table name.
 - API endpoint.
+- Static S3 bucket name.
+- Static CloudFront distribution domain name and distribution ID.
 - Webhook queue and DLQ URLs/ARNs.
 - Scheduled heartbeat Lambda name.
 - MDI, Stripe, and app signing secret ARNs.
@@ -84,6 +86,13 @@ The stack outputs identifiers needed by app configuration:
 
 Do not paste secret values into docs, GitHub Actions variables, or logs. Store
 real credentials in Secrets Manager only.
+
+Static UI asset publishes are handled by the dedicated `Deploy static UI`
+GitHub Actions workflow or the manual fallback in
+`docs/runbooks/staging-cdk-deploy-handoff.md`. That path uploads only the
+static `out/` artifact to S3 and invalidates CloudFront; it does not deploy
+API, Lambda, Cognito, DynamoDB, or CDK changes unless an operator separately
+invokes CDK.
 
 ## Cognito Patient Auth Setup
 
