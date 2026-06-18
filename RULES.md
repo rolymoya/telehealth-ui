@@ -12,6 +12,17 @@
 - Any user-visible value awaiting real data uses the visible `TODO:` chip:
   `font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep`.
 - Never commit real PHI, secrets, or credentials.
+- MDI is the clinical system of record. Apoth must not persist questionnaire
+  answers after submission to MDI unless a future architecture decision and
+  legal review explicitly change that boundary.
+- Apoth may store only minimal app linkage data by default: Cognito subject,
+  MDI patient/case IDs, Stripe customer/subscription IDs, consent version and
+  timestamp, onboarding status, billing status, and webhook idempotency records.
+- Stripe metadata must contain only opaque non-PHI identifiers. No condition,
+  medication, diagnosis, symptom, questionnaire answer, clinician note, or
+  patient health context goes to Stripe. See `docs/stripe-data-policy.md`.
+- Persona/KYC is out of launch scope. Do not add identity-verification flows or
+  KYC storage without a new product/compliance decision.
 
 ## Design System (see DESIGN.md)
 
@@ -29,10 +40,30 @@
 - App Router conventions; light/dark `Nav` variant by background.
 - Long-form legal pages use the local `Section` helper pattern.
 - Per-branch feature docs in `docs/features/<branch>.md` for non-trivial work.
+- For ticket work, use Storybloq for ticket state, lessons, issues, and
+  handovers, but implement directly by default. Run full multi-lens review only
+  when the ticket or diff touches auth, payments, PHI/privacy/compliance,
+  Stripe/MDI webhooks or intake, DynamoDB schema/idempotency/concurrency,
+  infrastructure, secrets, or deployment security. For low-risk UI, docs,
+  copy, and narrow refactors, use direct self-review plus tests; after a lens
+  revise, re-run only the risk categories touched by fixes.
+- Cognito owns patient authentication. Do not introduce Clerk, Supabase Auth,
+  better-auth, or a Postgres-backed auth system without a new architecture
+  decision.
+- DynamoDB is the launch app-data store. Do not introduce RDS/Postgres,
+  Drizzle migrations, Redis, App Runner, ECS workers, NAT gateways, or VPC
+  endpoints for launch work unless the reset architecture is reopened.
+- Serverless webhook handling should prefer Lambda plus DynamoDB idempotency,
+  with SQS/DLQ only where retry durability is required.
+- Logs, analytics, Sentry, and support tooling must treat PHI as out of scope
+  unless the vendor has an active BAA/compliance approval and redaction is in
+  place.
 
 ## Testing
 
 - TDD for business logic: write tests first for clinical eligibility
-  screening, state-availability gating, and payment-gating logic. These
+  screening, residency/state capture validation, and payment-gating logic. These
   define the contract before implementation — the "no card charged before
   clinical confirmation" promise must be test-enforced.
+- Add tests around MDI/Stripe webhook signature verification and idempotency
+  before wiring production webhook side effects.

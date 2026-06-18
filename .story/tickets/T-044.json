@@ -1,12 +1,15 @@
 {
-  "blockedBy": [],
-  "completedDate": null,
+  "blockedBy": [
+    "T-040"
+  ],
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-05",
   "createdDate": "2026-05-19",
-  "description": "Tamper-evident audit log that satisfies LegitScript \"show me everything that happened for user X\" evidence queries.\n\n**Scope**\n- Drizzle schema: `src/lib/db/schema/audit_log.ts` — `id (ULID)`, `occurred_at`, `actor_user_id`, `actor_kind` (`user`/`system`/`webhook`/`clinician_via_mdi`), `action`, `resource_kind`, `resource_id`, `ip`, `user_agent`, `prev_hash`, `this_hash`.\n- `src/lib/audit.ts` — `recordAuditEvent(input)`:\n  - SELECTs the latest row's `this_hash` (FOR UPDATE on a single-row anchor table to serialize).\n  - Canonicalizes the new row (sorted JSON of all fields).\n  - `this_hash = sha256(prev_hash || canonical(row))`.\n  - INSERTs the row in the same transaction.\n- DB-level deny on UPDATE/DELETE for the `audit_log` table for non-admin roles (RLS policy).\n- Ships to CloudWatch Logs (separate log group `apoth/<env>/audit`) via the Datadog/OTEL pipeline. Retention: 7 years. Log group resource policy denies delete/modify outside a break-glass role.\n- Verifier job (lives in `hardening` phase) walks the chain nightly.\n\n**Logged events** (minimum):\n- Auth: login, logout, MFA challenge, password reset, session revoke.\n- Consent: grant, revoke.\n- PHI access: case detail view, message thread view, file download, profile decrypt.\n- State changes: every webhook event applied to local state.\n- Admin: impersonation, account closure, data export.\n\n**Acceptance**\n- 100 audit-log inserts in concurrent transactions produce a valid chain (no fork).\n- Manual UPDATE/DELETE against `audit_log` is rejected by the DB role.\n- CloudWatch group resource policy denies the deploy role from deleting log streams.",
+  "description": "Implement lightweight audit/evidence records for launch-critical events without a tamper-evident hash chain.\n\n**Scope**\n- Define DynamoDB records for consent grants, webhook processing outcomes, billing state transitions, MDI handoff status, support/admin actions, and notable auth events available from Cognito logs or app hooks.\n- Store event metadata, timestamps, actor/system, opaque IDs, and status. Do not store clinical questionnaire answers or message/file contents.\n- Document what evidence lives in DynamoDB versus CloudWatch versus vendor systems.\n\n**Acceptance**\n- Consent, MDI handoff, Stripe activation, and webhook side effects each write a minimal evidence event.\n- Support can answer \"what happened for this user/case?\" using opaque IDs and timestamps.\n- No hash-chain verifier or immutable audit-log sink is required for launch unless counsel requests it.",
   "id": "T-044",
   "order": 80,
   "phase": "infrastructure",
-  "status": "open",
-  "title": "Audit log: table, hash chain, CloudWatch immutable sink",
+  "status": "complete",
+  "title": "Minimal audit and evidence events in DynamoDB",
   "type": "task"
 }

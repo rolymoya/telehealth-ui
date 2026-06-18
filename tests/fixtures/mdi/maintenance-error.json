@@ -1,0 +1,12 @@
+{
+  "fixture": "mdi-maintenance-error",
+  "source": "sanitized-shape-only",
+  "response": {
+    "status": 418,
+    "code": "MDI_MAINTENANCE",
+    "message": "MAINTENANCE_MESSAGE_SENTINEL",
+    "retryAfterSeconds": 300,
+    "requestId": "mdi_req_00000000-0000-4000-8000-000000000418"
+  },
+  "localPersistence": "operational_error_only"
+}

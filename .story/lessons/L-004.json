@@ -1,0 +1,19 @@
+{
+  "content": "Use Storybloq for ticket state, lessons, issues, and handovers, but implement tickets directly by default. Run full multi-lens review only for high-risk work touching auth, payments, PHI/privacy/compliance, Stripe/MDI webhooks or intake, DynamoDB schema/idempotency/concurrency, infrastructure, secrets, or deployment security. After a revise verdict, batch fixes and re-review only the categories touched by the fixes or any critical/high findings; approve or defer once high-risk findings are addressed and verification passes.",
+  "context": "Added after T-045 autonomous work produced many full multi-lens review rounds. The rounds found real security/reliability issues, but the repeated full-review loop was token-intensive. `.story/config.json` now defaults reviewBackends to `agent`; lenses remain available for explicit risk-gated use.",
+  "createdDate": "2026-06-05",
+  "id": "L-004",
+  "lastValidated": "2026-06-05",
+  "reinforcements": 0,
+  "source": "manual",
+  "status": "active",
+  "supersedes": null,
+  "tags": [
+    "autonomous",
+    "review",
+    "quality",
+    "token-efficiency"
+  ],
+  "title": "Use risk-gated review loops after first full review",
+  "updatedDate": "2026-06-06"
+}

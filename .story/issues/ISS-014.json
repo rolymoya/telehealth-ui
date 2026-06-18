@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-014",
+  "impact": "Evidence-event schema is duplicated across event type unions, sets, category maps, summary maps, metadata maps, and linkage switch, increasing drift risk.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": "Centralized evidence event taxonomy into a single evidenceEventSchema that now defines each event type's category, summary code, allowed statuses, and allowed metadata values. Validation derives those checks from the schema, removing the previous parallel event type set, category map, summary map, status map, metadata-key map, and metadata-value map. Event ID and linkage-specific validation remain separate behavioral checks for ISS-016.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "[maintainability] Evidence-event schema is duplicated across event type unions, sets, category map"
+}

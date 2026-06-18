@@ -14,7 +14,6 @@
     "maxTicketsPerSession": 0,
     "handoverInterval": 3,
     "reviewBackends": [
-      "lenses",
       "agent"
     ],
     "stages": {

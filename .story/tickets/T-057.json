@@ -1,12 +1,16 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-045",
+    "T-052",
+    "T-054"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "Inbound MDI webhooks land at `/api/webhooks/mdi`, are verified by **both** HMAC signature and bearer token, then handed to the shared webhook plumbing (T-045) for SQS enqueue and worker dispatch.\n\n**Scope**\n- Route handler `src/app/api/webhooks/mdi/route.ts`:\n  - Read raw body (Next.js App Router request body, not JSON-parsed).\n  - Verify `Signature` header: `hmac_sha256(secret, raw_body)` where secret = `apoth/<env>/mdi/webhook_signing_secret`.\n  - Verify `Authorization: Bearer <token>` against `apoth/<env>/mdi/webhook_bearer`.\n  - Both fail → 400, audit row, alarm. Either-only fail → 400 (defense in depth).\n  - Pass → call `enqueueWebhook('mdi', event)` (T-045). 200 returned in <500ms target.\n- Worker dispatcher routes by `event.type` to a family handler:\n  - `case_*` → T-058 (case-lifecycle handlers)\n  - `partner_charge` → T-059 (billing handler)\n  - `message_created`, `file_*`, `voucher_*`, `exam_*` → T-060\n  - `subscription_*` → T-061b (subscription lifecycle handler)\n- **Out-of-order tolerance**: for `case_*` events, compare event timestamp to `cases.mdi_updated_at`; drop stale events (log, no-op).\n\n**Acceptance**\n- A signed fixture payload (T-052 spike output) is accepted and processed.\n- An unsigned or wrong-signature payload is rejected with 400 and an audit row.\n- Out-of-order replay: applying `case_completed` before `case_assigned` for the same case results in the correct final state.",
+  "description": "Receive MDI webhooks through the shared serverless webhook pattern.\n\n**Scope**\n- Verify required MDI webhook authentication/signature material before state changes.\n- Record provider event ID/status in DynamoDB for idempotency.\n- Process safe status mirrors inline or enqueue retryable actions to SQS/DLQ.\n- Register no-op handling for safe-to-ignore launch events based on T-052.\n\n**Acceptance**\n- Invalid MDI webhook auth produces no side effects.\n- Duplicate event ID is idempotent.\n- Must-handle events update only minimal local status/pointers and evidence records.",
   "id": "T-057",
   "order": 60,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "MDI webhook receiver: HMAC + bearer verification + enqueue",
+  "title": "MDI webhook receiver: verification + idempotent serverless processing",
   "type": "task"
 }

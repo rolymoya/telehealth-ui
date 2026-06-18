@@ -1,12 +1,16 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-044",
+    "T-063",
+    "T-070"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "A staff-only tool that produces the LegitScript \"show me everything that happened for user X\" timeline in one click. The artifact auditors actually want.\n\n**Scope**\n- `src/app/admin/audit/[userId]/page.tsx` — server component, gated by:\n  - Staff role (`users.role = 'staff'`).\n  - **Step-up MFA** challenge on every render — even an authenticated staff session must re-prove MFA before viewing.\n  - Per-view audit row: `admin.audit_timeline.viewed` with target user_id.\n- The timeline merges and sorts by `occurred_at`:\n  - `audit_log` rows (auth, consent, PHI access, webhook events applied).\n  - `consents` rows (with linked document version).\n  - `kyc_verifications` row history.\n  - `cases` row history with MDI status transitions.\n  - `subscriptions` row history.\n  - `billing_events` rows.\n- Export to CSV + JSON for offline review / regulatory submission.\n- No PHI decryption in this view (only metadata, status, timestamps); a \"request full decrypt\" workflow goes through a separate approval (deferred to a Phase F+ ticket).\n\n**Acceptance**\n- A staff user can reach the timeline for any user via `/admin/audit/<userId>`; non-staff get 403.\n- Every view is itself an audit row.\n- Export produces a deterministic, sortable CSV ready for legal/regulator hand-off.",
+  "description": "Build or document the staff workflow for answering launch support and compliance evidence questions using minimal records.\n\n**Scope**\n- Provide a staff-only view or runbook that can assemble a timeline from DynamoDB evidence records, consent records, MDI/Stripe pointers, and provider dashboards.\n- Gate any staff surface with strong auth/role checks and audit every access.\n- Do not decrypt or display questionnaire answers, message bodies, files, labs, or clinical notes in Apoth.\n\n**Acceptance**\n- Staff can answer \"where is this patient in onboarding/care/billing?\" using opaque IDs and statuses.\n- Every staff timeline view/export is itself recorded as an evidence event.\n- Non-staff users cannot access the workflow.",
   "id": "T-072",
   "order": 40,
   "phase": "hardening",
   "status": "open",
-  "title": "Admin audit timeline view (per-user evidence query)",
+  "title": "Staff support/evidence timeline over minimal records",
   "type": "feature"
 }

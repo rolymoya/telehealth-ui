@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
+import { assertPublicServerStartupConfig } from "@/lib/secrets/startup";
 import "./globals.css";
+
+assertPublicServerStartupConfig({ env: process.env });
 
 const fraunces = Fraunces({
   subsets: ["latin"],

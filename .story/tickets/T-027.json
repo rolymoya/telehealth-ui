@@ -1,15 +1,17 @@
 {
   "blockedBy": [
     "T-007",
-    "T-024"
+    "T-024",
+    "T-025",
+    "T-026"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Cancellation is the most reconciliation-prone moment in the system: a Stripe-side cancel must propagate to MDI's subscription, a clinical-side cancel must propagate to Stripe, and dunning (failed payments) must pause both surfaces.\n\n**Scope**\n- Stripe Customer Portal configured to allow **payment-method update and cancellation only**. No plan switching in the portal (clinical implication; force plan changes through our UI, which can re-check eligibility).\n- `src/app/(app)/billing/page.tsx` redirects to a freshly created Customer Portal session for the user.\n- Worker handler for `customer.subscription.deleted` → calls MDI `POST /partner/subscriptions/:id/cancel` for the linked MDI subscription.\n- Worker handler for MDI `subscription_cancelled` webhook (mdi-integration phase) → cancels the Stripe subscription at period end.\n- Dunning: `invoice.payment_failed` → notify patient via email + pause the MDI subscription (do not cancel — gives patient time to update payment).\n- Refund initiated by support uses a server action that creates a Stripe refund + writes a `billing_events` row + audit log entry.\n\n**Out of scope**\n- The reconciliation drift detector (nightly job → hardening phase).\n- Self-serve refund UI (deferred — support-initiated only in v1).\n\n**Acceptance**\n- Stripe cancel → MDI cancel reflected within one webhook cycle.\n- MDI cancel → Stripe cancel at period end (not immediate, to honor any owed billing period).\n- `invoice.payment_failed` → MDI subscription `status = paused`, patient notified.",
+  "description": "Implement billing edge cases in a way that matches the Terms and keeps MDI/Stripe mirrors aligned.\n\n**Scope**\n- Define refund/cancellation handling for pre-approval, clinical denial, prescription approval, renewal, and patient cancellation cases.\n- Sync relevant cancellation/pause state with MDI where the care workflow requires it.\n- Handle failed payments with patient-safe dunning copy and dashboard state.\n- Keep all Stripe metadata and customer-facing descriptors free of PHI.\n\n**Acceptance**\n- Refund matrix tests map Terms scenarios to Stripe actions.\n- Cancelling billing updates local mirror state and triggers required MDI-side action exactly once.\n- Failed-payment state appears in the dashboard without exposing clinical details.",
   "id": "T-027",
   "order": 50,
   "phase": "payments",
   "status": "open",
-  "title": "Refunds, cancellation, dunning — cross-system sync",
+  "title": "Refunds, cancellation, and dunning sync",
   "type": "task"
 }

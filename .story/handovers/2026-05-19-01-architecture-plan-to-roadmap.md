@@ -1,5 +1,14 @@
 # Handover — Architecture plan → roadmap
 
+> **Superseded — do not use as current architecture guidance.**
+> This handover captured an earlier heavy AWS roadmap. The current direction is
+> a lean serverless architecture: Cognito for Apoth-owned patient accounts,
+> DynamoDB for minimal linkage/status records, MDI as the clinical system of
+> record, no questionnaire-answer persistence by default, no Persona/KYC at
+> launch, and no RDS/Postgres, Redis, ECS/App Runner worker, Datadog, NAT, or
+> VPC endpoints unless a future architecture decision reintroduces them.
+> See `docs/architecture-reset-audit.md`, `CLAUDE.md`, and `RULES.md`.
+
 ## Session summary
 
 Translated the end-to-end architecture plan at

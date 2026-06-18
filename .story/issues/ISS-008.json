@@ -1,0 +1,23 @@
+{
+  "components": [
+    "startup",
+    "accessibility",
+    "secrets"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-008",
+  "impact": "The root layout currently runs startup secret validation, so a missing required runtime secret can block public/static/legal pages as well as secret-dependent workflows. This matches the current startup-fail acceptance, but future route handlers or runtime clients may need route-scoped validation or an accessible maintenance/error boundary to keep unaffected public pages available.",
+  "location": [
+    "src/app/layout.tsx",
+    "src/lib/secrets/startup.ts"
+  ],
+  "phase": "infrastructure",
+  "relatedTickets": [
+    "T-041"
+  ],
+  "resolution": "Split startup validation into a public-safe root layout check and a stricter secret-required runtime check. The root layout now validates public env safety, optional Cognito public identifiers, and stage syntax without requiring backend secret identifiers, while secret-dependent routes such as Stripe webhooks still load and validate required secrets through the runtime startup source before processing.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "Root startup secret gate can block public pages"
+}

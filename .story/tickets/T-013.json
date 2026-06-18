@@ -1,12 +1,13 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "claimedBySession": "7f48be35-fd31-451e-beb8-acdd95fee9a9",
+  "completedDate": "2026-06-08",
   "createdDate": "2026-05-18",
-  "description": "Replaces the original Clerk plan. We're self-hosting **better-auth** on AWS so user identity stays inside the BAA boundary alongside MDI patient pointers — Clerk's BAA is Enterprise-tier only and would put a copy of identity data outside our boundary.\n\n**Scope**\n- Install better-auth and configure against our Postgres (Drizzle migrations land the `users`, `accounts`, `sessions`, `verifications` tables; later additions: `passkeys`, `two_factor`).\n- Database-backed sessions (Postgres) with Redis read-through cache for hot lookups. JWT-only sessions are rejected — we need revocation-on-the-spot for compliance termination, password reset, and suspected fraud.\n- Route handler at `src/app/api/auth/[...all]/route.ts` exposes better-auth.\n- Thin facade at `src/lib/auth.ts` (`getSession`, `requireUser`) — **every** auth call goes through this facade. Lint-enforced. This is the swap-cost insulator.\n\n**Out of scope (separate tickets)**\n- Sign-up / sign-in UI → T-014\n- Middleware + protected routes → T-015\n- Patient profile + KMS-encrypted PII columns → T-016\n\n**Decisions**\n- Skip the better-auth Stripe plugin in v1 — wrong shape (we want to create the Stripe customer after consents, not at signup). Revisit in Phase F.\n- No organizations plugin — Apoth is direct-to-patient.\n\n**Acceptance**\n- `src/lib/auth.ts` exists and is the only path callers use to reach better-auth.\n- A test user can be created via the better-auth API, persisted in `users`, and a session row exists.\n- Swapping the underlying lib would require changes only inside `src/lib/auth.ts` (verified by reviewing call sites).",
+  "description": "Configure Amazon Cognito as Apoth's patient identity provider.\n\n**Scope**\n- Define user pool, app client, domains/callbacks, password policy, account recovery, email verification, and MFA posture for launch.\n- Add a thin auth facade at `src/lib/auth.ts` for session lookup, current-user access, and protected-route helpers so product code does not depend directly on Cognito SDK details.\n- Document local/staging/prod Cognito configuration and environment variables.\n- Keep auth data in Cognito. Do not introduce better-auth, Clerk, Supabase Auth, Postgres auth tables, or Redis session caches without a new architecture decision.\n\n**Acceptance**\n- A test user can sign up, verify email, sign in, sign out, and retrieve a server-side session through the facade.\n- All app auth call sites go through `src/lib/auth.ts` or a local wrapper built on it.\n- Setup docs make clear which identifiers are safe to store in DynamoDB (`cognito_sub`) and which data remains in Cognito.",
   "id": "T-013",
   "order": 10,
   "phase": "auth",
-  "status": "open",
-  "title": "Auth provider setup (better-auth, self-hosted)",
+  "status": "complete",
+  "title": "Cognito auth provider setup",
   "type": "feature"
 }

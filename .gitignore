@@ -18,17 +18,26 @@ yarn-error.log*
 # Build output
 /tmp
 /dist
+/workers/
 /out-tsc
 /.next
 /out
 /coverage
+/blob-report
+/playwright-report
+/test-results
 next-env.d.ts
 tsconfig.tsbuildinfo
 
 # Env
 .env*.local
 
+# Local installers and agreement evidence
+AWSCLIV2.pkg
+docs/compliance/*.pdf
+
 # storybloq (session-local state)
 .story/snapshots/
 .story/sessions/
 .story/status.json
+/.idea/vcs.xml

@@ -1,0 +1,23 @@
+{
+  "components": [
+    "dependencies",
+    "infra",
+    "security"
+  ],
+  "discoveredDate": "2026-06-04",
+  "id": "ISS-003",
+  "impact": "`npm audit --prefix infra --omit=dev` reports GHSA-jxxr-4gwj-5jf2 for `brace-expansion` bundled under `aws-cdk-lib@2.257.0`. `npm audit fix --prefix infra` cannot remediate it automatically because the vulnerable package is bundled by aws-cdk-lib, so remediation requires an upstream CDK update or explicit dependency decision. This affects infrastructure tooling, not deployed Lambda application code.",
+  "location": [
+    "infra/package.json",
+    "infra/package-lock.json"
+  ],
+  "phase": null,
+  "relatedTickets": [
+    "T-039"
+  ],
+  "resolution": "Updated infra CDK dependencies to aws-cdk-lib 2.258.1 and aws-cdk CLI 2.1126.0. The updated lockfile now resolves aws-cdk-lib's bundled minimatch path to minimatch 10.2.5 and brace-expansion 5.0.6, and `npm --prefix infra audit --omit=dev` reports 0 vulnerabilities. Infra tests, build, and staging synth pass.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "Infra npm audit flags bundled aws-cdk-lib brace-expansion advisory"
+}

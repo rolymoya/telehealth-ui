@@ -1,0 +1,153 @@
+name: Deploy static UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "Deployment stage"
+        required: true
+        default: "staging"
+        type: choice
+        options:
+          - staging
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-static-ui-${{ inputs.stage }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy
+  STACK_NAME: Apoth-staging-ServerlessPlatform
+
+jobs:
+  deploy:
+    name: Publish static UI to staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check trusted branch
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "The staging OIDC role currently trusts only refs/heads/main."
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve staging stack outputs
+        run: |
+          set -euo pipefail
+
+          outputs_json="$(aws cloudformation describe-stacks \
+            --region "${AWS_REGION}" \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)"
+
+          get_output() {
+            jq -r --arg key "$1" '.[] | select(.OutputKey == $key) | .OutputValue // empty' \
+              <<<"${outputs_json}"
+          }
+
+          static_bucket_name="$(get_output StaticAssetsBucketName)"
+          static_distribution_domain="$(get_output StaticWebDistributionDomainName)"
+          static_distribution_id="$(get_output StaticWebDistributionId)"
+          cognito_user_pool_id="$(get_output PatientUserPoolId)"
+          cognito_user_pool_client_id="$(get_output PatientUserPoolClientId)"
+
+          for name in \
+            static_bucket_name \
+            static_distribution_domain \
+            static_distribution_id \
+            cognito_user_pool_id \
+            cognito_user_pool_client_id
+          do
+            if [ -z "${!name}" ]; then
+              echo "Missing required CloudFormation output: ${name}"
+              exit 1
+            fi
+          done
+
+          {
+            echo "STATIC_BUCKET_NAME=${static_bucket_name}"
+            echo "STATIC_DISTRIBUTION_DOMAIN=${static_distribution_domain}"
+            echo "STATIC_DISTRIBUTION_ID=${static_distribution_id}"
+            echo "NEXT_PUBLIC_COGNITO_REGION=${AWS_REGION}"
+            echo "NEXT_PUBLIC_COGNITO_USER_POOL_ID=${cognito_user_pool_id}"
+            echo "NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID=${cognito_user_pool_client_id}"
+            echo "NEXT_PUBLIC_SITE_URL=https://${static_distribution_domain}"
+          } >>"${GITHUB_ENV}"
+
+      - name: Build static artifact
+        run: npm run build:static
+
+      - name: Verify static artifact routes
+        run: |
+          set -euo pipefail
+          test -f out/index.html
+          test -f out/intake/index.html
+          test -f out/onboarding/mdi/index.html
+
+      - name: Sync static artifact to S3
+        run: |
+          aws s3 sync out/ "s3://${STATIC_BUCKET_NAME}/" \
+            --delete \
+            --only-show-errors
+
+      - name: Invalidate CloudFront
+        id: invalidate
+        run: |
+          set -euo pipefail
+          invalidation_id="$(aws cloudfront create-invalidation \
+            --distribution-id "${STATIC_DISTRIBUTION_ID}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)"
+          echo "invalidation_id=${invalidation_id}" >>"${GITHUB_OUTPUT}"
+
+      - name: Wait for invalidation
+        run: |
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${STATIC_DISTRIBUTION_ID}" \
+            --id "${{ steps.invalidate.outputs.invalidation_id }}"
+
+      - name: Smoke test CloudFront routes
+        run: |
+          set -euo pipefail
+          base_url="https://${STATIC_DISTRIBUTION_DOMAIN}"
+
+          curl --fail --silent --show-error "${base_url}/" >/dev/null
+          curl --fail --silent --show-error "${base_url}/intake" >/dev/null
+          curl --fail --silent --show-error "${base_url}/onboarding/mdi" >/dev/null
+
+          api_status="$(curl --silent --show-error --output /tmp/apoth-api-smoke.json \
+            --write-out '%{http_code}' \
+            "${base_url}/api/intake/bootstrap")"
+          if [ "${api_status}" != "401" ]; then
+            echo "Expected /api/intake/bootstrap to route to API Gateway and return 401, got ${api_status}."
+            cat /tmp/apoth-api-smoke.json
+            exit 1
+          fi
+          grep -q '"code":"missing_session"' /tmp/apoth-api-smoke.json

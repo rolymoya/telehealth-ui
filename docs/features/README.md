@@ -2,6 +2,15 @@
 
 Per-branch markdown files documenting non-trivial changes to the codebase. These are written at PR time and frozen — they capture the state and reasoning when the work landed. Later changes get their own feature doc, not edits to old ones.
 
+## Current architecture note
+
+The current product and infrastructure direction is documented in
+`docs/architecture-reset-audit.md` and the live root docs (`CLAUDE.md`,
+`RULES.md`, `PRODUCT.md`, `DESIGN.md`). Older feature docs may mention earlier
+assumptions such as Clerk, better-auth, Persona, RDS/Postgres, App Runner, ECS,
+Redis, Datadog, or a heavier HIPAA infrastructure posture. Treat those as
+historical context unless a newer feature doc explicitly re-adopts them.
+
 ## When to create one
 
 - Any feature branch with more than ~100 lines of changes.

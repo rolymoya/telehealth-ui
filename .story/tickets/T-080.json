@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-076"
+  ],
+  "claimedBySession": "cef332bb-a3a7-4d94-9497-d11c44a2b82a",
+  "completedDate": "2026-06-05",
+  "createdDate": "2026-06-04",
+  "description": "Clean the working branch of old architecture artifacts so future work does not accidentally revive them.\n\n**Scope**\n- Remove or quarantine old `infra/` and `workers/` content if it is from the superseded RDS/App Runner/ECS/Redis direction.\n- Preserve any useful tests, webhook verification helpers, or fixtures by moving them into the new serverless structure before deletion.\n- Document anything intentionally kept and why.\n\n**Acceptance**\n- No live project path implies RDS/Postgres, Redis, ECS worker, App Runner, Persona/KYC, Datadog, or raw webhook payload archives are launch requirements.\n- Useful verification logic or fixtures from the old branch are either migrated or explicitly deferred.\n- Stale-term scan is clean except for historical docs marked superseded.",
+  "id": "T-080",
+  "order": 130,
+  "phase": "infrastructure",
+  "status": "complete",
+  "title": "Remove superseded infra/worker artifacts from reset branch",
+  "type": "chore"
+}

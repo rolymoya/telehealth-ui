@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-018",
+  "impact": "OccurredAt-ordered keyset pagination may miss late-arriving older occurredAt records under concurrent writes; document refresh/read consistency posture.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": "Documented the evidence timeline read-consistency posture in the DynamoDB data model and serverless support runbook: occurredAt-ordered cursors are live-read continuation tokens, not snapshot boundaries, and complete incident/compliance review must refresh from page 1 after active writes settle. Added a domain test demonstrating that a late write with an older occurredAt is missed by an advanced cursor but visible after a first-page refresh.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "[concurrency] OccurredAt-ordered keyset pagination may miss late-arriving older occurredAt rec"
+}

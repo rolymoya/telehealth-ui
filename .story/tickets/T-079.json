@@ -1,0 +1,14 @@
+{
+  "blockedBy": [
+    "T-052"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-06-04",
+  "description": "Decide which dashboard capabilities Apoth owns natively at launch and which should remain in MDI embedded workflow URLs.\n\n**Scope**\n- Inventory desired dashboard features: case status, action-needed prompts, messaging, file/lab access, clinician workflow, refills, billing, account, and support.\n- Map each feature to native Apoth UI, MDI embedded URL, MDI API-backed read, or deferred.\n- Preserve the rule that clinical content stays in MDI unless a future decision expands Apoth's storage boundary.\n\n**Acceptance**\n- A launch dashboard scope matrix is documented.\n- T-060, T-061, T-062, and T-063 know which workflows to implement.\n- Any deferred dashboard promise is removed from user-facing copy or marked as future work.",
+  "id": "T-079",
+  "order": 150,
+  "phase": "mdi-integration",
+  "status": "open",
+  "title": "Dashboard surface decision: native Apoth UI vs embedded MDI workflows",
+  "type": "task"
+}

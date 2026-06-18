@@ -1,12 +1,15 @@
 {
-  "blockedBy": [],
-  "completedDate": null,
+  "blockedBy": [
+    "T-038"
+  ],
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-04",
   "createdDate": "2026-05-19",
-  "description": "All infrastructure-as-code lives in `/infra` (CDK in TypeScript — shared language with the app).\n\n**Scope**\n- CDK app structured as: `network-stack`, `data-stack`, `app-stack`, `worker-stack`, `observability-stack`.\n- VPC with public + private + isolated subnets across 2+ AZs; NAT gateway for outbound (necessary for MDI/Stripe API calls from private subnets).\n- RDS Postgres 16, Multi-AZ in prod, KMS-encrypted with a customer-managed key, automated backups 35d, PITR enabled. Private (isolated) subnet only.\n- ElastiCache Redis (single-node dev/staging, replication-group with 1 replica prod).\n- App Runner service stub (image pulled from ECR placeholder); VPC connector to access RDS/Redis.\n- ECS Fargate cluster + worker service stub.\n- SQS main queue + DLQ (visibility timeout 60s, max receives 5).\n- S3 buckets: `apoth-<env>-webhook-payloads`, `apoth-<env>-audit-exports`, `apoth-<env>-kyc-documents`. All KMS-encrypted, block public access, versioned.\n- ECR repo for the app image.\n\n**Acceptance**\n- `cdk deploy ApothStaging` succeeds end-to-end and produces a reachable App Runner URL (serving a placeholder 200).\n- `cdk diff` against prod is clean (env-specific differences in `cdk.json` or env-tagged construct props only).",
+  "description": "Create the lean infrastructure-as-code baseline for launch.\n\n**Scope**\n- Define infrastructure for Cognito user pool/app client, DynamoDB tables, Secrets Manager secrets, Lambda/API Gateway or Next-compatible serverless route handlers, and SQS/DLQ only where retries are needed.\n- Include environment tagging and staging/prod separation.\n- Keep the stack outside VPC unless a specific service requires it.\n- Do not provision RDS/Postgres, Redis, App Runner, ECS/Fargate workers, NAT gateways, VPC endpoints, ECR app images, or raw webhook-payload S3 archives for launch.\n\n**Acceptance**\n- A staging deploy creates the serverless primitives and outputs the required IDs/URLs.\n- `cdk diff` or the chosen IaC equivalent is readable and environment-specific differences are intentional.\n- Monthly launch-scale cost estimate remains under the reset target unless explicitly approved.",
   "id": "T-039",
   "order": 30,
   "phase": "infrastructure",
-  "status": "open",
-  "title": "CDK skeleton: VPC, RDS, App Runner, ECS, SQS",
+  "status": "complete",
+  "title": "Serverless IaC skeleton: Cognito, DynamoDB, Lambda/API routes, SQS/DLQ",
   "type": "task"
 }

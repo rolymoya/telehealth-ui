@@ -1,0 +1,28 @@
+{
+  "fixture": "mdi-file-order-events",
+  "source": "sanitized-shape-only",
+  "events": [
+    {
+      "provider": "mdi",
+      "eventId": "mdi_evt_case_file_001",
+      "type": "case_file_added",
+      "mdiPatientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+      "mdiCaseId": "mdi_case_00000000-0000-4000-8000-000000000001",
+      "fileId": "mdi_file_00000000-0000-4000-8000-000000000001",
+      "fileUrl": "FILE_URL_NOT_STORED_SENTINEL",
+      "occurredAt": "2026-06-05T13:20:00.000Z"
+    },
+    {
+      "provider": "mdi",
+      "eventId": "mdi_evt_order_status_001",
+      "type": "order_status_updated",
+      "mdiPatientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+      "mdiCaseId": "mdi_case_00000000-0000-4000-8000-000000000001",
+      "orderId": "mdi_order_00000000-0000-4000-8000-000000000001",
+      "status": "processing",
+      "trackingPointer": "TRACKING_POINTER_SENTINEL",
+      "occurredAt": "2026-06-05T13:25:00.000Z"
+    }
+  ],
+  "localPersistence": "opaque_pointer_and_status_only"
+}

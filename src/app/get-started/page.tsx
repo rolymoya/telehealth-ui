@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
 import Link from "next/link";
-import { Nav } from "@/components/Nav";
+import type { Metadata } from "next";
 import { Footer } from "@/components/Footer";
+import { Nav } from "@/components/Nav";
+import { GetStartedRedirectClient } from "@/app/get-started/GetStartedRedirectClient";
 
 export const metadata: Metadata = {
   title: "Start a visit · Apoth",
@@ -12,35 +13,27 @@ export const metadata: Metadata = {
 export default function GetStartedPage() {
   return (
     <>
+      <GetStartedRedirectClient />
       <Nav variant="light" />
-      <main
-        id="main"
-        className="mx-auto max-w-page px-6 pb-24 pt-16 text-ink md:px-10 md:pb-32 md:pt-20"
-      >
-        <p className="text-eyebrow uppercase text-ash">Start a visit</p>
-        <h1 className="display-serif mt-5 text-display-lg font-light text-balance">
-          Connect with a licensed clinician.
-        </h1>
-        <p className="mt-6 max-w-measure text-pretty text-ink/75">
-          Our intake is being built. In the meantime, choose the category that
-          fits and we will route you to the right starting point. Eligibility is
-          determined clinically — we will not charge a card before confirming we
-          can see you in your state.
-        </p>
-        <div className="mt-10 flex flex-wrap gap-3">
-          <Link
-            href="/#what-we-treat"
-            className="rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-all duration-250 ease-out-quart hover:bg-clay"
-          >
-            See what we treat
-          </Link>
-          <Link
-            href="/#how-it-works"
-            className="rounded-full border border-ash-line px-5 py-2.5 text-[0.95rem] font-medium text-ink transition-all duration-250 ease-out-quart hover:border-clay-deep hover:text-clay-deep"
-          >
-            How a visit goes
-          </Link>
-        </div>
+      <main id="main">
+        <section className="mx-auto max-w-page px-6 py-16 text-ink md:px-10 md:py-24">
+          <div className="max-w-3xl">
+            <p className="text-eyebrow uppercase text-ash">Start a visit</p>
+            <h1 className="display-serif mt-4 text-display-md font-light text-balance">
+              Continue to intake.
+            </h1>
+            <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
+              Apoth will start with a residency and eligibility step before any
+              MDI-backed clinical questionnaire.
+            </p>
+            <Link
+              className="mt-8 inline-flex rounded-full bg-clay-deep px-6 py-3 text-[1rem] font-medium text-cream transition-colors hover:bg-clay"
+              href="/intake"
+            >
+              Continue
+            </Link>
+          </div>
+        </section>
       </main>
       <Footer />
     </>

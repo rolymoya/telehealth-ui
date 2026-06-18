@@ -1,0 +1,10 @@
+{
+  "fixture": "mdi-token-error",
+  "source": "sanitized-shape-only",
+  "response": {
+    "error": "invalid_client",
+    "error_description": "AUTH_ERROR_SENTINEL",
+    "status": 401
+  },
+  "localPersistence": "operational_error_only"
+}

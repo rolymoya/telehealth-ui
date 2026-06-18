@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-016",
+  "impact": "Evidence event taxonomy remains duplicated across parallel maps/switches; central schema refactor would reduce drift risk.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": "Extended the centralized evidenceEventSchema with per-event linkage requirements and changed evidence linkage validation to use those schema declarations instead of an event-type switch. The taxonomy schema now owns category, summary code, allowed statuses, metadata values, and linkage requirements. Event ID shape validation remains separate because it is behavior-specific and depends on event fields/opaque ID formats.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "[maintainability] Evidence event taxonomy remains duplicated across parallel maps/switches; centra"
+}

@@ -3,13 +3,14 @@
     "T-010",
     "T-013"
   ],
-  "completedDate": null,
+  "claimedBySession": "7f48be35-fd31-451e-beb8-acdd95fee9a9",
+  "completedDate": "2026-06-09",
   "createdDate": "2026-05-18",
-  "description": "Patient-facing auth surfaces, designed against RULES.md (Committed Clay, Two-Voice, Serif-Lead, Patient Floor — body ≥16px, target 17-18px).\n\n**Scope**\n- `src/app/(app)/signup/page.tsx` — email + password primary; magic-link secondary path (recovery + accessibility option).\n- `src/app/(app)/signin/page.tsx` — same shape, with a magic-link \"trouble signing in?\" exit.\n- `src/app/(app)/mfa/enroll/page.tsx` — TOTP enrollment. MFA is **required** before viewing case detail (enforced in middleware — T-015), but enrollment offered at signup with a clear \"set up now\" CTA and a deferral path to `/dashboard` until the gate is hit.\n- All forms server-action driven (App Router). No client-side auth state outside the session cookie.\n- Honor `RULES.md` design system. No clinical blue, no gradient text, no em dashes in body copy. `LegalReviewBanner` not needed here.\n\n**Out of scope**\n- Passkey enrollment (Phase A.5, post-launch).\n- Password reset UX → handled by better-auth defaults + magic-link path; revisit if friction shows up.\n\n**Acceptance**\n- Signup → email verification → first sign-in works end-to-end against the local stack.\n- MFA enrollment creates a `two_factor` row; the dashboard is accessible without MFA; the case-detail page requires it.\n- Visual review against DESIGN.md tokens once T-010 is complete.",
+  "description": "Build patient-facing auth surfaces backed by Cognito and aligned to the design system.\n\n**Scope**\n- Create sign-up, sign-in, verification, password reset, and sign-out routes/components for the product area.\n- Configure MFA behavior using Cognito-supported factors. Prefer a low-friction launch posture unless counsel or certification requires step-up MFA for sensitive views.\n- Keep all copy clear that Apoth is the technology platform and MDI handles clinical care.\n- Honor `RULES.md`: no clinical blue, no gradient text, patient-readable type, and no PHI in logs or analytics.\n\n**Acceptance**\n- Signup -> email verification -> first sign-in works end-to-end against a test Cognito pool.\n- Password reset and sign-out are tested.\n- Visual review confirms auth screens fit the Apoth design system and mobile layouts.",
   "id": "T-014",
   "order": 20,
   "phase": "auth",
-  "status": "open",
-  "title": "Sign-up / sign-in UI + MFA enrollment",
+  "status": "complete",
+  "title": "Sign-up / sign-in UI + Cognito MFA posture",
   "type": "task"
 }

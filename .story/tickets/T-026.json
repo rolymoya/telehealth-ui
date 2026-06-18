@@ -1,14 +1,16 @@
 {
   "blockedBy": [
-    "T-023"
+    "T-023",
+    "T-045"
   ],
-  "completedDate": null,
+  "claimedBySession": "3c71e9f5-9ea1-49b1-995c-c68fb6b02fd4",
+  "completedDate": "2026-06-10",
   "createdDate": "2026-05-18",
-  "description": "Stripe webhooks land at `src/app/api/webhooks/stripe/route.ts`, verify the signature, enqueue to SQS for asynchronous processing by the worker (defined in infrastructure phase). Idempotency is keyed on Stripe's `event.id` against the shared `webhook_events` table.\n\n**Scope**\n- Route handler reads raw body, verifies via `stripe.webhooks.constructEvent` against the webhook signing secret in Secrets Manager.\n- Upsert into `webhook_events` keyed on `event.id` — duplicate → 200 immediate, no enqueue.\n- Drop payload to S3 (encrypted bucket), put a minimal envelope on SQS, 200 to Stripe within target <500ms.\n- Worker handler at `workers/src/handlers/stripe.ts` processes:\n  - `customer.subscription.{created,updated,deleted}` → mirror to `subscriptions` table.\n  - `invoice.paid` → `billing_events` row (source: `stripe`).\n  - `invoice.payment_failed` → trigger dunning sync (T-076 in hardening).\n  - `setup_intent.succeeded` → unblock onboarding payment step (T-024).\n  - `payment_method.attached` → cross-check `patient_links.stripe_customer_id`.\n  - `charge.refunded`, `charge.dispute.created` → audit + alert.\n- WAF rule: Stripe IP allowlist on the webhook path (Stripe publishes ranges).\n\n**Acceptance**\n- Invalid signature → 400, audit row, alarm. Never accept untrusted writes.\n- Duplicate event id → 200, no worker enqueue, no side effects.\n- End-to-end test using Stripe CLI (`stripe trigger`) confirms the full path through SQS to worker to DB.",
+  "description": "Receive Stripe webhook events through the shared serverless webhook pattern.\n\n**Scope**\n- Verify Stripe signatures from the raw request body.\n- Record event ID/status in DynamoDB before side effects.\n- Process simple mirror updates inline when safe; use SQS/DLQ for retryable downstream actions.\n- Handle SetupIntent/payment method, subscription, invoice, refund, dispute, and payment-failure events needed for launch.\n\n**Acceptance**\n- Invalid signature produces no state changes.\n- Duplicate Stripe event ID is idempotent.\n- Stripe CLI test events exercise the full route/Lambda path and update only allowed local fields.",
   "id": "T-026",
   "order": 40,
   "phase": "payments",
-  "status": "open",
-  "title": "Stripe webhook receiver: signature verify + idempotent enqueue",
+  "status": "complete",
+  "title": "Stripe webhook receiver: signature verification + DynamoDB idempotency",
   "type": "task"
 }

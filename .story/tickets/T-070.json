@@ -1,12 +1,16 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-038",
+    "T-066",
+    "T-077"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "Nightly job that walks the `audit_log` hash chain and verifies its integrity. A broken chain (someone tampered with a row, or a write skipped the chain logic) pages on-call immediately.\n\n**Scope**\n- `workers/src/jobs/audit-chain-verify.ts` — runs nightly via EventBridge.\n- Walks `audit_log` in `occurred_at` order; for each row, recomputes `sha256(prev_hash || canonical(row))` and compares to stored `this_hash`.\n- On break: emit Datadog `audit.chain_break_count` (alarm threshold = 1), insert a special `audit.chain_break_detected` row pointing at the offending id, page on-call.\n- Bounded: walks the last 7 days fully; older segments verified weekly.\n\n**Acceptance**\n- Verifier passes on a clean log.\n- Manually mutating an old row (with admin access) is detected within one run and pages.\n- A new write that bypasses the chain logic (e.g., via raw SQL) is detected (because the next row's `prev_hash` won't match).",
+  "description": "Create the launch vendor/compliance evidence register for the new architecture.\n\n**Scope**\n- Track BAA/compliance status for AWS, MDI, pharmacy partner, and any approved support/analytics/monitoring vendor.\n- Explicitly record Stripe as not BAA-eligible and therefore opaque-ID only.\n- Remove Persona and Datadog from launch-critical rows unless future decisions reintroduce them.\n- Add a runbook for producing vendor evidence during attorney or LegitScript review.\n\n**Acceptance**\n- `docs/compliance/baa-register.md` or equivalent exists and matches the launch architecture.\n- Every vendor that receives, maintains, or transmits PHI has an approved path or is marked blocked.\n- Evidence runbook can be followed without code changes.",
   "id": "T-070",
   "order": 20,
   "phase": "hardening",
   "status": "open",
-  "title": "Audit-chain integrity verifier (nightly)",
+  "title": "BAA register + vendor evidence runbook",
   "type": "task"
 }

@@ -1,0 +1,22 @@
+{
+  "components": [
+    "dependencies",
+    "security"
+  ],
+  "discoveredDate": "2026-06-04",
+  "id": "ISS-001",
+  "impact": "npm audit --omit=dev reports GHSA-qx2v-qp2m-jg93 through next/node_modules/postcss for the current Next 16 dependency range. The npm suggested audit fix --force would install an inappropriate breaking Next version, so this needs a deliberate Next/PostCSS remediation path rather than an automatic audit fix.",
+  "location": [
+    "package.json",
+    "package-lock.json"
+  ],
+  "phase": null,
+  "relatedTickets": [
+    "T-017"
+  ],
+  "resolution": "Added an explicit npm override for postcss 8.5.10 and aligned the direct PostCSS devDependency to the same patched version. The regenerated lockfile removes Next's nested postcss 8.4.31 copy, dedupes Next/autoprefixer/tailwind/vite to postcss 8.5.10, and `npm audit --omit=dev` reports 0 vulnerabilities. Tests, typecheck, and staging build pass.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "Production npm audit flags Next bundled PostCSS advisory"
+}

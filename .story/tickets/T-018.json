@@ -1,12 +1,19 @@
 {
-  "blockedBy": [],
-  "completedDate": null,
+  "blockedBy": [
+    "T-013",
+    "T-015",
+    "T-016",
+    "T-017",
+    "T-047"
+  ],
+  "claimedBySession": "a17f41ed-5f49-4e59-af0b-d47ce5f296db",
+  "completedDate": "2026-06-10",
   "createdDate": "2026-05-18",
-  "description": "Reframed from \"intake flow design & route structure\" — the onboarding journey is now the orchestration layer that strings together auth, consents, KYC, intake, payment-method capture, and MDI patient/case creation.\n\n**Route shape** (under `src/app/(app)/onboarding/`)\n- `/signup` → `/onboarding/consents` → `/onboarding/identity` (Persona) → `/onboarding/identity/return` → `/onboarding/intake` (condition + state gate) → `/onboarding/payment` (Stripe SetupIntent — capture method, no charge) → server action creates MDI patient + case → `/dashboard`.\n\n**Scope**\n- Each step's route handler reads the prior step's completion from the DB (consents, kyc_verifications, profile state, payment_method_id) and enforces forward-only progression (middleware T-015 backs this with redirects).\n- A single `OnboardingProgress` server component renders the step indicator; the same source of truth (DB row presence) drives the indicator and the gate.\n- \"No card charged before clinical confirmation\" is structurally enforced: the payment step creates a SetupIntent and a `patient_links.stripe_customer_id`, but **no Subscription** until MDI emits `case_completed`.\n\n**Out of scope**\n- The intake page's own logic (T-022).\n- The Stripe SetupIntent server action (T-024).\n- The MDI case-creation server action (in mdi-integration phase).\n\n**Acceptance**\n- Walking the journey in test mode lands the user on `/dashboard` with a pending case and a captured-but-uncharged payment method.\n- Forward-only progression test: every backwards/skip attempt is redirected to the correct next step.",
+  "description": "Replace the old KYC-centered onboarding path with the launch route orchestration for Cognito, consent, intake, MDI handoff, dashboard status, and billing lockout. This ticket owns the shell, redirects, and status transitions; consent acceptance, eligibility/residency details, and questionnaire rendering are filled in by follow-on intake tickets.\n\n**Route shape**\n- `/get-started` starts or resumes onboarding.\n- Authenticated product routes live under the chosen App Router grouping.\n- Required steps: sign in/up, required consents, residency/eligibility, MDI-backed questionnaire, submit-to-MDI handoff, dashboard pending state, billing/payment step only at the approved point in the MDI workflow.\n\n**Scope**\n- Wire `/get-started` to redirect signed-out users through auth and signed-in users to the earliest incomplete onboarding step.\n- Use a single onboarding status source in DynamoDB to drive route guards, redirects, and progress indicators.\n- Create or read the minimal patient profile/status record needed for onboarding without storing clinical answers.\n- Preserve no Persona/KYC step for launch.\n- Keep billing/payment locked until the selected MDI approval event and the invariant tests from T-017/T-078.\n\n**Acceptance**\n- A signed-in patient entering `/get-started` lands on the earliest incomplete launch step.\n- Skip-ahead attempts redirect to the earliest incomplete step across consent, intake, MDI handoff, billing, and dashboard routes.\n- Tests prove the onboarding store contains status/pointers only, not clinical answers.\n- Product pages are no longer static placeholders for the core onboarding route shell.",
   "id": "T-018",
   "order": 20,
   "phase": "intake-flow",
-  "status": "open",
-  "title": "Onboarding journey orchestration (signup → MDI handoff)",
+  "status": "complete",
+  "title": "Cognito-gated onboarding journey orchestration",
   "type": "feature"
 }

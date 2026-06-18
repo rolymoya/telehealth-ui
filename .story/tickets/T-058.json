@@ -1,12 +1,15 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-057",
+    "T-078"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "Process the case state machine: `case_assigned → case_in_processing / case_in_waiting → case_completed → (case_in_support / case_cancelled)`.\n\n**Scope**\n- `workers/src/handlers/mdi/case-lifecycle.ts` — handles:\n  - `case_assigned` → status mirror update + audit row.\n  - `case_in_waiting` → status update, may surface UI cue (\"clinician needs more info\") via a feature flag.\n  - `case_in_processing` → status update.\n  - `case_completed` → **the critical transition**:\n    1. Mirror status.\n    2. Trigger Stripe subscription creation (T-025) for the case's condition.\n    3. Trigger MDI subscription creation (T-061b) for refill cadence.\n    4. Cross-link the IDs in both metadata fields.\n    5. Audit log row.\n  - `case_in_support` → status update + ops alarm (Datadog metric).\n  - `case_cancelled` → status update + cancel any linked Stripe + MDI subscription.\n- All updates conditional on `event.timestamp > cases.mdi_updated_at` (out-of-order drop per T-057).\n- Idempotent: re-applying the same event is a no-op.\n\n**Acceptance**\n- Full lifecycle fixture replay produces the expected `cases.status` progression and exactly one Stripe subscription create at `case_completed`.\n- TDD invariant from T-017 stays green throughout.",
+  "description": "Handle MDI case lifecycle events and mirror the minimum status Apoth needs for onboarding, dashboard, and billing gates.\n\n**Scope**\n- Implement handlers for case created/assigned/processing/completed/declined/cancelled or the actual event names from T-052.\n- Drop stale events using provider timestamps where available.\n- Update DynamoDB case status and evidence records only.\n- Trigger billing unlock workflow only when the event contract from T-078 says it is safe.\n\n**Acceptance**\n- Fixture replay updates case status deterministically.\n- Out-of-order stale event does not regress status.\n- Completed/approved event can unlock billing exactly once and only when T-078 rules pass.",
   "id": "T-058",
   "order": 70,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "MDI webhook handler: case-lifecycle events",
+  "title": "MDI case-lifecycle webhook handlers",
   "type": "task"
 }

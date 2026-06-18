@@ -1,12 +1,17 @@
 {
-  "blockedBy": [],
-  "completedDate": null,
+  "blockedBy": [
+    "T-040",
+    "T-041",
+    "T-042"
+  ],
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-05",
   "createdDate": "2026-05-19",
-  "description": "Shared webhook plumbing for Stripe, MDI, and Persona. Receivers verify, enqueue, and ACK fast; workers do the heavy lifting.\n\n**Scope**\n- Drizzle schema: `src/lib/db/schema/webhook_events.ts` — `id (provider event id, PK)`, `provider` (`stripe`/`mdi`/`persona`), `signature_verified` (bool), `received_at`, `processed_at`, `status` (`received`/`processing`/`done`/`failed`), `attempts`, `payload_s3_key`.\n- Provider-agnostic helper `enqueueWebhook(provider, event)`:\n  - Upserts into `webhook_events` keyed on provider event id (PK collision → return immediately, do not re-enqueue).\n  - Writes raw payload to `apoth-<env>-webhook-payloads` S3 bucket (encrypted) with key `<provider>/<yyyy>/<mm>/<dd>/<event_id>.json`.\n  - Sends a minimal envelope to SQS: `{ provider, event_id, s3_key }`.\n- Receiver routes (route handlers in `src/app/api/webhooks/<provider>/route.ts`) call provider-specific signature verifiers then `enqueueWebhook`, return 200 in <500ms.\n- Worker entrypoint `workers/src/index.ts` consumes SQS, dispatches by provider to handler modules. Handler signature: `async (event, ctx) → 'done' | 'retry' | 'dlq'`.\n\n**Acceptance**\n- Duplicate event id arrives twice → second receipt returns 200 immediately, no second SQS message, no second worker invocation.\n- Worker crash mid-handler → SQS visibility timeout re-delivers, idempotent handler completes; no double-effect.\n- After 5 receive attempts, message lands in DLQ + alarm fires.",
+  "description": "Build shared webhook plumbing for Stripe and MDI under the serverless architecture.\n\n**Scope**\n- Receiver routes or Lambda handlers verify provider signatures before touching state.\n- Record provider, event ID, received/processed timestamps, status, and attempt counts in DynamoDB for idempotency.\n- Process simple idempotent events inline when safe; enqueue to SQS with DLQ only for events that need retry durability or downstream vendor calls.\n- Avoid raw webhook payload archives by default. If a payload must be retained for debugging/evidence, sanitize and document the retention/compliance basis.\n\n**Acceptance**\n- Invalid signature returns failure and produces no side effects.\n- Duplicate event ID returns success without duplicate processing.\n- A retryable handler failure lands in DLQ after configured attempts and triggers an alarm.",
   "id": "T-045",
   "order": 90,
   "phase": "infrastructure",
-  "status": "open",
-  "title": "Webhook ingestion: route handlers + SQS enqueue + idempotency",
+  "status": "complete",
+  "title": "Webhook ingestion: verified routes + DynamoDB idempotency + optional SQS/DLQ",
   "type": "task"
 }

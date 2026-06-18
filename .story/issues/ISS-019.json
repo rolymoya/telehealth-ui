@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-019",
+  "impact": "Adapter-level route/queue tests are not present yet; existing tests cover shared helpers rather than a production receiver/consumer boundary.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": "Added adapter-level webhook receiver and queue coverage: the Stripe route test now exercises the production receiver wiring, and src/lib/__tests__/sqs.test.ts verifies SQS config resolution, signed SendMessage request shape, PHI-safe queue message body boundaries, and SQS failure propagation to retry handling.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "[test-quality] Adapter-level route/queue tests are not present yet; existing tests cover shared"
+}

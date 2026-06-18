@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-011",
+  "impact": "Dashboard assertions check titles and metric-name substrings but not full namespace/dimension/statistic wiring per widget.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": "Replaced the launch observability dashboard test's string-substring assertions with structured DashboardBody parsing. The test now verifies the exact seven widget titles and each widget's CloudWatch metric rows, including namespace, metric name, dimensions, dimension values, and statistic for AWS and Apoth custom metrics.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "[test-quality] Dashboard assertions check titles and metric-name substrings but not full namesp"
+}

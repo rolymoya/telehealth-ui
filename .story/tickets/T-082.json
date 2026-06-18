@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "claimedBySession": "347b1048-a1f7-4e20-a8e3-408ecc22a36c",
+  "completedDate": "2026-06-08",
+  "createdDate": "2026-06-08",
+  "description": "Implement the remaining AWS security-service baseline for the current single-account launch account `329425487030`.\n\n**Scope**\n- Enable CloudTrail management events for the account/region in a reproducible way, preferably via a small account-baseline CDK stack or documented CLI runbook.\n- Enable GuardDuty in `us-east-1` for the same account.\n- Route or document the high-severity finding owner/contact path once provided.\n- Record evidence in `docs/runbooks/aws-account-baseline.md` and update `docs/runbooks/staging-cdk-deploy-handoff.md`.\n- Keep the setup lean; do not add Security Hub, org-wide aggregation, custom VPC networking, or broad enterprise tooling unless explicitly chosen later.\n\n**Acceptance**\n- CLI verification shows at least one active CloudTrail management-events trail or equivalent organization/account trail covering account `329425487030`.\n- CLI verification shows a GuardDuty detector exists in `us-east-1`.\n- The runbook records the security findings contact path and verification commands/results.\n- ISS-002 impact is updated to remove CloudTrail/GuardDuty once verified.",
+  "id": "T-082",
+  "order": 150,
+  "phase": "infrastructure",
+  "status": "complete",
+  "title": "Enable CloudTrail and GuardDuty in the single AWS account",
+  "type": "chore"
+}

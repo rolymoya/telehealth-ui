@@ -1,12 +1,16 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-045",
+    "T-054",
+    "T-063"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "MDI returns 418 when their API is under maintenance. Outbound writes must back off gracefully; critical operations must be queued and replayed; patients must see a clear \"we'll be back\" message.\n\n**Scope**\n- HTTP client (T-054) handles 418 with exponential backoff + jitter; throws `MdiUnavailableError` after exhausting retries.\n- `MDI_UNAVAILABLE` feature flag set by an auto-detector: if `mdi.api.error_rate_418` exceeds threshold for >2 min, flip the flag on. Reverse condition flips it off.\n- When the flag is on:\n  - The dashboard (T-063) renders a calm banner (\"we're temporarily unable to reach our clinical team; your care is unaffected; we'll resume shortly\").\n  - Onboarding's MDI-handoff step (T-055) queues the request via SQS for delayed replay instead of failing the user.\n  - Cancellations / urgent ops actions are queued similarly.\n- Replay worker: on flag-off, drain the queued operations in order, with per-message idempotency.\n\n**Acceptance**\n- Simulated sustained 418 flips the flag in <3 min; recovery flips it off in <5 min.\n- A patient mid-onboarding during a maintenance window sees the banner and lands on `/dashboard` with their case created once MDI recovers.",
+  "description": "Handle MDI 418/maintenance and transient outages gracefully across onboarding and dashboard flows.\n\n**Scope**\n- MDI client maps 418 and outage responses to typed errors.\n- Onboarding shows a calm pending/retry state if MDI submission or URL creation is unavailable.\n- Retryable operations can be queued via SQS/DLQ where needed.\n- Dashboard shows a patient-safe banner/status without implying clinical data loss.\n\n**Acceptance**\n- Simulated 418 produces the intended UI state and no duplicate MDI case/patient creation.\n- Queued retry eventually succeeds exactly once when MDI recovers.\n- Logs and alarms identify provider outage without logging clinical payloads.",
   "id": "T-065",
   "order": 140,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "MDI 418 maintenance mode handling + UX banner",
+  "title": "MDI maintenance/unavailable handling",
   "type": "task"
 }

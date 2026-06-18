@@ -1,12 +1,15 @@
 {
-  "blockedBy": [],
-  "completedDate": null,
+  "blockedBy": [
+    "T-039"
+  ],
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-04",
   "createdDate": "2026-05-19",
-  "description": "Drizzle ORM + migration tooling for the owned Postgres schema. Drizzle chosen over Kysely / Prisma for: TypeScript-first migrations, smaller runtime, and clean SQL output.\n\n**Scope**\n- `src/lib/db/client.ts` — Postgres connection pool (pg + Drizzle).\n- `drizzle.config.ts` + `src/lib/db/schema/` directory.\n- Baseline migration creates the `apoth` schema and reserves the table set (empty stubs OK):\n  - `users`, `accounts`, `sessions`, `verifications`, `passkeys`, `two_factor` (better-auth — actual columns come from T-013).\n  - `user_profiles`, `consents`, `consent_documents`, `kyc_verifications`, `patient_links`, `cases`, `subscriptions`, `billing_events`, `webhook_events`, `audit_log`, `feature_flags` (owned by us — full columns come from their respective tickets).\n- Migration script in CI: `npm run db:migrate` runs against staging on every deploy, prod via a manual approval step.\n- Connection string sourced from Secrets Manager at boot (no env-var passing of DB creds in App Runner config).\n\n**Acceptance**\n- Local `docker compose up` → migrations run cleanly into a fresh Postgres 16.\n- Staging migration runs in CI; rollback path documented (`db:rollback` to the previous migration).",
+  "description": "Replace the old Postgres/Drizzle baseline with DynamoDB tables for Apoth's minimal linkage/status records.\n\n**Scope**\n- Define table/key design for patient profile/linkage, consent evidence, webhook idempotency, billing status, and small operational status records.\n- Add TypeScript access helpers and local/test configuration.\n- Document which data belongs in MDI, Cognito, Stripe, or DynamoDB.\n- Explicitly reject clinical questionnaire answer storage in DynamoDB after MDI submission.\n\n**Acceptance**\n- Local/test reads and writes work through typed helpers.\n- Conditional writes support webhook idempotency and onboarding step transitions.\n- Data documentation maps every table to retention and PHI expectations.",
   "id": "T-040",
   "order": 40,
   "phase": "infrastructure",
-  "status": "open",
-  "title": "Postgres + Drizzle baseline migrations",
+  "status": "complete",
+  "title": "DynamoDB minimal app-data model",
   "type": "task"
 }

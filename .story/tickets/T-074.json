@@ -1,8 +1,11 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-037",
+    "T-071"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "External pen test before LegitScript submission and production launch. Findings drive issue tickets in `ISS-*` for remediation.\n\n**Scope**\n- Vendor selection (Cure53, Latacora, Trail of Bits, Bishop Fox, or comparable). Healthcare-domain experience preferred.\n- Scope of test:\n  - Authentication + session management (better-auth surface).\n  - Authorization (middleware journey gates, admin tooling).\n  - Webhook receivers (signature bypass attempts on Stripe / MDI / Persona).\n  - PHI handling (KMS envelope, audit log, mirror integrity).\n  - AWS infrastructure (network segmentation, IAM, secrets).\n- Scheduled after the bulk of hardening is in (audit verifier, reconcilers, admin tooling) but before T-077.\n- Each finding becomes a storybloq issue with severity matching the report; critical/high block launch.\n- Re-test scope agreed with vendor after remediation.\n\n**Acceptance**\n- Final report with executive summary attached to `docs/legitscript/pen-test-<date>.md`.\n- All critical and high findings closed (issue → resolved); medium/low captured for ongoing work.",
+  "description": "Engage and complete a launch-appropriate penetration/security test.\n\n**Scope**\n- Scope public marketing, auth, onboarding, dashboard, API/webhook routes, Cognito integration, DynamoDB access patterns, and Stripe/MDI webhook verification.\n- Include PHI/logging review for no-answer-retention and no-PHI-to-Stripe rules.\n- Triage findings into launch blockers versus post-launch hardening.\n\n**Acceptance**\n- Test scope and report are archived for launch evidence.\n- Critical/high findings are fixed or have approved mitigation before launch.\n- Retest confirms fixes for launch-blocking findings.",
   "id": "T-074",
   "order": 60,
   "phase": "hardening",

@@ -1,0 +1,22 @@
+{
+  "components": [
+    "auth",
+    "e2e"
+  ],
+  "discoveredDate": "2026-06-10",
+  "id": "ISS-023",
+  "impact": "Browser-realistic local session tests cannot seed and clear the __Host-apoth_access cookie through the HTTP dev endpoint because host-prefixed cookies require Secure while the development route clears with secure=false. This can hide local browser regressions in session establishment/clearing; production secure behavior is likely unaffected but should be verified explicitly.",
+  "location": [
+    "src/app/api/auth/session/route.ts",
+    "tests/e2e/auth-protected.spec.ts"
+  ],
+  "phase": "playwright-e2e",
+  "relatedTickets": [
+    "T-087"
+  ],
+  "resolution": "Resolved in T-087 by making /api/auth/session set and clear the __Host-apoth_access cookie with Secure=true in all environments, then verifying the real sign-out UI path clears a browser-seeded secure host cookie and restores protected-route redirects.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "Dev session cookie uses __Host prefix without a browser-valid secure local flow"
+}

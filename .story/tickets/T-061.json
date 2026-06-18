@@ -1,12 +1,17 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-052",
+    "T-054",
+    "T-078",
+    "T-079"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "MDI maintains its own subscription concept (separate from Stripe's billing subscription) — it governs clinical refill cadence. We create one in MDI immediately after Stripe subscription activation and cross-link them.\n\n**Scope**\n- `src/lib/mdi/subscriptions.ts` — wrappers for `POST /partner/subscriptions`, `GET /partner/subscriptions/:id`, `PATCH /partner/subscriptions/:id`, `POST /partner/subscriptions/:id/cancel`.\n- Mapping is **1:1** with Stripe: `subscriptions.mdi_subscription_id` ↔ `subscriptions.stripe_subscription_id`. Each is written into the other's metadata for cross-lookup.\n- Worker handler for MDI subscription webhooks: status mirror updates.\n- Cancellation: a Stripe `customer.subscription.deleted` triggers MDI cancel via T-027's flow; an MDI `subscription_cancelled` triggers Stripe cancel-at-period-end.\n- Pause: `invoice.payment_failed` (dunning) pauses MDI subscription rather than cancelling — gives the patient a payment-update window.\n\n**Acceptance**\n- Activation at `case_completed` (T-058) creates an MDI subscription with the right cadence; cross-IDs land in both metadata fields.\n- Cancelling on either side propagates within one webhook cycle.",
+  "description": "Integrate the MDI workflow pieces needed for refills and ongoing care access at launch.\n\n**Scope**\n- Confirm whether refill cadence/subscription lifecycle is driven by MDI APIs, embedded URLs, webhooks, or manual MDI workflow.\n- Implement only the launch-required helpers and status mirrors.\n- Keep Stripe billing state and MDI care workflow state linked by opaque IDs, not clinical descriptors.\n\n**Acceptance**\n- Product can explain what a patient can do for refills or follow-up from the dashboard.\n- Any MDI lifecycle helper has idempotency and tests.\n- No local record becomes the clinical source of truth.",
   "id": "T-061",
   "order": 100,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "MDI subscription lifecycle (refill cadence)",
+  "title": "MDI refill/care workflow lifecycle integration",
   "type": "feature"
 }

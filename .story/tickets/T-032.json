@@ -1,10 +1,11 @@
 {
   "blockedBy": [
-    "T-066"
+    "T-066",
+    "T-077"
   ],
   "completedDate": null,
   "createdDate": "2026-05-18",
-  "description": "Replace pharmacy-partner placeholder language on `/privacy` once the partner is selected and BAA-signed in T-066. The disclosure must name the entity, its state(s) of licensure, and its relationship to Apoth (independent compounding pharmacy, not owned by or affiliated with Apoth Health LLC).\n\n**Acceptance**\n- `/privacy` names the pharmacy partner with no `TODO:` chip remaining.\n- The relationship sentence matches the corporate-structure framing in CLAUDE.md.",
+  "description": "Add accurate pharmacy partner disclosure once the 503A partner and fulfillment path are confirmed.\n\n**Scope**\n- Identify the pharmacy partner name and licensing/disclosure language counsel approves.\n- Explain the separate-entity structure without implying Apoth dispenses medications.\n- Confirm fulfillment status is available through MDI passthrough or an approved workflow.\n\n**Acceptance**\n- Public/legal copy names or describes the pharmacy partner as counsel requires.\n- Disclosure is consistent across marketing, Terms, Privacy/NPP, and dashboard surfaces.\n- Placeholder/TODO chip is removed only after real approved data is present.",
   "id": "T-032",
   "order": 50,
   "phase": "launch-blockers",

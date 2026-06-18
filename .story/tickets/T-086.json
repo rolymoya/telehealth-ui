@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-085"
+  ],
+  "claimedBySession": "b12bf652-61c3-4189-959e-a318f0e68374",
+  "completedDate": "2026-06-10",
+  "createdDate": "2026-06-09",
+  "description": "Cover the static-first launch surface that should stay stable across implementation phases.\n\n**Scope**\n- Test primary navigation across `/`, `/about`, `/privacy`, `/terms`, `/get-started`, and auth entry routes.\n- Assert the patient-facing compliance promises that must not regress: Apoth as technology platform, MD Integrations as independent physician group, legal-review banner presence where required, compounded medication FDA-status disclosure, and no misleading provider/prescriber copy.\n- Cover key CTA paths from marketing pages into `/get-started` and auth routes.\n- Run responsive smoke checks for mobile and desktop viewports, including visible focus states and no obvious layout overlap on critical sections.\n\n**Acceptance**\n- Specs prove public pages load without console/page errors and expose expected navigation landmarks.\n- Compliance copy and required disclosure elements are asserted by accessible locators or stable text.\n- Mobile and desktop checks cover the first-viewport and CTA path for the marketing surface.\n- These specs remain vendor-independent and do not require authentication.",
+  "id": "T-086",
+  "order": 20,
+  "phase": "playwright-e2e",
+  "status": "complete",
+  "title": "Public marketing, legal, and compliance E2E specs",
+  "type": "task"
+}

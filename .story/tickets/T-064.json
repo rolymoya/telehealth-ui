@@ -1,12 +1,16 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-046",
+    "T-054",
+    "T-058"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "Webhooks are primary, but they can drop. A scheduled job pulls case status from MDI and compares to our mirror; any drift becomes an audit row + alarm.\n\n**Scope**\n- `workers/src/jobs/reconcile-mdi-cases.ts` — runs every 6h via EventBridge (T-046).\n  - For all `cases` with `mdi_updated_at` in the last 24h, fetch `GET /partner/cases/:id` and compare.\n  - If status differs: update the mirror, write `audit_log` (`case.drift_corrected`), emit Datadog metric `mdi.case_drift_count` (>0 alarms).\n- Bounded: max 500 cases per run, paged by `mdi_updated_at` desc.\n- Lower-frequency backfill (`reconcile-mdi-cases-full`, weekly) covers older cases to catch stragglers.\n\n**Acceptance**\n- Artificially stale a mirror row → next reconciler run corrects it and writes a drift audit.\n- Drift counter remains 0 in normal operation (sanity check).",
+  "description": "Add a scheduled reconciliation job for MDI case status drift.\n\n**Scope**\n- EventBridge schedule invokes a bounded Lambda that checks recent active cases against MDI.\n- Correct stale local status mirrors and write minimal evidence events.\n- Alarm on repeated errors or unexpected drift spikes.\n- Keep the job bounded for launch scale; no always-on worker service.\n\n**Acceptance**\n- Artificially stale status is corrected on the next run.\n- Reconciler handles MDI unavailable/418 without deleting or corrupting local status.\n- Drift alarms route to the launch ops channel/runbook.",
   "id": "T-064",
   "order": 130,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "MDI case-status reconciliation job (6h drift detection)",
+  "title": "MDI case-status reconciliation Lambda",
   "type": "task"
 }

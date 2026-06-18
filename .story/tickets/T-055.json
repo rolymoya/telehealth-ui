@@ -1,12 +1,15 @@
 {
-  "blockedBy": [],
+  "blockedBy": [
+    "T-016",
+    "T-054"
+  ],
   "completedDate": null,
   "createdDate": "2026-05-19",
-  "description": "Create the patient record in MDI at the end of onboarding (after KYC approved + payment method captured) and persist the link in our DB.\n\n**Scope**\n- Drizzle schema: `src/lib/db/schema/patient_links.ts` — `user_id` (UNIQUE FK), `mdi_patient_id`, `stripe_customer_id`, `created_at`. The pointer table.\n- `src/lib/mdi/patients.ts` — `createPatient(profile)` posts to `POST /partner/patients` with fields per MDI's schema: `first_name`, `last_name`, `email`, `date_of_birth`, `phone_number`, `gender`, `address.*`, optional `ssn`, `metadata: apoth_user_id` (255-char limit).\n- Server action `handoffToMDI(userId)` (called by the onboarding flow once consents + KYC + payment-method are all green):\n  - Decrypt PII from `user_profiles` (T-016) — single decrypt window, audited.\n  - Build the MDI payload, call `createPatient`.\n  - Insert `patient_links` row with the returned `mdi_patient_id` and existing `stripe_customer_id`.\n  - Audit log entry: `patient.created_in_mdi`.\n- **No PHI persisted in our DB beyond pointers**: the decrypted profile fields go to MDI and the plaintext is discarded.\n\n**Acceptance**\n- A successful handoff creates exactly one `patient_links` row and exactly one MDI patient (idempotent on retry: if `patient_links.mdi_patient_id` is set, skip the create).\n- A failed handoff (MDI 5xx) leaves the row unset; retry-able via job.",
+  "description": "Create or link the patient record in MDI and persist only the MDI pointer in Apoth.\n\n**Scope**\n- Build `createMdiPatient` helper using the MDI client.\n- Use Cognito/DynamoDB profile data needed for the MDI patient payload; discard plaintext request payloads after submission.\n- Store `mdi_patient_id` and linkage status in DynamoDB keyed by `cognito_sub`.\n- Ensure retry/idempotency behavior avoids duplicate MDI patients where the API allows.\n\n**Acceptance**\n- Successful handoff stores exactly one `mdi_patient_id` pointer and a status timestamp.\n- Failed MDI create leaves a retryable status without storing clinical questionnaire answers.\n- Logs and evidence events use opaque IDs only.",
   "id": "T-055",
   "order": 40,
   "phase": "mdi-integration",
   "status": "open",
-  "title": "MDI patient creation + patient_links schema",
+  "title": "MDI patient creation + DynamoDB linkage",
   "type": "feature"
 }

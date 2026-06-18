@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-05",
+  "id": "ISS-017",
+  "impact": "Case timeline lookup still filters patient timeline pages instead of using a case-scoped access path.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": "Added a case-scoped evidence index record under MDI#CASE#{mdiCaseId} / EVIDENCE#{occurredAt}#{eventId}, wrote it transactionally from both pure and production DynamoDB evidence writers, switched case timeline reads to query and validate that index, and covered cursor forgery, webhook replay, and corrupt pointer paths in tests.",
+  "resolvedDate": "2026-06-10",
+  "severity": "medium",
+  "status": "resolved",
+  "title": "[performance] Case timeline lookup still filters patient timeline pages instead of using a cas"
+}

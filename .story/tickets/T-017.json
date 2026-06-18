@@ -1,12 +1,13 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "claimedBySession": "54429635-6f54-4c90-9e8e-7b2bae84879c",
+  "completedDate": "2026-06-04",
   "createdDate": "2026-05-18",
-  "description": "Moved from intake-flow → infrastructure because the test framework underpins more than intake (TDD per RULES.md applies to clinical eligibility, state-availability gating, **and** the \"no card charged before clinical confirmation\" payment-gate invariant).\n\n**Scope**\n- Vitest + React Testing Library configured against the Next.js 16 App Router.\n- Test utilities: a DB testing harness that wraps each test in a transaction and rolls back; a Stripe test-mode helper; a fixture loader for MDI webhook payloads (`tests/fixtures/mdi/*.json`).\n- A **TDD invariant suite** seeded with the three contracts that must never regress, written *before* the corresponding implementation:\n  - State-availability gating (T-020) — patient in unsupported state cannot create a case.\n  - Per-condition clinical eligibility (T-021) — eligibility test must pass before MDI patient creation.\n  - Payment gate (T-024 + T-025) — no Stripe `Subscription` exists with status `active` for a user whose `cases.status` ≠ `completed`.\n- CI: `npm test` recipe (matches the existing storybloq `TEST` stage configuration).\n\n**Acceptance**\n- Three invariant tests exist and fail (red) until the implementation tickets land.\n- `npm test` runs locally and in CI.\n- Test harness rolls back DB state between tests.",
+  "description": "Set up Vitest + React Testing Library and encode the launch invariants before implementation fans out.\n\n**Scope**\n- Add unit/component test tooling compatible with Next.js 16 and React 19.\n- Add fixture patterns for Cognito user IDs, DynamoDB linkage records, MDI webhook payloads, and Stripe webhook events.\n- Write initial failing tests for residency/state capture validation, lightweight eligibility gating, no local questionnaire-answer persistence, Stripe no-PHI metadata, webhook signature verification/idempotency, and the payment timing invariant.\n\n**Acceptance**\n- `npm test` runs locally and in the chosen CI path.\n- A test demonstrates that MDI questionnaire answers are submitted and then discarded locally.\n- A test demonstrates no Stripe charge/subscription activation can occur before the selected MDI clinical approval event.",
   "id": "T-017",
   "order": 10,
   "phase": "infrastructure",
-  "status": "open",
-  "title": "Test framework setup (Vitest + RTL) + TDD invariant suite",
+  "status": "complete",
+  "title": "Test framework setup + regulated workflow invariants",
   "type": "chore"
 }

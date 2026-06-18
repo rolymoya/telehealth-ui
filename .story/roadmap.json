@@ -24,53 +24,46 @@
       "summary": "Finalize design tokens, document components, a11y audit"
     },
     {
-      "description": "AWS foundation that everything downstream depends on: VPC + RDS + App Runner via CDK, Secrets Manager, observability skeleton, Postgres baseline schema with Drizzle, KMS envelope encryption, audit-log hash chain, webhook ingestion plumbing (SQS + worker + idempotency), and consent-versioning data model. The BAA boundary is established here.",
+      "description": "Lean AWS serverless foundation for launch: Cognito, DynamoDB minimal app records, API Gateway/Lambda or Next server routes, Secrets Manager, CloudWatch logs/alarms, webhook idempotency, and SQS/DLQ only where retry durability is required. This phase explicitly excludes RDS/Postgres, Redis, App Runner, ECS workers, NAT gateways, and VPC endpoints unless a future architecture decision reopens them.",
       "id": "infrastructure",
       "label": "PHASE 4",
-      "name": "Infrastructure",
-      "summary": "AWS foundation: CDK, RDS, secrets, observability, webhook plumbing, audit log, KMS"
+      "name": "Serverless Platform",
+      "summary": "Cognito, DynamoDB, Lambda/API routes, Secrets, CloudWatch, webhook idempotency"
     },
     {
-      "description": "Build out patient authentication: auth provider setup (Clerk recommended for Next.js email/social login + session management), sign-up/sign-in UI aligned to the design system, session management with protected routes, and a patient account/profile model. Introduces server-side logic to a previously static site.",
+      "description": "Build out Apoth-owned patient authentication with Amazon Cognito: user pool/app client setup, sign-up/sign-in UI aligned to the design system, protected product routes, and minimal patient profile/linkage records in DynamoDB.",
       "id": "auth",
       "label": "PHASE 4",
       "name": "Auth Flow",
       "summary": "Patient auth, sessions, account/profile"
     },
     {
-      "description": "Replace the /get-started stub with the real patient intake flow: test framework setup, intake route structure, error/404/loading routes, state-availability logic, per-condition clinical eligibility screening, and the per-condition intake form UI. Honors the \"no card charged before clinical confirmation\" promise.",
+      "description": "Replace the /get-started stub with the real Cognito-gated patient intake flow: route structure, error/404/loading routes, consent acceptance, residency capture, lightweight eligibility screening, MDI-provided questionnaire UI, submit-to-MDI handoff, and no local questionnaire-answer retention after successful submission.",
       "id": "intake-flow",
       "label": "PHASE 5",
       "name": "Intake Flow",
-      "summary": "Real intake flow + eligibility gating"
+      "summary": "Real intake flow + consent, residency, eligibility"
     },
     {
-      "description": "503A compounding pharmacy partner selection, BAA execution, and validation that fulfillment events flow through MDI's e-prescribe passthrough. Direct pharmacy API integration is deferred until a concrete gap (real-time tracking, custom shipping, inventory visibility) is named.",
-      "id": "pharmacy",
-      "label": "PHASE 10",
-      "name": "Pharmacy Fulfillment",
-      "summary": "Pharmacy partner BAA + validate MDI passthrough; direct integration deferred"
-    },
-    {
-      "description": "Stripe payment processor integration: account and SDK setup, visit checkout/payment flow gated on passed clinical eligibility, subscription and auto-renewal billing (as disclosed in Terms), webhook handling for payment events, and refunds/cancellation handling matching the Terms refunds matrix.",
+      "description": "Stripe payment processor integration under the thin-PHI boundary: account and SDK setup, opaque non-PHI metadata policy, payment-method/checkout flow that cannot charge before the selected MDI clinical approval event, webhook handling with DynamoDB idempotency, and refunds/cancellation handling matching the Terms matrix.",
       "id": "payments",
       "label": "PHASE 6",
       "name": "Payments",
       "summary": "Stripe checkout, subscriptions, webhooks, refunds"
     },
     {
-      "description": "LegitScript-grade patient identity verification via a hosted KYC vendor (Persona recommended, pending BAA). Placement: signup → consents → KYC → intake → payment → MDI handoff. Declined KYC produces no Stripe customer and no MDI patient. KYC is an identity-of-record control distinct from MDI's clinical driver-license capture.",
-      "id": "kyc",
-      "label": "PHASE 7",
-      "name": "Identity Verification",
-      "summary": "Persona hosted Inquiry flow + webhook + decline UX, sits before payment"
-    },
-    {
-      "description": "The clinical-handoff integration: OAuth client-credentials token cache, single-entrypoint MDI HTTP client, patient + case creation, 40+ webhook event handlers (HMAC + bearer verified, idempotent, SQS-queued), case-status mirroring, embedded URL helpers for sensitive sub-flows (driver-license, face-photo, intake questionnaire, clinician messaging, file uploads), MDI subscription lifecycle for refills, 418 maintenance handling, and the 6-hour reconciliation job. Highest-discovery-risk phase per the architecture plan.",
+      "description": "The clinical system-of-record integration: MDI sandbox/event catalog, OAuth client-credentials token handling without Redis, single-entrypoint HTTP client, patient + case creation, MDI questionnaire submission with no local answer persistence, verified/idempotent webhooks, minimal case-status mirroring, embedded workflow URL helpers, patient dashboard data from MDI where feasible, maintenance handling, and scheduled Lambda reconciliation.",
       "id": "mdi-integration",
       "label": "PHASE 8",
       "name": "MDIntegrations",
       "summary": "MDI client + 40+ webhooks + dashboard + embedded URLs + reconciler"
+    },
+    {
+      "description": "503A compounding pharmacy partner selection, BAA execution, and validation that fulfillment events flow through MDI's e-prescribe passthrough. Direct pharmacy API integration is out of launch scope unless a concrete partner gap reintroduces it.",
+      "id": "pharmacy",
+      "label": "PHASE 10",
+      "name": "Pharmacy Fulfillment",
+      "summary": "Pharmacy partner BAA + validate MDI passthrough"
     },
     {
       "description": "Real data and external sign-off required before LegitScript submission (deprioritized — mostly waiting on legal/corporate input): healthcare attorney review of /privacy and /terms, real contact info, mailing address, NPI, pharmacy partner disclosure, and finalized tiered pricing.",
@@ -80,14 +73,21 @@
       "summary": "Attorney review + real data placeholders"
     },
     {
-      "description": "Production-grade reconciliation (Stripe ↔ MDI drift), audit-chain integrity verifier, drift dashboards, admin audit timeline tool, dunning + cross-system cancellation sync, retention/deletion policy implementation, penetration test, and the LegitScript submission package with controls-evidence runbooks.",
+      "description": "Launch hardening for the lean architecture: Stripe/MDI reconciliation, CloudWatch operational dashboards and alarms, staff evidence/support views over minimal records, dunning + cross-system cancellation sync, retention/deletion policy implementation, penetration test, and the LegitScript submission package with controls-evidence runbooks.",
       "id": "hardening",
       "label": "PHASE 12",
-      "name": "Hardening &amp; LegitScript Prep",
-      "summary": "Reconcilers, audit chain, dashboards, LegitScript submission package, pen test"
+      "name": "Hardening & LegitScript Prep",
+      "summary": "Reconcilers, CloudWatch dashboards, LegitScript package, pen test, retention policy"
     },
     {
-      "description": "Production readiness and launch: SEO and metadata assets (robots, sitemap, favicon, OG image), analytics and cookie consent backing the privacy policy's cookie disclosure, production domain config with HTTPS/WHOIS, and the production deployment.",
+      "description": "End-to-end browser coverage for Apoth's patient-facing launch surface using Playwright: public compliance pages, Cognito/protected route flows, intake/eligibility/consent journeys, MDI-backed dashboard states, Stripe billing timing invariants, accessibility/responsive checks, CI artifacts, and staging smoke gates. The suite must preserve the thin-PHI launch boundary by using synthetic fixtures, opaque IDs, mocked vendor seams by default, and optional staging-only smoke credentials from approved secret stores.",
+      "id": "playwright-e2e",
+      "label": "PHASE 13",
+      "name": "Playwright E2E Testing",
+      "summary": "Browser journeys, CI artifacts, staging smoke tests"
+    },
+    {
+      "description": "Production readiness and launch: SEO and metadata assets (robots, sitemap, favicon, OG image), analytics and cookie consent backing the privacy policy's cookie disclosure, production domain config with HTTPS/WHOIS, hosting decision finalization, and lean AWS serverless production deployment.",
       "id": "deploy",
       "label": "PHASE 8",
       "name": "Deploy",

@@ -1,0 +1,27 @@
+{
+  "fixture": "mdi-message-notification-events",
+  "source": "sanitized-shape-only",
+  "events": [
+    {
+      "provider": "mdi",
+      "eventId": "mdi_evt_message_created_001",
+      "type": "message_created",
+      "mdiPatientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+      "mdiCaseId": "mdi_case_00000000-0000-4000-8000-000000000001",
+      "messageId": "mdi_message_00000000-0000-4000-8000-000000000001",
+      "messageBody": "MESSAGE_BODY_NOT_STORED_SENTINEL",
+      "occurredAt": "2026-06-05T13:15:00.000Z"
+    },
+    {
+      "provider": "mdi",
+      "eventId": "mdi_evt_notification_sent_001",
+      "type": "notification_sent",
+      "mdiPatientId": "mdi_patient_00000000-0000-4000-8000-000000000001",
+      "notificationId": "mdi_notification_00000000-0000-4000-8000-000000000001",
+      "channel": "sms",
+      "status": "sent",
+      "occurredAt": "2026-06-05T13:16:00.000Z"
+    }
+  ],
+  "localPersistence": "event_envelope_only"
+}

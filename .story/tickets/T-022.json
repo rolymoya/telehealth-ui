@@ -2,15 +2,18 @@
   "blockedBy": [
     "T-010",
     "T-016",
-    "T-018"
+    "T-018",
+    "T-021",
+    "T-054"
   ],
-  "completedDate": null,
+  "claimedBySession": "658313d7-d19a-4749-aadc-90c6af7fc643",
+  "completedDate": "2026-06-10",
   "createdDate": "2026-05-18",
-  "description": "Reframed from the original \"per-condition flows\" — the deep clinical intake now happens inside MDI's embedded UI. Our intake page is intentionally minimal: it picks the condition, runs the state gate (T-020), runs the prefilter (T-021), and routes forward.\n\n**Scope**\n- `src/app/(app)/onboarding/intake/page.tsx` — server component renders the condition picker + state field (pre-filled from `user_profiles.state` if known).\n- Server action `submitIntake` runs `canServeStateForCondition` + `prefilter`, persists nothing PHI-shaped, and either redirects to `/onboarding/payment` or to a friendly fail page.\n- Honor RULES.md typography (Patient Floor ≥16px / target 17-18px), Two-Voice color, plain-spoken voice per PRODUCT.md.\n\n**Out of scope**\n- The deep clinical questionnaire (MDI embedded URL, rendered on `/dashboard/cases/[id]` post-handoff).\n- File uploads (MDI handles in case workflow).\n\n**Acceptance**\n- Three paths tested: happy → `/onboarding/payment`; unsupported state → fail page + audit; failed prefilter → fail page + audit.\n- No PHI persisted at this step (answers are in-memory only — only the outcome is logged).",
+  "description": "Build the patient intake UI that renders MDI-provided questions in Apoth while keeping MDI as the clinical record.\n\n**Scope**\n- Load or map MDI questionnaire questions for the selected condition/offering, using sanitized fixtures/mocks until production submission helpers land.\n- Render accessible, mobile-friendly form controls in the Apoth design system.\n- Submit answers through the MDI integration layer once available.\n- Clear transient answer state after successful submission and persist only MDI IDs/status in DynamoDB.\n- Avoid putting condition/medication/answer details in Stripe, logs, analytics, or support metadata.\n\n**Acceptance**\n- A test fixture questionnaire renders correctly and submits through a mocked MDI client.\n- After success, refreshing the page shows status from MDI/DynamoDB pointers, not saved answers.\n- Network/server logs and DynamoDB writes are inspected by tests for answer leakage.",
   "id": "T-022",
   "order": 60,
   "phase": "intake-flow",
-  "status": "open",
-  "title": "Intake UI (minimal): condition selection + state gate + prefilter",
+  "status": "complete",
+  "title": "MDI-backed intake UI: render, submit, discard",
   "type": "task"
 }

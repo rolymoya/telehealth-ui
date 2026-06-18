@@ -23,6 +23,17 @@ The voice is warm, candid, modern: a knowledgeable friend who happens to work in
 - Patient-leaning legibility defaults: comfortable body type sizes, generous tap targets, AA contrast
 - Real over stock: photography and detail sourced from the actual service, never illustrated avatars
 
+The system now covers two related surfaces:
+
+1. **Public marketing/legal pages** that persuade, disclose, and start intake.
+2. **Authenticated product surfaces** where patients finish intake, track case
+   status, manage billing, and access MDI-backed care workflows.
+
+The authenticated surface should feel quieter and more operational than the
+homepage, but it should not become a hospital portal. It keeps the same type,
+palette, and plain-spoken voice while using denser layouts, clearer state
+labels, and more predictable controls.
+
 ## 2. Colors
 
 A warm, earth-tonal palette anchored on a committed clay primary, with sage as a quieter supporting tone and bone-cream as the neutral surface. No clinical blue, anywhere.
@@ -84,7 +95,70 @@ Shadows appear only as a response to state (hover on an interactive surface, foc
 
 `[Component primitives to be defined when implementation begins. Re-run /impeccable document once buttons, inputs, navigation, and cards exist in code.]`
 
-## 6. Do's and Don'ts
+## 6. Authenticated Product Surfaces
+
+The account, intake, dashboard, billing, and care-status screens are work
+surfaces. They should be calm, scannable, and efficient, with less editorial
+drama than the homepage.
+
+### Product Layout
+
+- Use a compact top navigation or app shell that makes account, dashboard,
+  billing, and support easy to find without feeling like enterprise software.
+- Prefer full-width page bands and constrained inner content. Do not nest cards
+  inside cards.
+- Use panels for individual tasks: "finish intake", "payment method", "case
+  status", "message from clinician", "next step". Keep each panel focused on a
+  single patient job.
+- Dashboard status should be readable at a glance: current state, what it means,
+  who owns the next action, and whether any payment has occurred.
+- Avoid surfacing raw integration state unless it helps the patient. "Clinician
+  review in progress" is better than "case_assigned_to_clinician".
+
+### Intake Forms
+
+- Intake should feel like a careful conversation, not a spreadsheet. One clear
+  question group per step, generous spacing, and obvious progress.
+- Use native-feeling form controls: radio groups for single choice, checkboxes
+  for multiple choice, textareas for narrative answers, date inputs for DOB,
+  and clear validation messages near the field.
+- Never store questionnaire answers in Apoth after submission to MDI. Design
+  copy should not imply Apoth keeps the clinical chart.
+- The submit step should make the handoff explicit: answers go to MD
+  Integrations for clinician review.
+
+### Dashboard And Status
+
+- Use plain state labels: "Intake submitted", "Clinician review", "Waiting on
+  you", "Prescription processing", "Complete", "Cancelled".
+- For each state, show: what happened, what happens next, expected timing if
+  known, and the primary action.
+- Use MDI as the source of truth for clinical status, messages, files, orders,
+  and prescription workflow. Native Apoth UI may frame or summarize that data,
+  but should not look like a separate clinical chart.
+- Billing status should be visually adjacent to care status only when it affects
+  the patient's next action. Avoid making payment feel like the main event.
+
+### Billing
+
+- Stripe actions should be clear and boring: add payment method, manage
+  subscription, view billing status.
+- Do not use medication names, diagnoses, or condition-specific clinical data in
+  Stripe-facing labels or metadata. Patient-facing copy may name the care
+  category when needed, but integration payloads must stay opaque.
+- The "no charge before clinical acceptance" promise should be visible where the
+  patient adds a payment method.
+
+### Visual Tone
+
+- Marketing pages may use large clay fields and editorial hero scale.
+- Product pages should use smaller clay anchors: nav, primary action, progress,
+  and key status accents. Bone and warm neutral space do more of the holding.
+- Sage remains a calm supporting surface for low-urgency status or help panels.
+- Use alert colors sparingly and semantically. Avoid alarming reds for routine
+  waiting states.
+
+## 7. Do's and Don'ts
 
 ### Do:
 - **Do** anchor the page with warm clay covering 30 to 60% of the visual surface. Below that, the brand has not committed.
@@ -93,6 +167,8 @@ Shadows appear only as a response to state (hover on an interactive surface, foc
 - **Do** use sage as a quiet supporting tone for testimonial regions, trust strips, and icon tinting.
 - **Do** earn trust through specifics: named clinicians, real prices, real wait times, real conditions.
 - **Do** keep one clear primary action per surface; secondary actions are quieter (text link, ghost button), never competitive.
+- **Do** make authenticated states explicit: current step, next step, owner, and payment status where relevant.
+- **Do** design MDI-backed surfaces as framed access to the clinical workflow, not as a duplicated medical chart.
 - **Do** respect `prefers-reduced-motion`; ship a reduced-motion variant of any transition longer than a state-change.
 - **Do** validate every type and color pairing against WCAG 2.2 AA (4.5:1 body, 3:1 large text and UI affordances).
 
@@ -109,5 +185,8 @@ Shadows appear only as a response to state (hover on an interactive surface, foc
 - **Don't** ship the hero-metric template: big number, small label, supporting stats, gradient accent. SaaS cliché.
 - **Don't** ship identical card grids: same-sized cards with icon + heading + text repeated endlessly.
 - **Don't** use modals as a first thought. Exhaust inline and progressive alternatives first.
+- **Don't** make dashboard/product screens use hero-scale type or marketing composition.
+- **Don't** imply Apoth stores the clinical chart or questionnaire answers.
+- **Don't** expose raw MDI, Stripe, or Cognito IDs in patient-facing UI.
 - **Don't** use em dashes (` — `) or double-hyphens (`--`) in body copy. Commas, colons, semicolons, periods, parentheses.
 - **Don't** wrap everything in a container or use the same padding everywhere. Vary spacing for rhythm.
