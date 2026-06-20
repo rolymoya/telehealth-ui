@@ -100,6 +100,12 @@ function SignUpForm({ client }: { client: PatientAuthAdapter }) {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const password = valueFromForm(form, "password", { trim: false });
+    if (!isValidSignUpPassword(password)) {
+      setStatus(null);
+      setError(signUpPasswordErrorMessage);
+      return;
+    }
     await submitAuthAction({
       setError,
       setLoading,
@@ -107,7 +113,7 @@ function SignUpForm({ client }: { client: PatientAuthAdapter }) {
       action: () =>
         client.signUp({
           email: valueFromForm(form, "email"),
-          password: valueFromForm(form, "password", { trim: false }),
+          password,
         }),
     });
   }
@@ -116,6 +122,7 @@ function SignUpForm({ client }: { client: PatientAuthAdapter }) {
     <form onSubmit={onSubmit} className="space-y-5">
       <Field label="Email" name="email" type="email" autoComplete="email" />
       <Field label="Password" name="password" type="password" autoComplete="new-password" />
+      <PasswordRequirements />
       <SubmitButton loading={loading}>Create account</SubmitButton>
       <FormStatus status={status} error={error} />
       <SecondaryLink href="/verify-email">Already have a code?</SecondaryLink>
@@ -335,6 +342,36 @@ function SignOutForm({ client }: { client: PatientAuthAdapter }) {
       <FormStatus status={status} error={error} />
       <SecondaryLink href="/">Return home</SecondaryLink>
     </form>
+  );
+}
+
+const signUpPasswordErrorMessage =
+  "Use a password with at least 12 characters, one uppercase letter, one lowercase letter, and one number.";
+
+const signUpPasswordRequirements = [
+  "At least 12 characters",
+  "One uppercase letter",
+  "One lowercase letter",
+  "One number",
+];
+
+function isValidSignUpPassword(password: string) {
+  return password.length >= 12 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /\d/.test(password);
+}
+
+function PasswordRequirements() {
+  return (
+    <div className="border border-ash-line bg-cream px-4 py-3 text-[1rem] text-ink/75">
+      <p className="font-medium text-ink">Password requirements</p>
+      <ul className="mt-2 list-disc space-y-1 pl-5">
+        {signUpPasswordRequirements.map((requirement) => (
+          <li key={requirement}>{requirement}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

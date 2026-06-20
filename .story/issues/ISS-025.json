@@ -1,0 +1,18 @@
+{
+  "components": [
+    "auth"
+  ],
+  "discoveredDate": "2026-06-20",
+  "id": "ISS-025",
+  "impact": "UsernameExistsException intentionally reveals that an account exists for that email. This matches T-096 acceptance criteria but is a deliberate auth-enumeration tradeoff worth keeping documented as product/security posture.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [
+    "T-096"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "low",
+  "status": "open",
+  "title": "Document UsernameExistsException account-existence disclosure posture"
+}

@@ -269,6 +269,88 @@ describe("browser Cognito auth client", () => {
     });
   });
 
+  it("maps common sign-up Cognito errors to patient-safe messages", async () => {
+    const cases = [
+      {
+        name: "InvalidPasswordException",
+        code: "invalid_password",
+        message: "Use a password that meets the listed requirements.",
+      },
+      {
+        name: "UsernameExistsException",
+        code: "username_exists",
+        message: "An account with this email already exists. Sign in or verify your email to continue.",
+      },
+      {
+        name: "InvalidParameterException",
+        code: "invalid_request",
+        message: "Check the email, password, and code fields, then try again.",
+      },
+      {
+        name: "LimitExceededException",
+        code: "rate_limited",
+        message: "Too many attempts. Wait a few minutes, then try again.",
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const transport: CognitoClientTransport & { calls: unknown[] } = {
+        calls: [],
+        send: vi.fn(async () => {
+          throw Object.assign(new Error(`raw ${testCase.name} detail with token abc123`), {
+            name: testCase.name,
+          });
+        }),
+      };
+      const client = createBrowserCognitoAuthClient({ config, transport });
+
+      await expect(
+        client.signUp({ email: "patient@example.com", password: "Password12345" }),
+      ).resolves.toEqual({
+        ok: false,
+        error: {
+          code: testCase.code,
+          message: testCase.message,
+        },
+      });
+    }
+  });
+
+  it("keeps verification code Cognito errors patient-safe", async () => {
+    const cases = [
+      {
+        name: "CodeMismatchException",
+        message: "The verification code was not accepted",
+      },
+      {
+        name: "ExpiredCodeException",
+        message: "The verification code has expired",
+      },
+    ] as const;
+
+    for (const testCase of cases) {
+      const transport: CognitoClientTransport & { calls: unknown[] } = {
+        calls: [],
+        send: vi.fn(async () => {
+          throw Object.assign(new Error(`raw ${testCase.name} code 123456`), {
+            name: testCase.name,
+          });
+        }),
+      };
+      const client = createBrowserCognitoAuthClient({ config, transport });
+
+      await expect(
+        client.confirmEmail({ email: "patient@example.com", code: "123456" }),
+      ).resolves.toEqual({
+        ok: false,
+        error: {
+          code: "invalid_code",
+          message: testCase.message,
+        },
+      });
+    }
+  });
+
   it("does not reveal account existence when Cognito returns UserNotFoundException", async () => {
     const transport: CognitoClientTransport & { calls: unknown[] } = {
       calls: [],

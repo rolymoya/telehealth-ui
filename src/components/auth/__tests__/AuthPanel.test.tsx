@@ -43,6 +43,60 @@ describe("AuthPanel", () => {
     expect(screen.queryByLabelText(/condition|medication|symptom/i)).toBeNull();
   });
 
+  it("shows password requirements before sign-up submission", () => {
+    const client = fakeAuthClient();
+
+    render(<AuthPanel mode="sign-up" client={client} />);
+
+    expect(screen.getByText("Password requirements")).toBeInTheDocument();
+    expect(screen.getByText("At least 12 characters")).toBeInTheDocument();
+    expect(screen.getByText("One uppercase letter")).toBeInTheDocument();
+    expect(screen.getByText("One lowercase letter")).toBeInTheDocument();
+    expect(screen.getByText("One number")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/condition|medication|symptom|diagnosis/i)).toBeNull();
+  });
+
+  it("rejects clearly invalid sign-up passwords before calling Cognito", async () => {
+    const user = userEvent.setup();
+    const client = fakeAuthClient();
+
+    render(<AuthPanel mode="sign-up" client={client} />);
+
+    await user.type(screen.getByLabelText("Email"), "patient@example.com");
+    await user.type(screen.getByLabelText("Password"), "short");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(client.signUp).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Use a password with at least 12 characters, one uppercase letter, one lowercase letter, and one number.",
+    );
+  });
+
+  it("shows patient-safe sign-up provider errors", async () => {
+    const user = userEvent.setup();
+    const client = fakeAuthClient({
+      signUpResult: {
+        ok: false,
+        error: {
+          code: "username_exists",
+          message: "An account with this email already exists. Sign in or verify your email to continue.",
+        },
+      },
+    });
+
+    render(<AuthPanel mode="sign-up" client={client} />);
+
+    await user.type(screen.getByLabelText("Email"), "patient@example.com");
+    await user.type(screen.getByLabelText("Password"), "Password12345");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(client.signUp).toHaveBeenCalledOnce();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "An account with this email already exists. Sign in or verify your email to continue.",
+    );
+    expect(screen.queryByText(/Cognito|Exception|stack|session|token/i)).toBeNull();
+  });
+
   it("handles first sign-in TOTP setup with opaque challenge state", async () => {
     const user = userEvent.setup();
     const client = fakeAuthClient({
@@ -134,10 +188,11 @@ describe("AuthPanel", () => {
 });
 
 function fakeAuthClient(options: {
+  signUpResult?: Awaited<ReturnType<PatientAuthAdapter["signUp"]>>;
   signInResult?: AuthSignInState;
 } = {}): PatientAuthAdapter {
   return {
-    signUp: vi.fn(async () => ok({ status: "verification_required", destination: "email" } as const)),
+    signUp: vi.fn(async () => options.signUpResult ?? ok({ status: "verification_required", destination: "email" } as const)),
     confirmEmail: vi.fn(async () => ok({ status: "email_confirmed" } as const)),
     signIn: vi.fn(async () => ok(options.signInResult ?? { status: "signed_in", session } as const)),
     completeTotpChallenge: vi.fn(async () => ok({ status: "signed_in", session } as const)),

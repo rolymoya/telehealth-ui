@@ -518,6 +518,12 @@ function mapCognitoError(error: unknown): [code: Parameters<typeof authErr>[0], 
       return ["invalid_code", "The verification code was not accepted"];
     case "ExpiredCodeException":
       return ["invalid_code", "The verification code has expired"];
+    case "InvalidParameterException":
+      return ["invalid_request", "Check the email, password, and code fields, then try again."];
+    case "InvalidPasswordException":
+      return ["invalid_password", "Use a password that meets the listed requirements."];
+    case "LimitExceededException":
+      return ["rate_limited", "Too many attempts. Wait a few minutes, then try again."];
     case "NotAuthorizedException":
       return ["invalid_credentials", "The email, password, or code was not accepted"];
     case "PasswordResetRequiredException":
@@ -526,8 +532,10 @@ function mapCognitoError(error: unknown): [code: Parameters<typeof authErr>[0], 
       return ["email_not_confirmed", "Email must be confirmed before sign-in"];
     case "UserNotFoundException":
       return ["invalid_credentials", "The email, password, or code was not accepted"];
+    case "UsernameExistsException":
+      return ["username_exists", "An account with this email already exists. Sign in or verify your email to continue."];
     default:
-      return ["invalid_token", "Cognito could not complete the request"];
+      return ["invalid_token", "We could not complete the request. Please try again."];
   }
 }
 

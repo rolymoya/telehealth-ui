@@ -1,12 +1,13 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "claimedBySession": "f9fb5832-e1fc-4798-b7ca-3300ac6ee7a7",
+  "completedDate": "2026-06-20",
   "createdDate": "2026-06-17",
   "description": "Staging account creation exposed that Cognito returns useful 400 response detail, but the current patient UI collapses many cases into a generic \"Cognito could not complete the request\" message. Improve account-creation UX while keeping Cognito response details patient-safe.\n\n**Scope**\n- Add visible password requirement hints on `/sign-up` before submission: at least 12 characters, uppercase, lowercase, and a digit; symbols are optional for launch.\n- Add client-side password validation for sign-up so clearly invalid passwords are rejected before calling Cognito.\n- Map common Cognito sign-up errors to patient-safe UI messages, including `InvalidPasswordException`, `UsernameExistsException`, `InvalidParameterException`, `LimitExceededException`, and any verification-code related errors already used by `/verify-email`.\n- Preserve non-disclosure posture for auth: do not expose raw Cognito response bodies, challenge/session identifiers, tokens, MFA secrets beyond the intentional TOTP setup key display, stack traces, or provider internals.\n- Add focused unit/component tests for password hints, invalid-password preflight behavior, and Cognito error mapping.\n\n**Acceptance**\n- A patient creating an account sees password requirements before submitting.\n- Invalid sign-up passwords show a clear local validation message and do not send a Cognito `SignUp` request.\n- Cognito `InvalidPasswordException` and `UsernameExistsException` produce clear, patient-safe messages instead of the generic failure text.\n- Existing sign-in, verify-email, reset-password, and MFA flows continue to map errors safely without leaking raw provider details.\n- Tests cover the new validation and error-copy behavior.",
   "id": "T-096",
   "order": 50,
   "phase": "auth",
-  "status": "open",
+  "status": "complete",
   "title": "Improve Cognito sign-up error UX and password validation",
   "type": "task"
 }
