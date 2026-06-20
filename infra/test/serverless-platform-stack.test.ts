@@ -46,7 +46,7 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
     template.resourceCountIs("AWS::DynamoDB::Table", 1);
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 10);
+    template.resourceCountIs("AWS::Lambda::Function", 11);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
@@ -113,6 +113,11 @@ describe("ServerlessPlatformStack", () => {
 
     template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
       RouteKey: "POST /api/onboarding/mdi/submit",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "GET /api/onboarding/start",
       AuthorizationType: "NONE",
     });
 
@@ -201,6 +206,35 @@ describe("ServerlessPlatformStack", () => {
     expect(policies).toContain("dynamodb:TransactWriteItems");
     expect(policies).toContain("secretsmanager:GetSecretValue");
     expect(policies).not.toContain("dynamodb:DeleteItem");
+  });
+
+  it("creates profile-only onboarding start API lambda", () => {
+    const template = synthesizeTemplate();
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-onboarding-start",
+      Handler: "index.startHandler",
+      Runtime: "nodejs20.x",
+      Timeout: 10,
+      Environment: {
+        Variables: {
+          APOTH_STAGE: "staging",
+          APP_TABLE_NAME: Match.anyValue(),
+          COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
+          COGNITO_USER_POOL_ID: Match.anyValue(),
+        },
+      },
+    });
+
+    const templateJson = template.toJSON();
+    const startFunctionResource = Object.entries(templateJson.Resources as Record<string, SynthResource>)
+      .find(([, resource]) =>
+        resource.Type === "AWS::Lambda::Function" &&
+        resource.Properties.FunctionName === "apoth-staging-onboarding-start"
+      );
+    expect(JSON.stringify(startFunctionResource)).not.toMatch(
+      /MDI|STRIPE|BILLING|PERSONA|KYC|QUESTIONNAIRE/i,
+    );
   });
 
   it("creates static auth session API lambdas for same-origin cookie management", () => {

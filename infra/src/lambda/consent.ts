@@ -1,7 +1,9 @@
 import {
   DynamoDBClient,
   GetItemCommand,
+  PutItemCommand,
   TransactWriteItemsCommand,
+  UpdateItemCommand,
 } from "@aws-sdk/client-dynamodb";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import {
@@ -60,11 +62,97 @@ export async function acceptHandler(event: ApiEvent): Promise<ApiResponse> {
   if (!write.ok) {
     return json(write.status, { code: write.code });
   }
+  const profile = await advanceProfileAfterConsent(auth.session.cognitoSub);
+  if (!profile.ok) {
+    return json(profile.status, { code: profile.code });
+  }
 
   return json(200, {
     destination: await nextOnboardingDestination(auth.session.cognitoSub),
     status: "consent_recorded",
   });
+}
+
+async function advanceProfileAfterConsent(cognitoSub: string):
+  Promise<{ ok: true } | { ok: false; code: string; status: number }> {
+  const now = new Date().toISOString();
+  const response = await ddb.send(new GetItemCommand({
+    ConsistentRead: true,
+    Key: profileKey(cognitoSub),
+    TableName: requiredEnv("APP_TABLE_NAME"),
+  }));
+
+  if (!response.Item) {
+    try {
+      await ddb.send(new PutItemCommand({
+        ConditionExpression: "attribute_not_exists(#pk) AND attribute_not_exists(#sk)",
+        ExpressionAttributeNames: { "#pk": "pk", "#sk": "sk" },
+        Item: profileItem({
+          cognitoSub,
+          now,
+          onboardingStatus: "intake_ready",
+        }),
+        TableName: requiredEnv("APP_TABLE_NAME"),
+      }));
+      return { ok: true };
+    } catch (error) {
+      if (isConditionalCheckFailed(error)) {
+        const reread = await ddb.send(new GetItemCommand({
+          ConsistentRead: true,
+          Key: profileKey(cognitoSub),
+          TableName: requiredEnv("APP_TABLE_NAME"),
+        }));
+        if (!reread.Item) {
+          return { ok: false, code: "profile_update_failed", status: 500 };
+        }
+        return await advanceExistingProfileAfterConsent(cognitoSub, reread.Item, now);
+      }
+      return { ok: false, code: "profile_update_failed", status: 500 };
+    }
+  }
+
+  return await advanceExistingProfileAfterConsent(cognitoSub, response.Item, now);
+}
+
+async function advanceExistingProfileAfterConsent(
+  cognitoSub: string,
+  item: Record<string, { S?: string }>,
+  now: string,
+): Promise<{ ok: true } | { ok: false; code: string; status: number }> {
+  if (item.recordType?.S !== "patientProfile") {
+    return { ok: false, code: "profile_key_conflict", status: 500 };
+  }
+
+  const status = item.onboardingStatus?.S;
+  if (status && status !== "profile_pending") {
+    return { ok: true };
+  }
+
+  try {
+    await ddb.send(new UpdateItemCommand({
+      ConditionExpression: "#recordType = :recordType AND (attribute_not_exists(#status) OR #status = :profilePending)",
+      ExpressionAttributeNames: {
+        "#recordType": "recordType",
+        "#status": "onboardingStatus",
+        "#updatedAt": "updatedAt",
+      },
+      ExpressionAttributeValues: {
+        ":intakeReady": { S: "intake_ready" },
+        ":profilePending": { S: "profile_pending" },
+        ":recordType": { S: "patientProfile" },
+        ":updatedAt": { S: now },
+      },
+      Key: profileKey(cognitoSub),
+      TableName: requiredEnv("APP_TABLE_NAME"),
+      UpdateExpression: "SET #status = :intakeReady, #updatedAt = :updatedAt",
+    }));
+    return { ok: true };
+  } catch (error) {
+    if (isConditionalCheckFailed(error)) {
+      return { ok: true };
+    }
+    return { ok: false, code: "profile_update_failed", status: 500 };
+  }
 }
 
 function validateJsonPost(event: ApiEvent):
@@ -289,6 +377,22 @@ function consentEvidenceItem(input: {
   };
 }
 
+function profileItem(input: {
+  cognitoSub: string;
+  now: string;
+  onboardingStatus: string;
+}) {
+  return {
+    ...profileKey(input.cognitoSub),
+    cognitoSub: { S: input.cognitoSub },
+    createdAt: { S: input.now },
+    onboardingStatus: { S: input.onboardingStatus },
+    recordType: { S: "patientProfile" },
+    schemaVersion: { N: "1" },
+    updatedAt: { S: input.now },
+  };
+}
+
 function profileKey(cognitoSub: string) {
   return {
     pk: { S: `PATIENT#${cognitoSub}` },
@@ -339,6 +443,15 @@ function isTransactionConflict(error: unknown) {
       error.name === "TransactionCanceledException" ||
       error.name === "ConditionalCheckFailedException"
     )
+  );
+}
+
+function isConditionalCheckFailed(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "ConditionalCheckFailedException"
   );
 }
 

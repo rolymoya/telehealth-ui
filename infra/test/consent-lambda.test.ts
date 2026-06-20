@@ -22,8 +22,14 @@ vi.mock("@aws-sdk/client-dynamodb", () => {
     GetItemCommand: class extends Command {
       kind = "GetItem";
     },
+    PutItemCommand: class extends Command {
+      kind = "PutItem";
+    },
     TransactWriteItemsCommand: class extends Command {
       kind = "TransactWriteItems";
+    },
+    UpdateItemCommand: class extends Command {
+      kind = "UpdateItem";
     },
   };
 });
@@ -77,7 +83,7 @@ describe("consent lambda handler", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it("writes only consent evidence records and returns the intake destination", async () => {
+  it("writes consent evidence, advances only the minimal profile status, and returns intake", async () => {
     const { acceptHandler } = await import("../src/lambda/consent.js");
     sendMock.mockResolvedValue({});
 
@@ -98,6 +104,104 @@ describe("consent lambda handler", () => {
     expect(JSON.stringify(transaction)).toContain("consentEvidence");
     expect(JSON.stringify(transaction)).not.toContain("emergency");
     expect(JSON.stringify(transaction)).not.toContain("weight");
+
+    const profilePut = sendMock.mock.calls.find(([command]) =>
+      command.kind === "PutItem"
+    )?.[0].input as {
+      Item: Record<string, { S?: string }>;
+    };
+    expect(profilePut.Item).toMatchObject({
+      onboardingStatus: { S: "intake_ready" },
+      pk: { S: "PATIENT#cognito-sub-consent-lambda" },
+      recordType: { S: "patientProfile" },
+      sk: { S: "PROFILE" },
+    });
+    expect(JSON.stringify(profilePut)).not.toMatch(
+      /mdi|stripe|billing|persona|kyc|questionnaire|answer|diagnosis|symptom|medication/i,
+    );
+  });
+
+  it("advances an existing profile_pending profile so start/resume can use profile-only routing", async () => {
+    const { acceptHandler } = await import("../src/lambda/consent.js");
+    sendMock.mockImplementation(async (command) => {
+      const input = command.input as { Key?: { sk?: { S?: string } } };
+      if (command.kind === "GetItem" && input.Key?.sk?.S?.startsWith("CONSENT#")) {
+        return { Item: { recordType: { S: "consentEvidence" } } };
+      }
+      if (command.kind === "GetItem" && input.Key?.sk?.S === "PROFILE") {
+        return {
+          Item: {
+            onboardingStatus: { S: "profile_pending" },
+            recordType: { S: "patientProfile" },
+          },
+        };
+      }
+      return {};
+    });
+
+    const response = await acceptHandler(event());
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      destination: "/intake",
+      status: "consent_recorded",
+    });
+    const profileUpdate = sendMock.mock.calls.find(([command]) =>
+      command.kind === "UpdateItem"
+    )?.[0].input as {
+      ExpressionAttributeValues: Record<string, { S: string }>;
+      Key: { pk: { S: string }; sk: { S: string } };
+    };
+    expect(profileUpdate.Key).toEqual({
+      pk: { S: "PATIENT#cognito-sub-consent-lambda" },
+      sk: { S: "PROFILE" },
+    });
+    expect(profileUpdate.ExpressionAttributeValues[":intakeReady"]).toEqual({
+      S: "intake_ready",
+    });
+    expect(JSON.stringify(profileUpdate)).not.toMatch(
+      /mdi|stripe|billing|persona|kyc|questionnaire|answer/i,
+    );
+  });
+
+  it("updates a concurrently created profile_pending profile after a create conflict", async () => {
+    const { acceptHandler } = await import("../src/lambda/consent.js");
+    let profileReads = 0;
+    sendMock.mockImplementation(async (command) => {
+      const input = command.input as { Key?: { sk?: { S?: string } } };
+      if (command.kind === "GetItem" && input.Key?.sk?.S?.startsWith("CONSENT#")) {
+        return { Item: { recordType: { S: "consentEvidence" } } };
+      }
+      if (command.kind === "GetItem" && input.Key?.sk?.S === "PROFILE") {
+        profileReads += 1;
+        if (profileReads === 1) {
+          return {};
+        }
+        return {
+          Item: {
+            onboardingStatus: {
+              S: profileReads === 2 ? "profile_pending" : "intake_ready",
+            },
+            recordType: { S: "patientProfile" },
+          },
+        };
+      }
+      if (command.kind === "PutItem") {
+        throw namedError("ConditionalCheckFailedException");
+      }
+      return {};
+    });
+
+    const response = await acceptHandler(event());
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      destination: "/intake",
+      status: "consent_recorded",
+    });
+    expect(sendMock.mock.calls.some(([command]) =>
+      command.kind === "UpdateItem"
+    )).toBe(true);
   });
 
   it("accepts the deployed static CloudFront origin", async () => {
@@ -154,4 +258,10 @@ function acceptedAcks() {
       "accepted",
     ]),
   );
+}
+
+function namedError(name: string) {
+  const error = new Error(name);
+  error.name = name;
+  return error;
 }

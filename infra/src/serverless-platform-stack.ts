@@ -567,6 +567,44 @@ exports.handler = async () => ({
       ),
     });
 
+    const onboardingStartFunction = new NodejsFunction(
+      this,
+      "OnboardingStartFunction",
+      {
+        functionName: `apoth-${props.config.stage}-onboarding-start`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "startHandler",
+        entry: path.join(__dirname, "lambda", "onboarding-start.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "OnboardingStartFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-onboarding-start`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(onboardingStartFunction, "dynamodb:GetItem", "dynamodb:PutItem");
+
+    api.addRoutes({
+      path: "/api/onboarding/start",
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        "OnboardingStartIntegration",
+        onboardingStartFunction,
+      ),
+    });
+
     const authSessionPostFunction = new NodejsFunction(
       this,
       "AuthSessionPostFunction",
@@ -670,7 +708,9 @@ exports.handler = async () => ({
     appTable.grant(
       consentAcceptanceFunction,
       "dynamodb:GetItem",
+      "dynamodb:PutItem",
       "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
     );
 
     api.addRoutes({

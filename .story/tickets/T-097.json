@@ -1,12 +1,13 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "claimedBySession": "f9fb5832-e1fc-4798-b7ca-3300ac6ee7a7",
+  "completedDate": "2026-06-20",
   "createdDate": "2026-06-20",
   "description": "Staging exposed that the patient journey still behaves like a static shell: primary CTAs land on `/get-started`, the page client-redirects to `/intake`, and unauthenticated patients are bounced to sign-in with account creation as a secondary link. Replace that with a deployed, static-hosting-compatible start/resume path that makes the next patient action obvious.\n\n**Scope**\n- Replace the current `/get-started` client redirect shell with a patient-friendly start/resume surface for the static S3/CloudFront deployment model.\n- For signed-out new patients, make account creation the primary path while keeping \"already have an account\" sign-in available.\n- Preserve `returnTo=/get-started` through sign-up, email verification, and sign-in so patients continue into onboarding after auth.\n- Add or wire a cookie-auth API/Lambda start endpoint that creates or reads only the minimal patient profile/status record, then returns the next onboarding destination.\n- Keep `/get-started` aligned with the existing `resolveOnboardingStartRedirect` contract where possible, while avoiding Next SSR-only assumptions that do not work in the static export.\n- Do not create MDI cases, Stripe customers, subscriptions, payment methods, billing records, KYC records, or questionnaire-answer records from the start/resume endpoint.\n- Add focused unit/component tests and, where practical, browser coverage for signed-out new patient, signed-in resume, and provider/API failure states.\n\n**Acceptance**\n- A signed-out patient clicking a marketing CTA sees a clear account-creation-first start path instead of being dropped into sign-in from `/intake`.\n- A signed-in patient entering `/get-started` resumes at the earliest incomplete onboarding step.\n- The start/resume API creates at most the minimal patient profile/status record and no clinical, MDI, Stripe, billing, Persona/KYC, or questionnaire-answer records.\n- `returnTo=/get-started` is preserved safely across auth routes and rejected for unsafe or auth-looping paths.\n- Static build/export continues to include `/get-started`, and staging can exercise the deployed path without Next middleware or server actions.",
   "id": "T-097",
   "order": 60,
   "phase": "auth",
-  "status": "open",
+  "status": "complete",
   "title": "Make /get-started the deployed start/resume entrypoint",
   "type": "task"
 }
