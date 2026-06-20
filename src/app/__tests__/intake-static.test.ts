@@ -31,9 +31,15 @@ describe("intake static compatibility", () => {
       join(process.cwd(), "scripts/export-static-routes.mjs"),
       "utf8",
     );
+    const buildStaticScript = readFileSync(
+      join(process.cwd(), "scripts/build-static.mjs"),
+      "utf8",
+    );
 
-    expect(packageJson.scripts["build:static"]).toContain("next build");
-    expect(packageJson.scripts["build:static"]).toContain("export-static-routes.mjs");
+    expect(packageJson.scripts["build:static"]).toBe("node scripts/build-static.mjs");
+    expect(buildStaticScript).toContain("scripts/assert-static-compatible.mjs");
+    expect(buildStaticScript).toContain("\"next\", [\"build\"]");
+    expect(buildStaticScript).toContain("scripts/export-static-routes.mjs");
     expect(exportScript).toContain("\"/account\"");
     expect(exportScript).toContain("\"/billing\"");
     expect(exportScript).toContain("\"/dashboard\"");
