@@ -50,8 +50,12 @@ export function AuthPanel({
 
   return (
     <AuthFrame mode={mode}>
-      {mode === "sign-up" && <SignUpForm client={defaultClient.value} />}
-      {mode === "verify-email" && <VerifyEmailForm client={defaultClient.value} />}
+      {mode === "sign-up" && (
+        <SignUpForm client={defaultClient.value} returnTo={returnTo} />
+      )}
+      {mode === "verify-email" && (
+        <VerifyEmailForm client={defaultClient.value} returnTo={returnTo} />
+      )}
       {mode === "sign-in" && (
         <SignInForm client={defaultClient.value} returnTo={returnTo} />
       )}
@@ -92,7 +96,15 @@ function AuthFrame({
   );
 }
 
-function SignUpForm({ client }: { client: PatientAuthAdapter }) {
+function SignUpForm({
+  client,
+  returnTo,
+}: {
+  client: PatientAuthAdapter;
+  returnTo?: string | null;
+}) {
+  const resolvedReturnTo = useResolvedReturnTo(returnTo);
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -100,6 +112,7 @@ function SignUpForm({ client }: { client: PatientAuthAdapter }) {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const email = valueFromForm(form, "email");
     const password = valueFromForm(form, "password", { trim: false });
     if (!isValidSignUpPassword(password)) {
       setStatus(null);
@@ -109,13 +122,26 @@ function SignUpForm({ client }: { client: PatientAuthAdapter }) {
     await submitAuthAction({
       setError,
       setLoading,
-      onSuccess: () => setStatus("Check your email for the verification code."),
+      onSuccess: () => {
+        setVerificationEmail(email);
+        setStatus("Check your email for the verification code.");
+      },
       action: () =>
         client.signUp({
-          email: valueFromForm(form, "email"),
+          email,
           password,
         }),
     });
+  }
+
+  if (verificationEmail) {
+    return (
+      <VerifyEmailForm
+        client={client}
+        initialEmail={verificationEmail}
+        returnTo={resolvedReturnTo}
+      />
+    );
   }
 
   return (
@@ -125,16 +151,30 @@ function SignUpForm({ client }: { client: PatientAuthAdapter }) {
       <PasswordRequirements />
       <SubmitButton loading={loading}>Create account</SubmitButton>
       <FormStatus status={status} error={error} />
-      <SecondaryLink href="/verify-email">Already have a code?</SecondaryLink>
-      <SecondaryLink href="/sign-in">Sign in instead</SecondaryLink>
+      <SecondaryLink href={authRouteHref("/verify-email", resolvedReturnTo)}>
+        Already have a code?
+      </SecondaryLink>
+      <SecondaryLink href={authRouteHref("/sign-in", resolvedReturnTo)}>
+        Sign in instead
+      </SecondaryLink>
     </form>
   );
 }
 
-function VerifyEmailForm({ client }: { client: PatientAuthAdapter }) {
+function VerifyEmailForm({
+  client,
+  initialEmail = "",
+  returnTo,
+}: {
+  client: PatientAuthAdapter;
+  initialEmail?: string;
+  returnTo?: string | null;
+}) {
+  const resolvedReturnTo = useResolvedReturnTo(returnTo);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [verified, setVerified] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -142,7 +182,10 @@ function VerifyEmailForm({ client }: { client: PatientAuthAdapter }) {
     await submitAuthAction({
       setError,
       setLoading,
-      onSuccess: () => setStatus("Email confirmed. You can sign in now."),
+      onSuccess: () => {
+        setVerified(true);
+        setStatus("Email confirmed. Sign in to continue.");
+      },
       action: () =>
         client.confirmEmail({
           email: valueFromForm(form, "email"),
@@ -153,11 +196,25 @@ function VerifyEmailForm({ client }: { client: PatientAuthAdapter }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
-      <Field label="Email" name="email" type="email" autoComplete="email" />
+      <Field
+        label="Email"
+        name="email"
+        type="email"
+        autoComplete="email"
+        defaultValue={initialEmail}
+      />
       <Field label="Verification code" name="code" inputMode="numeric" autoComplete="one-time-code" />
       <SubmitButton loading={loading}>Verify email</SubmitButton>
       <FormStatus status={status} error={error} />
-      <SecondaryLink href="/sign-in">Go to sign in</SecondaryLink>
+      {verified ? (
+        <SecondaryLink href={authRouteHref("/sign-in", resolvedReturnTo)}>
+          Sign in and continue
+        </SecondaryLink>
+      ) : (
+        <SecondaryLink href={authRouteHref("/sign-in", resolvedReturnTo)}>
+          Go to sign in
+        </SecondaryLink>
+      )}
     </form>
   );
 }
@@ -238,7 +295,9 @@ function SignInForm({
       <SubmitButton loading={loading}>Sign in</SubmitButton>
       <FormStatus status={status} error={error} />
       <SecondaryLink href="/reset-password">Reset password</SecondaryLink>
-      <SecondaryLink href="/sign-up">Create an account</SecondaryLink>
+      <SecondaryLink href={authRouteHref("/sign-up", resolvedReturnTo)}>
+        Create an account
+      </SecondaryLink>
     </form>
   );
 }
@@ -514,6 +573,11 @@ function redirectAfterSignIn(value: AuthSignInState, returnTo: string | null | u
   }
   const destination = sanitizeReturnToPath(returnTo) ?? "/dashboard";
   globalThis.location?.assign?.(destination);
+}
+
+function authRouteHref(path: "/sign-in" | "/sign-up" | "/verify-email", returnTo: string | null | undefined) {
+  const destination = sanitizeReturnToPath(returnTo);
+  return destination ? `${path}?returnTo=${encodeURIComponent(destination)}` : path;
 }
 
 const authContent = {

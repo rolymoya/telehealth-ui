@@ -23,11 +23,11 @@ const session: PatientAuthSession = {
 };
 
 describe("AuthPanel", () => {
-  it("submits sign-up without clinical fields", async () => {
+  it("submits sign-up without clinical fields and continues to verification", async () => {
     const user = userEvent.setup();
     const client = fakeAuthClient();
 
-    render(<AuthPanel mode="sign-up" client={client} />);
+    render(<AuthPanel mode="sign-up" client={client} returnTo="/get-started" />);
 
     await user.type(screen.getByLabelText("Email"), "patient@example.com");
     await user.type(screen.getByLabelText("Password"), "Password12345");
@@ -37,10 +37,13 @@ describe("AuthPanel", () => {
       email: "patient@example.com",
       password: "Password12345",
     });
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Check your email for the verification code.",
+    expect(screen.getByLabelText("Verification code")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("patient@example.com")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to sign in" })).toHaveAttribute(
+      "href",
+      "/sign-in?returnTo=%2Fget-started",
     );
-    expect(screen.queryByLabelText(/condition|medication|symptom/i)).toBeNull();
+    expect(screen.queryByLabelText(/condition|medication|symptom|diagnosis/i)).toBeNull();
   });
 
   it("shows password requirements before sign-up submission", () => {
@@ -95,6 +98,55 @@ describe("AuthPanel", () => {
       "An account with this email already exists. Sign in or verify your email to continue.",
     );
     expect(screen.queryByText(/Cognito|Exception|stack|session|token/i)).toBeNull();
+  });
+
+  it("verifies the inline sign-up email and links to sign in with a safe continuation", async () => {
+    const user = userEvent.setup();
+    const client = fakeAuthClient();
+
+    render(<AuthPanel mode="sign-up" client={client} returnTo="/get-started" />);
+
+    await user.type(screen.getByLabelText("Email"), "patient@example.com");
+    await user.type(screen.getByLabelText("Password"), "Password12345");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    await user.type(screen.getByLabelText("Verification code"), " 123456 ");
+    await user.click(screen.getByRole("button", { name: "Verify email" }));
+
+    expect(client.confirmEmail).toHaveBeenCalledWith({
+      email: "patient@example.com",
+      code: "123456",
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Email confirmed. Sign in to continue.",
+    );
+    expect(screen.getByRole("link", { name: "Sign in and continue" })).toHaveAttribute(
+      "href",
+      "/sign-in?returnTo=%2Fget-started",
+    );
+    expect(screen.queryByLabelText(/condition|medication|symptom|diagnosis/i)).toBeNull();
+  });
+
+  it("drops unsafe and auth-looping return targets from continuation links", async () => {
+    const user = userEvent.setup();
+    const client = fakeAuthClient();
+
+    render(<AuthPanel mode="verify-email" client={client} returnTo="https://evil.example/get-started" />);
+
+    await user.type(screen.getByLabelText("Email"), "patient@example.com");
+    await user.type(screen.getByLabelText("Verification code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify email" }));
+
+    expect(screen.getByRole("link", { name: "Sign in and continue" })).toHaveAttribute(
+      "href",
+      "/sign-in",
+    );
+
+    render(<AuthPanel mode="sign-in" client={client} returnTo="/verify-email?returnTo=/get-started" />);
+
+    expect(screen.getByRole("link", { name: "Create an account" })).toHaveAttribute(
+      "href",
+      "/sign-up",
+    );
   });
 
   it("handles first sign-in TOTP setup with opaque challenge state", async () => {

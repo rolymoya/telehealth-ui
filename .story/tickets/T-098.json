@@ -1,12 +1,13 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "claimedBySession": "f9fb5832-e1fc-4798-b7ca-3300ac6ee7a7",
+  "completedDate": "2026-06-20",
   "createdDate": "2026-06-20",
   "description": "The current sign-up flow leaves a new patient at a status message with separate links for verification and sign-in. That works technically, but staging showed it is too easy to lose the patient’s intent to start a visit. Make account creation feel like one continuous path from sign-up through email verification and into `/get-started`.\n\n**Scope**\n- After successful sign-up, take the patient directly into the verification-code step, either inline in the auth panel or via `/verify-email` with safe query/context handling.\n- Carry the sign-up email into verification where appropriate without storing it outside component/query state or logging it.\n- Preserve and sanitize `returnTo`, especially `/get-started`, through sign-up, verification, and the following sign-in step.\n- After successful verification, make the next action explicit: sign in and continue, or automatically continue only if the Cognito/session posture supports it without weakening auth boundaries.\n- Keep all account-creation screens free of clinical fields such as condition, symptom, medication, diagnosis, questionnaire answers, or care category.\n- Coordinate copy and validation with T-096 so password requirements, Cognito error messages, verification-code errors, and continuation states feel like one flow.\n- Add component tests for sign-up success -> verification, verify success -> sign-in/continue, safe `returnTo` propagation, and no clinical-field regression.\n\n**Acceptance**\n- A new patient who creates an account is guided immediately to email verification without hunting for a separate page link.\n- Verification preserves the patient’s intent to continue into `/get-started` after successful auth.\n- Unsafe `returnTo` values and auth-route loops are rejected consistently with existing route-gate behavior.\n- Tests prove sign-up and verification do not collect or render clinical questionnaire fields.\n- Existing sign-in, password reset, sign-out, and MFA challenge flows continue to work.",
   "id": "T-098",
   "order": 70,
   "phase": "auth",
-  "status": "open",
+  "status": "complete",
   "title": "Improve post-sign-up verification and continuation UX",
   "type": "task"
 }
