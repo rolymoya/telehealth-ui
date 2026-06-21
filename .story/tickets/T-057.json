@@ -4,13 +4,14 @@
     "T-052",
     "T-054"
   ],
-  "completedDate": null,
+  "claimedBySession": "82f714c1-6075-45f9-8bcb-eba270c4aa17",
+  "completedDate": "2026-06-20",
   "createdDate": "2026-05-19",
   "description": "Receive MDI webhooks through the shared serverless webhook pattern.\n\n**Scope**\n- Verify required MDI webhook authentication/signature material before state changes.\n- Record provider event ID/status in DynamoDB for idempotency.\n- Process safe status mirrors inline or enqueue retryable actions to SQS/DLQ.\n- Register no-op handling for safe-to-ignore launch events based on T-052.\n\n**Acceptance**\n- Invalid MDI webhook auth produces no side effects.\n- Duplicate event ID is idempotent.\n- Must-handle events update only minimal local status/pointers and evidence records.",
   "id": "T-057",
   "order": 60,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI webhook receiver: verification + idempotent serverless processing",
   "type": "task"
 }

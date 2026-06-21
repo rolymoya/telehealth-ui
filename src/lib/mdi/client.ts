@@ -9,6 +9,10 @@ import {
   type MdiAccessToken,
   type MdiTokenClientOptions,
 } from "@/lib/mdi/token";
+import {
+  canonicalMdiCaseId,
+  canonicalMdiPatientId,
+} from "@/lib/mdi/ids";
 
 type FetchLike = (
   input: string,
@@ -379,11 +383,14 @@ function parseCreatedPatient(payload: unknown): MdiCreatedPatient {
   }
 
   const mdiPatientId = payload.patient_id ?? payload.patientId ?? payload.mdiPatientId;
-  if (typeof mdiPatientId !== "string" || mdiPatientId.length === 0) {
+  const canonicalPatientId = typeof mdiPatientId === "string"
+    ? canonicalMdiPatientId(mdiPatientId)
+    : null;
+  if (!canonicalPatientId) {
     throw new Error("Invalid MDI patient response fields");
   }
 
-  return { mdiPatientId };
+  return { mdiPatientId: canonicalPatientId };
 }
 
 function parseCreatedCase(payload: unknown): MdiCreatedCase {
@@ -392,15 +399,14 @@ function parseCreatedCase(payload: unknown): MdiCreatedCase {
   }
 
   const mdiCaseId = payload.case_id ?? payload.caseId ?? payload.mdiCaseId;
-  if (typeof mdiCaseId !== "string" || !isMdiCaseId(mdiCaseId)) {
+  const canonicalCaseId = typeof mdiCaseId === "string"
+    ? canonicalMdiCaseId(mdiCaseId)
+    : null;
+  if (!canonicalCaseId) {
     throw new Error("Invalid MDI case response fields");
   }
 
-  return { mdiCaseId };
-}
-
-function isMdiCaseId(value: string) {
-  return /^mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/.test(value);
+  return { mdiCaseId: canonicalCaseId };
 }
 
 async function safeJson(response: Awaited<ReturnType<FetchLike>>) {

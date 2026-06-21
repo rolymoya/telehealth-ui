@@ -29,6 +29,15 @@ describe("secret contracts", () => {
     expect(secretName("staging", "mdiApi")).toBe("/apoth/staging/mdi/api");
     expect(secretName("production", "stripeApi")).toBe("/apoth/production/stripe/api");
 
+    const mdiPayload = placeholderSecretPayload("staging", "mdiApi");
+    expect(mdiPayload).toMatchObject({
+      apothStage: "staging",
+      secretKind: "mdiApi",
+      schemaVersion: 1,
+      webhookAuthorizationSecret: `${fakeSecretPrefix}mdi_webhook_authorization_secret`,
+      webhookSigningSecret: `${fakeSecretPrefix}mdi_webhook_signing_secret`,
+    });
+
     const payload = placeholderSecretPayload("staging", "stripeApi");
     expect(payload).toMatchObject({
       apothStage: "staging",
@@ -254,6 +263,25 @@ describe("secret validation", () => {
   });
 
   it("accepts complete current and previous rotation windows", () => {
+    const mdiResult = validateSecretPayload(
+      {
+        ...placeholderSecretPayload("staging", "mdiApi"),
+        webhookSigningSecret: "  fake_current_mdi_webhook_secret  ",
+        webhookSigningSecretPrevious: "  fake_previous_mdi_webhook_secret  ",
+        webhookSigningSecretPreviousExpiresAt: "  2030-01-01T00:00:00.000Z  ",
+      },
+      {
+        expectedStage: "staging",
+        expectedKind: "mdiApi",
+        allowFakeValues: true,
+      },
+    );
+    expect(mdiResult.ok && mdiResult.value).toMatchObject({
+      webhookSigningSecret: "fake_current_mdi_webhook_secret",
+      webhookSigningSecretPrevious: "fake_previous_mdi_webhook_secret",
+      webhookSigningSecretPreviousExpiresAt: "2030-01-01T00:00:00.000Z",
+    });
+
     const stripeResult = validateSecretPayload(
       {
         ...placeholderSecretPayload("staging", "stripeApi"),
@@ -293,6 +321,26 @@ describe("secret validation", () => {
   });
 
   it("rejects incomplete or invalid previous secret windows", () => {
+    expect(
+      validateSecretPayload(
+        {
+          ...placeholderSecretPayload("staging", "mdiApi"),
+          webhookSigningSecretPrevious: "fake_previous_mdi_webhook_secret",
+        },
+        {
+          expectedStage: "staging",
+          expectedKind: "mdiApi",
+          allowFakeValues: true,
+        },
+      ),
+    ).toEqual({
+      ok: false,
+      error: {
+        kind: "invalid_secret",
+        message: "Secret mdiApi previous webhook signing secret window is incomplete",
+      },
+    });
+
     expect(
       validateSecretPayload(
         {

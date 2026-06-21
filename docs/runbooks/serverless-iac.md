@@ -408,7 +408,7 @@ below before enabling routes or jobs that depend on them.
 
 | Secret | Kind | Required fields | Rotation |
 | --- | --- | --- | --- |
-| `/apoth/{stage}/mdi/api` | `mdiApi` | `clientId`, `clientSecret`, `apiBaseUrl` | Engineering plus MDI account owner; at least every 180 days or sooner if MDI requires it |
+| `/apoth/{stage}/mdi/api` | `mdiApi` | `clientId`, `clientSecret`, `apiBaseUrl`, `webhookAuthorizationSecret`, `webhookSigningSecret`; optional `webhookSigningSecretPrevious`, `webhookSigningSecretPreviousExpiresAt` rotation pair | Engineering plus MDI account owner; at least every 180 days or sooner if MDI requires it |
 | `/apoth/{stage}/stripe/api` | `stripeApi` | `secretKey`, `webhookSigningSecret`; optional `webhookSigningSecretPrevious`, `webhookSigningSecretPreviousExpiresAt` rotation pair | Engineering plus Stripe admin; API keys at least every 180 days, webhook secrets after endpoint changes or exposure |
 | `/apoth/{stage}/app/signing` | `appSigning` | `signingSecret`; optional `signingSecretPrevious`, `signingSecretPreviousExpiresAt` rotation pair | Engineering; at least annually and after suspected exposure |
 
@@ -421,7 +421,27 @@ Example payloads:
   "schemaVersion": 1,
   "clientId": "<mdi-client-id>",
   "clientSecret": "<mdi-client-secret>",
-  "apiBaseUrl": "https://api.vendor.example"
+  "apiBaseUrl": "https://api.vendor.example",
+  "webhookAuthorizationSecret": "<mdi-webhook-authorization-secret>",
+  "webhookSigningSecret": "<current-mdi-webhook-signing-secret>"
+}
+```
+
+During MDI webhook signing-secret rotation only, include both previous fields
+until the overlap expires:
+
+```json
+{
+  "apothStage": "staging",
+  "secretKind": "mdiApi",
+  "schemaVersion": 1,
+  "clientId": "<mdi-client-id>",
+  "clientSecret": "<mdi-client-secret>",
+  "apiBaseUrl": "https://api.vendor.example",
+  "webhookAuthorizationSecret": "<mdi-webhook-authorization-secret>",
+  "webhookSigningSecret": "<current-mdi-webhook-signing-secret>",
+  "webhookSigningSecretPrevious": "<previous-mdi-webhook-signing-secret>",
+  "webhookSigningSecretPreviousExpiresAt": "2030-01-01T00:00:00.000Z"
 }
 ```
 

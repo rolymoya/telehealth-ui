@@ -147,6 +147,16 @@ function validateRotationWindow(
   payload: Record<string, unknown>,
   expectedKind: SecretKind,
 ): SecretResult<void> {
+  if (expectedKind === "mdiApi") {
+    return validatePreviousSecretWindow(payload, {
+      currentField: "webhookSigningSecret",
+      previousField: "webhookSigningSecretPrevious",
+      expiresAtField: "webhookSigningSecretPreviousExpiresAt",
+      label: "webhook signing secret",
+      kind: expectedKind,
+    });
+  }
+
   if (expectedKind === "stripeApi") {
     return validatePreviousSecretWindow(payload, {
       currentField: "webhookSigningSecret",

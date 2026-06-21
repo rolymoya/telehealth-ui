@@ -147,6 +147,28 @@ describe("MDI HTTP client", () => {
     );
   });
 
+  it("canonicalizes raw UUID MDI patient create identifiers", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        patient_id: "123e4567-e89b-12d3-a456-426614174000",
+      }));
+
+    await expect(
+      createMdiPatient({
+        patient: {
+          first_name: "TRANSIENT_NAME_SENTINEL",
+        },
+      }, clientOptions(fetchMock)),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        mdiPatientId: "mdi_patient_123e4567e89b12d3a456426614174000",
+      },
+    });
+  });
+
   it("rejects ambiguous MDI patient create responses", async () => {
     const fetchMock = vi
       .fn()
@@ -215,6 +237,28 @@ describe("MDI HTTP client", () => {
         method: "POST",
       }),
     );
+  });
+
+  it("canonicalizes raw UUID MDI case create identifiers", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        case_id: "123e4567-e89b-12d3-a456-426614174111",
+      }));
+
+    await expect(
+      createMdiCase({
+        casePayload: {
+          patient_id: "mdi_patient_001",
+        },
+      }, clientOptions(fetchMock)),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        mdiCaseId: "mdi_case_123e4567e89b12d3a456426614174111",
+      },
+    });
   });
 
   it("rejects ambiguous MDI case create responses", async () => {

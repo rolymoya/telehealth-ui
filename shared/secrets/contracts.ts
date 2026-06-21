@@ -34,6 +34,10 @@ export type MdiApiSecretPayload = SecretPayloadBase & {
   clientId: string;
   clientSecret: string;
   apiBaseUrl: string;
+  webhookAuthorizationSecret: string;
+  webhookSigningSecret: string;
+  webhookSigningSecretPrevious?: string;
+  webhookSigningSecretPreviousExpiresAt?: string;
 };
 
 export type StripeApiSecretPayload = SecretPayloadBase & {
@@ -100,6 +104,28 @@ export const secretContracts = {
         name: "apiBaseUrl",
         description: "MDI API base URL for this stage.",
         confidential: false,
+      },
+      {
+        name: "webhookAuthorizationSecret",
+        description: "MDI webhook Authorization header secret.",
+        confidential: true,
+      },
+      {
+        name: "webhookSigningSecret",
+        description: "Current MDI webhook signing secret.",
+        confidential: true,
+      },
+      {
+        name: "webhookSigningSecretPrevious",
+        description: "Previous MDI webhook signing secret accepted only until the paired expiry.",
+        confidential: true,
+        required: false,
+      },
+      {
+        name: "webhookSigningSecretPreviousExpiresAt",
+        description: "ISO timestamp after which the previous MDI webhook signing secret must not be accepted.",
+        confidential: false,
+        required: false,
       },
     ],
   },
@@ -232,6 +258,8 @@ export function placeholderSecretPayload(
         clientId: `${fakeSecretPrefix}mdi_client_id`,
         clientSecret: `${fakeSecretPrefix}mdi_client_secret`,
         apiBaseUrl: "https://example.invalid/mdi",
+        webhookAuthorizationSecret: `${fakeSecretPrefix}mdi_webhook_authorization_secret`,
+        webhookSigningSecret: `${fakeSecretPrefix}mdi_webhook_signing_secret`,
       };
     case "stripeApi":
       return {
