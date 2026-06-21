@@ -67,3 +67,9 @@
   clinical confirmation" promise must be test-enforced.
 - Add tests around MDI/Stripe webhook signature verification and idempotency
   before wiring production webhook side effects.
+- After pushing UI-affecting changes to the deployment branch, wait for the
+  GitHub Actions production deploy to complete, then use Chrome to visually
+  verify the affected production routes. Check desktop and mobile widths,
+  obvious layout regressions, console errors, routing, and key interactions.
+  For authenticated routes, use only the designated test account/session and
+  do not enter or expose real PHI, payment data, secrets, or credentials.
