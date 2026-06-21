@@ -21,7 +21,7 @@ import {
 } from "@/lib/mdi-intake";
 import questionnaireFlow from "../../../tests/fixtures/mdi/questionnaire-flow.json";
 
-const cognitoSub = "cognito-sub-mdi-intake";
+const cognitoSub = "cognito-sub-mdiintake";
 const now = "2026-06-20T22:15:00.000Z";
 const mdiPatientId = "mdi_patient_intake_001";
 const mdiCaseId = "mdi_case_intake_001";

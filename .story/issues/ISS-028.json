@@ -15,9 +15,9 @@
   "relatedTickets": [
     "T-059"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Updated the MDI intake test Cognito subject fixture to use an allowlisted opaque subject format (`cognito-sub-mdiintake`) so app-data validation accepts the test records without weakening identifier validation.",
+  "resolvedDate": "2026-06-21",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "MDI intake tests use invalid Cognito subject fixture"
 }
