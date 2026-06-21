@@ -4,6 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createMdiPatient,
   getMdiQuestionnaireQuestions,
   requestMdi,
   submitMdiQuestionnaireResponses,
@@ -106,6 +107,64 @@ describe("MDI HTTP client", () => {
         method: "GET",
       }),
     );
+  });
+
+  it("creates an MDI patient with an opaque idempotency key", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, { patient_id: "mdi_patient_created" }));
+
+    await expect(
+      createMdiPatient({
+        idempotencyKey: "mdi-patient-idempotency-001",
+        patient: {
+          first_name: "TRANSIENT_NAME_SENTINEL",
+        },
+      }, clientOptions(fetchMock)),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        mdiPatientId: "mdi_patient_created",
+      },
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://example.invalid/mdi/partner/patients",
+      expect.objectContaining({
+        body: JSON.stringify({
+          first_name: "TRANSIENT_NAME_SENTINEL",
+        }),
+        headers: expect.objectContaining({
+          authorization: "Bearer mdi_access_token_001",
+          "content-type": "application/json",
+          "idempotency-key": "mdi-patient-idempotency-001",
+        }),
+        method: "POST",
+      }),
+    );
+  });
+
+  it("rejects ambiguous MDI patient create responses", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, { id: "generic_response_id", status: "created" }));
+
+    await expect(
+      createMdiPatient({
+        patient: {
+          first_name: "TRANSIENT_NAME_SENTINEL",
+        },
+      }, clientOptions(fetchMock)),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "invalid_response",
+        retryable: false,
+      },
+    });
   });
 
   it("retries once with a refreshed token after 401", async () => {

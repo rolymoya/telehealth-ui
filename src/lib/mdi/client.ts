@@ -56,9 +56,19 @@ export type MdiClientOptions = MdiTokenClientOptions & {
 
 export type MdiRequestInput<T> = {
   body?: unknown;
+  idempotencyKey?: string;
   method?: MdiHttpMethod;
   parse?: (payload: unknown) => T;
   path: string;
+};
+
+export type MdiCreatePatientInput = {
+  idempotencyKey?: string;
+  patient: Record<string, unknown>;
+};
+
+export type MdiCreatedPatient = {
+  mdiPatientId: string;
 };
 
 export type MdiQuestionOption = {
@@ -137,6 +147,22 @@ export async function getMdiQuestionnaireQuestions(
   );
 }
 
+export async function createMdiPatient(
+  input: MdiCreatePatientInput,
+  options: MdiClientOptions = {},
+) {
+  return requestMdi<MdiCreatedPatient>(
+    {
+      body: input.patient,
+      idempotencyKey: input.idempotencyKey,
+      method: "POST",
+      parse: parseCreatedPatient,
+      path: "/partner/patients",
+    },
+    options,
+  );
+}
+
 export async function submitMdiQuestionnaireResponses(
   input: MdiQuestionnaireSubmissionInput,
   options: MdiClientOptions = {},
@@ -173,6 +199,7 @@ async function requestWithToken<T>(
       headers: {
         accept: "application/json",
         authorization: `Bearer ${token.accessToken}`,
+        ...(input.idempotencyKey ? { "idempotency-key": input.idempotencyKey } : {}),
         ...(input.body === undefined ? {} : { "content-type": "application/json" }),
       },
       method: input.method ?? "GET",
@@ -319,6 +346,19 @@ function parseSubmission(payload: unknown): MdiQuestionnaireSubmission {
     status: payload.status,
     submissionId,
   };
+}
+
+function parseCreatedPatient(payload: unknown): MdiCreatedPatient {
+  if (!isRecord(payload)) {
+    throw new Error("Invalid MDI patient response");
+  }
+
+  const mdiPatientId = payload.patient_id ?? payload.patientId ?? payload.mdiPatientId;
+  if (typeof mdiPatientId !== "string" || mdiPatientId.length === 0) {
+    throw new Error("Invalid MDI patient response fields");
+  }
+
+  return { mdiPatientId };
 }
 
 async function safeJson(response: Awaited<ReturnType<FetchLike>>) {

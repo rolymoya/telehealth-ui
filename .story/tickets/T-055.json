@@ -3,13 +3,14 @@
     "T-016",
     "T-054"
   ],
-  "completedDate": null,
+  "claimedBySession": "82f714c1-6075-45f9-8bcb-eba270c4aa17",
+  "completedDate": "2026-06-20",
   "createdDate": "2026-05-19",
   "description": "Create or link the patient record in MDI and persist only the MDI pointer in Apoth.\n\n**Scope**\n- Build `createMdiPatient` helper using the MDI client.\n- Use Cognito/DynamoDB profile data needed for the MDI patient payload; discard plaintext request payloads after submission.\n- Store `mdi_patient_id` and linkage status in DynamoDB keyed by `cognito_sub`.\n- Ensure retry/idempotency behavior avoids duplicate MDI patients where the API allows.\n\n**Acceptance**\n- Successful handoff stores exactly one `mdi_patient_id` pointer and a status timestamp.\n- Failed MDI create leaves a retryable status without storing clinical questionnaire answers.\n- Logs and evidence events use opaque IDs only.",
   "id": "T-055",
   "order": 40,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI patient creation + DynamoDB linkage",
   "type": "feature"
 }

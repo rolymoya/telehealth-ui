@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   type AppDataRepository,
   claimWebhookEvent,
+  createMdiPatientCreateAttemptRecord,
   createInMemoryAppDataRepository,
+  createMdiPatientLinkageIfAbsent,
   createPatientProfileRecord,
   createWebhookEvidenceEventId,
   evidenceCaseIndexKey,
@@ -14,6 +16,7 @@ import {
   getConsentEvidence,
   getRequiredConsentEvidenceStatus,
   legacyConsentEvidenceKey,
+  getMdiPatientCreateAttempt,
   getMdiLinkage,
   getPatientProfile,
   getStripeLinkage,
@@ -261,6 +264,69 @@ describe("DynamoDB app-data helpers", () => {
         mdiPatientId: "mdi_patient_001",
       }),
     ).toEqual({ ok: true, value: "cognito-sub-001" });
+  });
+
+  it("creates an immutable MDI patient-only linkage for patient creation", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(createMdiPatientLinkageIfAbsent(repository, {
+      cognitoSub: "cognito-sub-001",
+      mdiPatientId: "mdi_patient_001",
+      now,
+    })).toMatchObject({
+      ok: true,
+      value: {
+        mdiPatientId: "mdi_patient_001",
+      },
+    });
+    expect(createMdiPatientLinkageIfAbsent(repository, {
+      cognitoSub: "cognito-sub-001",
+      mdiPatientId: "mdi_patient_002",
+      now: "2026-06-04T18:05:00.000Z",
+    })).toMatchObject({
+      ok: true,
+      value: {
+        mdiPatientId: "mdi_patient_001",
+      },
+    });
+    expect(getMdiLinkage(repository, "cognito-sub-001")).toMatchObject({
+      ok: true,
+      value: {
+        mdiPatientId: "mdi_patient_001",
+      },
+    });
+    expect(findPatientByMdiPointer(repository, {
+      mdiPatientId: "mdi_patient_002",
+      pointerType: "patient",
+    })).toEqual({ ok: true, value: null });
+  });
+
+  it("validates MDI patient create attempt records without payload fields", () => {
+    const repository = createInMemoryAppDataRepository();
+    const attempt = createMdiPatientCreateAttemptRecord({
+      attempts: 1,
+      cognitoSub: "cognito-sub-001",
+      idempotencyKey: "mdi-patient-idempotency",
+      lastAttemptAt: now,
+      now,
+      providerStatus: 503,
+      status: "provider_retryable_failure",
+    });
+
+    expect(repository.put(attempt)).toEqual({ ok: true, value: attempt });
+    expect(getMdiPatientCreateAttempt(repository, "cognito-sub-001")).toEqual({
+      ok: true,
+      value: attempt,
+    });
+    expect(validateAppDataRecord({
+      ...attempt,
+      answers: ["forbidden"],
+    })).toMatchObject({
+      ok: false,
+      error: {
+        kind: "validation_failed",
+      },
+    });
   });
 
   it("removes stale reverse links when vendor pointers change", () => {
