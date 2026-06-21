@@ -97,6 +97,32 @@ describe("dashboard launch surface matrix", () => {
       expect(matrix).toContain(deferredDecision);
     }
   });
+
+  it("documents T-061 refill default-deny and follow-up care launch posture", () => {
+    const matrix = readFileSync(
+      join(process.cwd(), "docs/dashboard/launch-surface-matrix.md"),
+      "utf8",
+    );
+    const careWorkflow = readFileSync(
+      join(process.cwd(), "docs/dashboard/mdi-care-workflow-launch.md"),
+      "utf8",
+    );
+    const normalizedCareWorkflow = careWorkflow.replace(/\s+/g, " ");
+    const endpointIndex = readMdiEndpointIndex();
+    const refillSlug =
+      "internal-post-v1-patient-patients-patient-subscriptions-subscription-id-refill-refill-subscription";
+
+    expect(endpointIndex.get(refillSlug)).toMatchObject({
+      slug: refillSlug,
+      surface: "internal",
+    });
+    expect(matrix).toContain(refillSlug);
+    expect(matrix).toContain("internal/default-deny");
+    expect(careWorkflow).toContain(refillSlug);
+    expect(normalizedCareWorkflow).toContain("not approved for launch implementation");
+    expect(careWorkflow).toContain("approved messaging workflow");
+    expect(normalizedCareWorkflow).toContain("must not promise native Apoth refill submission");
+  });
 });
 
 function readMdiEndpointIndex() {

@@ -5,13 +5,14 @@
     "T-078",
     "T-079"
   ],
-  "completedDate": null,
+  "claimedBySession": "7422d5fa-ad33-411b-a4e8-7f181d5a6e42",
+  "completedDate": "2026-06-21",
   "createdDate": "2026-05-19",
   "description": "Integrate the MDI workflow pieces needed for refills and ongoing care access at launch.\n\n**Scope**\n- Confirm whether refill cadence/subscription lifecycle is driven by MDI APIs, embedded URLs, webhooks, or manual MDI workflow.\n- Implement only the launch-required helpers and status mirrors.\n- Keep Stripe billing state and MDI care workflow state linked by opaque IDs, not clinical descriptors.\n\n**Acceptance**\n- Product can explain what a patient can do for refills or follow-up from the dashboard.\n- Any MDI lifecycle helper has idempotency and tests.\n- No local record becomes the clinical source of truth.",
   "id": "T-061",
   "order": 100,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI refill/care workflow lifecycle integration",
   "type": "feature"
 }
