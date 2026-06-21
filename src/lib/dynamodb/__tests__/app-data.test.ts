@@ -2277,6 +2277,67 @@ describe("DynamoDB app-data helpers", () => {
         },
       }),
     ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:dashboard_cue:patient:mdi_patient_001:open_mdi_messages:mdi_message_001:mdi_evt_opaque_001",
+        eventType: "mdi_dashboard_cue_recorded",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:05:00.000Z",
+        recordedAt: "2026-06-04T18:05:00.000Z",
+        actorType: "vendor",
+        status: "recorded",
+        summaryCode: "MDI_DASHBOARD_CUE_RECORDED",
+        mdiPatientId: "mdi_patient_001",
+        source: "webhook",
+        metadata: {
+          cue_action: "open_mdi",
+          cue_code: "open_mdi_messages",
+          cue_family: "message",
+        },
+      }).ok,
+    ).toBe(true);
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:dashboard_cue:case:mdi_case_001:files_unavailable:mdi_file_001:mdi_evt_opaque_002",
+        eventType: "mdi_dashboard_cue_recorded",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:06:00.000Z",
+        recordedAt: "2026-06-04T18:06:00.000Z",
+        actorType: "vendor",
+        status: "recorded",
+        summaryCode: "MDI_DASHBOARD_CUE_RECORDED",
+        mdiPatientId: "mdi_patient_001",
+        mdiCaseId: "mdi_case_001",
+        source: "webhook",
+        metadata: {
+          cue_action: "status_unavailable",
+          cue_code: "files_unavailable",
+          cue_family: "file",
+        },
+      }).ok,
+    ).toBe(true);
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:dashboard_cue:patient:mdi_patient_001:open_mdi_messages:email_jane_example_com:mdi_evt_opaque_003",
+        eventType: "mdi_dashboard_cue_recorded",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:07:00.000Z",
+        recordedAt: "2026-06-04T18:07:00.000Z",
+        actorType: "vendor",
+        status: "recorded",
+        summaryCode: "MDI_DASHBOARD_CUE_RECORDED",
+        mdiPatientId: "mdi_patient_001",
+        source: "webhook",
+        metadata: {
+          cue_action: "open_mdi",
+          cue_code: "open_mdi_messages",
+          cue_family: "message",
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
   });
 
   it("rejects evidence events with clinical, raw payload, or free-text metadata", () => {

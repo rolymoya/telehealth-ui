@@ -12,6 +12,7 @@ export type EvidenceEventStatus = "recorded" | "succeeded" | "failed" | "skipped
 
 export type EvidenceLinkageRequirement =
   | "mdi_case"
+  | "mdi_patient"
   | "mdi_failure"
   | "stripe_customer"
   | "stripe_subscription"
@@ -100,6 +101,40 @@ export const evidenceEventSchema = {
       ],
     },
     linkage: "mdi_case",
+  },
+  mdi_dashboard_cue_recorded: {
+    category: "mdi_handoff",
+    summaryCode: "MDI_DASHBOARD_CUE_RECORDED",
+    statuses: ["recorded", "skipped"],
+    metadata: {
+      cue_action: [
+        "action_needed",
+        "noop",
+        "open_mdi",
+        "ops_review",
+        "status_available",
+        "status_unavailable",
+      ],
+      cue_code: [
+        "benefit_status_pending",
+        "cue_noop",
+        "exam_action_needed",
+        "file_action_needed",
+        "files_unavailable",
+        "open_mdi_files",
+        "open_mdi_messages",
+        "ops_review_required",
+      ],
+      cue_family: [
+        "exam",
+        "file",
+        "lab",
+        "message",
+        "voucher",
+        "workflow",
+      ],
+    },
+    linkage: "mdi_patient",
   },
   stripe_payment_method_collected: {
     category: "stripe_billing",

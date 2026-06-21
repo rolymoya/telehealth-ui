@@ -54,7 +54,7 @@ export type MdiWebhookResult =
   | { ok: false; status: 409; body: { error: "retry_later" } }
   | { ok: false; status: 500; body: { error: "webhook_processing_failed" } };
 
-export type MdiWebhookEventHandling = "inline" | "terminal";
+export type MdiWebhookEventHandling = "cue" | "inline" | "terminal";
 
 export type MdiWebhookEventContract = {
   type: string;
@@ -88,10 +88,10 @@ export const mdiWebhookEventContracts = [
   { type: "case_completed", handling: "inline", caseStatus: "completed" },
   { type: "case_cancelled", handling: "inline", caseStatus: "cancelled" },
   { type: "case_declined", handling: "inline", caseStatus: "declined" },
-  { type: "case_file_added", handling: "terminal" },
-  { type: "case_file_deleted", handling: "terminal" },
+  { type: "case_file_added", handling: "cue" },
+  { type: "case_file_deleted", handling: "cue" },
   { type: "medical_necessity_file_generated", handling: "terminal" },
-  { type: "file_lab_results_processed", handling: "terminal" },
+  { type: "file_lab_results_processed", handling: "cue" },
   { type: "case_assigned_to_clinician", handling: "terminal" },
   { type: "clinical_note_created", handling: "terminal" },
   { type: "case_tag_attached", handling: "terminal" },
@@ -100,15 +100,15 @@ export const mdiWebhookEventContracts = [
   { type: "prescription_insurance_coverage_updated", handling: "terminal" },
   { type: "order_status_changed", handling: "terminal" },
   { type: "order_tracking_number_changed", handling: "terminal" },
-  { type: "voucher_created", handling: "terminal" },
-  { type: "voucher_updated", handling: "terminal" },
-  { type: "voucher_used", handling: "terminal" },
-  { type: "voucher_reminder_sent", handling: "terminal" },
-  { type: "voucher_expired", handling: "terminal" },
+  { type: "voucher_created", handling: "cue" },
+  { type: "voucher_updated", handling: "cue" },
+  { type: "voucher_used", handling: "cue" },
+  { type: "voucher_reminder_sent", handling: "cue" },
+  { type: "voucher_expired", handling: "cue" },
   { type: "drivers_license_requested", handling: "terminal" },
   { type: "intro_video_requested", handling: "terminal" },
-  { type: "file_upload_requested", handling: "terminal" },
-  { type: "exam_requested", handling: "terminal" },
+  { type: "file_upload_requested", handling: "cue" },
+  { type: "exam_requested", handling: "cue" },
   { type: "preferred_pharmacy_requested", handling: "terminal" },
   { type: "patient_tag_attached", handling: "terminal" },
   { type: "patient_created", handling: "terminal" },
@@ -116,7 +116,7 @@ export const mdiWebhookEventContracts = [
   { type: "patient_modified", handling: "terminal" },
   { type: "patient_opt_out", handling: "terminal" },
   { type: "patient_insurance_coverage_updated", handling: "terminal" },
-  { type: "message_created", handling: "terminal" },
+  { type: "message_created", handling: "cue" },
   { type: "notification_sent", handling: "terminal" },
 ] as const satisfies readonly MdiWebhookEventContract[];
 
@@ -160,10 +160,36 @@ export type HandleMdiWebhookInput = {
 type NormalizedMdiWebhook = {
   caseId?: string;
   contract: MdiWebhookEventContract;
+  cuePointer?: string;
   eventId: string;
   eventType: string;
   patientId?: string;
   providerTimestamp: string;
+};
+
+type MdiDashboardCueFamily = "exam" | "file" | "lab" | "message" | "voucher" | "workflow";
+type MdiDashboardCueCode =
+  | "benefit_status_pending"
+  | "cue_noop"
+  | "exam_action_needed"
+  | "file_action_needed"
+  | "files_unavailable"
+  | "open_mdi_files"
+  | "open_mdi_messages"
+  | "ops_review_required";
+type MdiDashboardCueAction =
+  | "action_needed"
+  | "noop"
+  | "open_mdi"
+  | "ops_review"
+  | "status_available"
+  | "status_unavailable";
+
+type MdiDashboardCue = {
+  action: MdiDashboardCueAction;
+  code: MdiDashboardCueCode;
+  family: MdiDashboardCueFamily;
+  pointer: string;
 };
 
 export function createInMemoryMdiWebhookMirrorRepository(
@@ -350,16 +376,31 @@ function normalizeMdiWebhookPayload(input: {
   if (contract.handling === "inline" && caseId === undefined) {
     return { ok: false };
   }
+  if (contract.handling === "cue" && caseId === undefined && patientId === undefined) {
+    return { ok: false };
+  }
+  const cuePointer = contract.handling === "cue"
+    ? cuePointerForMdiPayload({
+      eventType,
+      parsed,
+      payload: input.payload,
+    })
+    : undefined;
+  if (contract.handling === "cue" && cuePointer === null) {
+    return { ok: false };
+  }
 
   return {
     ok: true,
     value: {
       caseId: caseId ?? undefined,
       contract,
+      cuePointer: cuePointer ?? undefined,
       eventId: createDeterministicMdiEventId({
         caseId: caseId ?? undefined,
         eventType,
         patientId: patientId ?? undefined,
+        resourceId: cuePointer ?? undefined,
         timestamp,
       }),
       eventType,
@@ -398,6 +439,10 @@ async function handleVerifiedMdiEvent(input: {
   now: string;
   webhook: NormalizedMdiWebhook;
 }) {
+  if (input.webhook.contract.handling === "cue") {
+    return handleVerifiedMdiCue(input);
+  }
+
   if (input.webhook.contract.handling === "terminal") {
     return { outcome: "processed" as const };
   }
@@ -508,6 +553,75 @@ async function handleVerifiedMdiEvent(input: {
   }
 
   return { outcome: "processed" as const };
+}
+
+async function handleVerifiedMdiCue(input: {
+  mdiMirrorRepository: MdiWebhookMirrorRepository;
+  now: string;
+  webhook: NormalizedMdiWebhook;
+}) {
+  const cue = dashboardCueForMdiWebhook(input.webhook);
+  if (!cue) {
+    return { outcome: "processed" as const };
+  }
+
+  const patient = input.webhook.caseId
+    ? await input.mdiMirrorRepository.findPatientByMdiCase(input.webhook.caseId)
+    : input.webhook.patientId
+      ? await input.mdiMirrorRepository.findPatientByMdiPatient(input.webhook.patientId)
+      : { ok: true as const, value: null };
+  if (!patient.ok) {
+    return appDataFailure(patient.error);
+  }
+  if (!patient.value) {
+    return { outcome: "processed" as const };
+  }
+
+  const linkage = await input.mdiMirrorRepository.getMdiLinkage(patient.value);
+  if (!linkage.ok) {
+    return appDataFailure(linkage.error);
+  }
+  if (!linkage.value) {
+    return { outcome: "processed" as const };
+  }
+  if (input.webhook.caseId && linkage.value.mdiCaseId !== input.webhook.caseId) {
+    return { outcome: "processed" as const };
+  }
+  if (input.webhook.patientId && linkage.value.mdiPatientId !== input.webhook.patientId) {
+    return { outcome: "processed" as const };
+  }
+
+  const subject = input.webhook.caseId
+    ? { kind: "case" as const, id: input.webhook.caseId }
+    : { kind: "patient" as const, id: linkage.value.mdiPatientId };
+  const evidence = await input.mdiMirrorRepository.recordEvidenceEvent({
+    actorType: "vendor",
+    cognitoSub: patient.value,
+    eventCategory: "mdi_handoff",
+    eventId: mdiDashboardCueEventId({
+      cueCode: cue.code,
+      pointer: cue.pointer,
+      subject,
+      webhookEventId: input.webhook.eventId,
+    }),
+    eventType: "mdi_dashboard_cue_recorded",
+    occurredAt: input.webhook.providerTimestamp,
+    recordedAt: input.now,
+    mdiPatientId: linkage.value.mdiPatientId,
+    ...(input.webhook.caseId === undefined ? {} : { mdiCaseId: input.webhook.caseId }),
+    metadata: {
+      cue_action: cue.action,
+      cue_code: cue.code,
+      cue_family: cue.family,
+    },
+    source: "webhook",
+    status: cue.action === "noop" ? "skipped" : "recorded",
+    summaryCode: "MDI_DASHBOARD_CUE_RECORDED",
+  });
+  if (evidence.ok || evidence.error.kind === "conditional_conflict") {
+    return { outcome: "processed" as const };
+  }
+  return appDataFailure(evidence.error);
 }
 
 async function recordBillingUnlockDecision(
@@ -744,6 +858,123 @@ function mdiBillingUnlockDecisionEventId(input: {
     : `mdi:billing_unlock:${input.caseId}:${input.action}:${input.webhookEventId}`;
 }
 
+function dashboardCueForMdiWebhook(webhook: NormalizedMdiWebhook): MdiDashboardCue | null {
+  if (!webhook.cuePointer) {
+    return null;
+  }
+  switch (webhook.eventType) {
+    case "message_created":
+      return {
+        action: "open_mdi",
+        code: "open_mdi_messages",
+        family: "message",
+        pointer: webhook.cuePointer,
+      };
+    case "case_file_added":
+      return {
+        action: "status_available",
+        code: "open_mdi_files",
+        family: "file",
+        pointer: webhook.cuePointer,
+      };
+    case "case_file_deleted":
+      return {
+        action: "status_unavailable",
+        code: "files_unavailable",
+        family: "file",
+        pointer: webhook.cuePointer,
+      };
+    case "file_lab_results_processed":
+      return {
+        action: "status_available",
+        code: "open_mdi_files",
+        family: "lab",
+        pointer: webhook.cuePointer,
+      };
+    case "file_upload_requested":
+      return {
+        action: "action_needed",
+        code: "file_action_needed",
+        family: "workflow",
+        pointer: webhook.cuePointer,
+      };
+    case "exam_requested":
+      return {
+        action: "action_needed",
+        code: "exam_action_needed",
+        family: "exam",
+        pointer: webhook.cuePointer,
+      };
+    case "voucher_created":
+    case "voucher_updated":
+    case "voucher_reminder_sent":
+      return {
+        action: "status_available",
+        code: "benefit_status_pending",
+        family: "voucher",
+        pointer: webhook.cuePointer,
+      };
+    case "voucher_used":
+    case "voucher_expired":
+      return {
+        action: "noop",
+        code: "cue_noop",
+        family: "voucher",
+        pointer: webhook.cuePointer,
+      };
+    default:
+      return null;
+  }
+}
+
+function cuePointerForMdiPayload(input: {
+  eventType: string;
+  parsed: Record<string, unknown>;
+  payload: string | Buffer;
+}): string | null {
+  switch (input.eventType) {
+    case "message_created":
+      return safeMdiOpaqueId(stringField(input.parsed, "message_id"), "mdi_message");
+    case "case_file_added":
+    case "case_file_deleted":
+    case "file_lab_results_processed":
+      return safeMdiOpaqueId(stringField(input.parsed, "file_id"), "mdi_file");
+    case "voucher_created":
+    case "voucher_updated":
+    case "voucher_used":
+    case "voucher_reminder_sent":
+    case "voucher_expired":
+      return safeMdiOpaqueId(stringField(input.parsed, "voucher_id"), "mdi_voucher");
+    case "file_upload_requested":
+    case "exam_requested":
+      return `request_${sha256Payload(input.payload).slice(0, 32)}`;
+    default:
+      return null;
+  }
+}
+
+function safeMdiOpaqueId(value: string | undefined, prefix: string) {
+  if (
+    value === undefined ||
+    value.length > maxMdiCuePointerLength ||
+    !value.startsWith(`${prefix}_`) ||
+    !/^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/.test(value) ||
+    unsafeMdiCuePointerPatterns.some((pattern) => pattern.test(value))
+  ) {
+    return null;
+  }
+  return value;
+}
+
+function mdiDashboardCueEventId(input: {
+  cueCode: MdiDashboardCueCode;
+  pointer: string;
+  subject: { kind: "case" | "patient"; id: string };
+  webhookEventId: string;
+}) {
+  return `mdi:dashboard_cue:${input.subject.kind}:${input.subject.id}:${input.cueCode}:${input.pointer}:${input.webhookEventId}`;
+}
+
 function resultForProcessedWebhook(processed: ProcessVerifiedWebhookResult): MdiWebhookResult {
   if (processed.status === "accepted") {
     return { ok: true, status: 200, body: { received: true, action: processed.action } };
@@ -821,6 +1052,7 @@ function createDeterministicMdiEventId(input: {
   eventType: string;
   patientId?: string;
   payloadDigest?: string;
+  resourceId?: string;
   timestamp?: string;
 }) {
   const digest = sha256([
@@ -828,6 +1060,7 @@ function createDeterministicMdiEventId(input: {
     input.timestamp ?? "",
     input.caseId ?? "",
     input.patientId ?? "",
+    input.resourceId ?? "",
     input.payloadDigest ?? "",
   ].join("|")).slice(0, 48);
   return `mdi_evt_${digest}`;
@@ -864,7 +1097,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 const maxMdiAuthorizationHeaderLength = 2048;
+const maxMdiCuePointerLength = 128;
 const maxMdiProviderRetryAttempts = 1_000_000;
+
+const unsafeMdiCuePointerPatterns = [
+  /answer/i,
+  /diagnosis/i,
+  /dob/i,
+  /email/i,
+  /lab/i,
+  /medication/i,
+  /patient_name/i,
+  /phone/i,
+  /questionnaire/i,
+  /ssn/i,
+  /symptom/i,
+  /token/i,
+  /url/i,
+];
 
 const mdiWebhookCaseStatuses = new Set<MdiWebhookCaseStatus>([
   "assigned",

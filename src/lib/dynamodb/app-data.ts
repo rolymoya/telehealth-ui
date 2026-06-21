@@ -2204,6 +2204,9 @@ function validateEvidenceLinkage(record: EvidenceEventRecord) {
   if (requirement === "mdi_case") {
     return record.mdiPatientId !== undefined && record.mdiCaseId !== undefined;
   }
+  if (requirement === "mdi_patient") {
+    return record.mdiPatientId !== undefined;
+  }
   if (requirement === "mdi_failure") {
     return record.requestId !== undefined ||
       record.mdiPatientId !== undefined ||
@@ -2633,6 +2636,30 @@ function isEvidenceEventId(record: EvidenceEventRecord) {
         `^mdi:billing_unlock:${record.mdiCaseId}:${record.metadata.billing_action}:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`,
       ).test(record.eventId) &&
         !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
+    case "mdi_dashboard_cue_recorded": {
+      const cueCode = record.metadata?.cue_code;
+      const cuePointer = mdiDashboardCuePointerFromEventId(record.eventId);
+      if (
+        !isMdiDashboardCueCode(cueCode) ||
+        !isMdiDashboardCuePointer(cueCode, cuePointer) ||
+        !isWebhookEventIdForProvider("mdi", mdiDashboardCueWebhookEventIdFromEventId(record.eventId))
+      ) {
+        return false;
+      }
+      if (record.mdiCaseId !== undefined) {
+        return new RegExp(
+          `^mdi:dashboard_cue:case:${record.mdiCaseId}:${cueCode}:[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`,
+        ).test(record.eventId) &&
+          !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
+      }
+      if (record.mdiPatientId !== undefined) {
+        return new RegExp(
+          `^mdi:dashboard_cue:patient:${record.mdiPatientId}:${cueCode}:[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`,
+        ).test(record.eventId) &&
+          !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
+      }
+      return false;
+    }
     case "stripe_payment_method_collected":
       return record.stripeCustomerId !== undefined &&
         record.eventId === `stripe:payment-method:${record.stripeCustomerId}:collected`;
@@ -2721,6 +2748,57 @@ function isMdiCaseCreateStatus(value: unknown): value is MdiCaseCreateStatus {
 
 function isMdiBillingUnlockAction(value: unknown): value is string {
   return mdiBillingUnlockActions.has(value as string);
+}
+
+function isMdiDashboardCueCode(value: unknown): value is string {
+  return mdiDashboardCueCodes.has(value as string);
+}
+
+function isMdiDashboardCuePointer(cueCode: string, value: unknown): value is string {
+  if (
+    typeof value !== "string" ||
+    value.length > 128 ||
+    !/^[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/.test(value) ||
+    unsafeEvidenceValuePatterns.some((pattern) => pattern.test(value)) ||
+    unsafeOpaqueIdentifierPatterns.some((pattern) => pattern.test(value))
+  ) {
+    return false;
+  }
+  if (cueCode === "open_mdi_messages") {
+    return value.startsWith("mdi_message_");
+  }
+  if (
+    cueCode === "open_mdi_files" ||
+    cueCode === "file_action_needed" ||
+    cueCode === "files_unavailable"
+  ) {
+    return value.startsWith("mdi_file_") || value.startsWith("request_");
+  }
+  if (
+    cueCode === "benefit_status_pending" ||
+    cueCode === "cue_noop" ||
+    cueCode === "ops_review_required"
+  ) {
+    return value.startsWith("mdi_voucher_");
+  }
+  if (cueCode === "exam_action_needed") {
+    return value.startsWith("request_");
+  }
+  return false;
+}
+
+function mdiDashboardCuePointerFromEventId(eventId: string) {
+  const parts = eventId.split(":");
+  return parts.length === 7 && parts[0] === "mdi" && parts[1] === "dashboard_cue"
+    ? parts[5]
+    : undefined;
+}
+
+function mdiDashboardCueWebhookEventIdFromEventId(eventId: string) {
+  const parts = eventId.split(":");
+  return parts.length === 7 && parts[0] === "mdi" && parts[1] === "dashboard_cue"
+    ? parts[6]
+    : undefined;
 }
 
 function isAtOrBefore(leftIso: string, rightIso: string) {
@@ -2886,6 +2964,17 @@ const mdiBillingUnlockActions = new Set([
   "provider_unavailable",
 ]);
 
+const mdiDashboardCueCodes = new Set([
+  "benefit_status_pending",
+  "cue_noop",
+  "exam_action_needed",
+  "file_action_needed",
+  "files_unavailable",
+  "open_mdi_files",
+  "open_mdi_messages",
+  "ops_review_required",
+]);
+
 const defaultEvidenceEventPageLimit = 25;
 const maxEvidenceEventPageLimit = 100;
 const maxWebhookEventIdLength = 128;
@@ -2931,6 +3020,7 @@ const evidenceEventIdPatterns = [
   /^mdi:status:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:assigned|billing_ready|cancelled|clinical_review|completed|created|declined|processing|support|tagged|waiting)$/,
   /^mdi:billing_unlock:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:activate_billing$/,
   /^mdi:billing_unlock:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:await_clinical_review|await_payment_method|cancel_active_billing|cancel_pending_billing|do_not_charge|manual_review_required|no_op|provider_unavailable):mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
+  /^mdi:dashboard_cue:(?:case:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*|patient:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*):(?:benefit_status_pending|cue_noop|exam_action_needed|file_action_needed|files_unavailable|open_mdi_files|open_mdi_messages|ops_review_required):[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:payment-method:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:collected$/,
   /^stripe:billing:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:payment_method_pending|payment_method_collected|active|past_due|canceled)$/,
   /^webhook:(?:stripe|mdi):(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:[A-Z][A-Z0-9_]{1,79}(?::[a-z][a-z0-9_]{0,39})?$/,

@@ -469,13 +469,17 @@ describe("MDI webhook receiver service", () => {
     }
   });
 
-  it("terminally no-ops safe-to-ignore launch events after idempotency processing", async () => {
+  it("records message dashboard cues without storing message content", async () => {
     const repository = seededMdiRepository("mdi_submitted");
     const payload = mdiPayload({
       case_id: undefined,
+      channel: "patient_app",
+      content: "PATIENT_MESSAGE_BODY_SENTINEL",
       event_type: "message_created",
       message_id: "mdi_message_opaque_001",
       patient_id: mdiPatientId,
+      subject: "PATIENT_MESSAGE_SUBJECT_SENTINEL",
+      user_type: "clinician",
     });
 
     const result = await handleMdiWebhook({
@@ -493,10 +497,158 @@ describe("MDI webhook receiver service", () => {
       ok: true,
       value: { onboardingStatus: "mdi_submitted" },
     });
-    expect(listEvidenceEventsForPatient(repository, { cognitoSub })).toMatchObject({
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub });
+    expect(evidence).toMatchObject({
       ok: true,
-      value: { items: [] },
+      value: {
+        items: [
+          {
+            eventCategory: "mdi_handoff",
+            eventType: "mdi_dashboard_cue_recorded",
+            eventId: expect.stringContaining(":patient:"),
+            mdiPatientId,
+            metadata: {
+              cue_action: "open_mdi",
+              cue_code: "open_mdi_messages",
+              cue_family: "message",
+            },
+            status: "recorded",
+          },
+        ],
+      },
     });
+    expect(JSON.stringify(evidence)).toContain("mdi_message_opaque_001");
+    expect(JSON.stringify(evidence)).not.toContain("PATIENT_MESSAGE_BODY_SENTINEL");
+    expect(JSON.stringify(evidence)).not.toContain("PATIENT_MESSAGE_SUBJECT_SENTINEL");
+  });
+
+  it("uses cue pointers so same-timestamp messages do not collide", async () => {
+    const repository = seededMdiRepository("mdi_submitted");
+    const webhookRepository = createWebhookProcessingRepository(repository);
+
+    for (const messageId of ["mdi_message_opaque_001", "mdi_message_opaque_002"]) {
+      const payload = mdiPayload({
+        case_id: undefined,
+        event_type: "message_created",
+        message_id: messageId,
+        patient_id: mdiPatientId,
+        timestamp: 1_781_006_400,
+      });
+      const result = await handleMdiWebhook({
+        authorization: "mdi_authorization_secret",
+        mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+        payload,
+        receivedAt: "2026-06-09T12:00:00.000Z",
+        secret: mdiSecret(),
+        signature: signMdiPayload(payload),
+        webhookRepository,
+      });
+      expect(result).toMatchObject({ ok: true, status: 200, body: { action: "processed" } });
+    }
+
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub, limit: 250 });
+    const cues = evidence.ok
+      ? evidence.value.items.filter((event) => event.eventType === "mdi_dashboard_cue_recorded")
+      : [];
+    expect(cues.map((event) => event.eventId)).toHaveLength(2);
+    expect(new Set(cues.map((event) => event.eventId)).size).toBe(2);
+    expect(JSON.stringify(evidence)).toContain("mdi_message_opaque_001");
+    expect(JSON.stringify(evidence)).toContain("mdi_message_opaque_002");
+  });
+
+  it("records file and lab cues without storing file metadata or access links", async () => {
+    const repository = seededMdiRepository("mdi_submitted");
+    for (const event of [
+      {
+        access_link: "https://mdi.example/access-link-sentinel",
+        event_type: "file_upload_requested",
+        metadata: "FILE_UPLOAD_METADATA_SENTINEL",
+      },
+      {
+        event_type: "case_file_added",
+        file_id: "mdi_file_opaque_001",
+        metadata: "FILE_METADATA_SENTINEL",
+      },
+      {
+        event_type: "file_lab_results_processed",
+        file_id: "mdi_file_opaque_002",
+        file_type: "LAB_RESULT_SENTINEL",
+        status: "LAB_STATUS_SENTINEL",
+      },
+      {
+        event_type: "case_file_deleted",
+        file_id: "mdi_file_opaque_001",
+        metadata: "FILE_DELETE_METADATA_SENTINEL",
+      },
+    ]) {
+      const payload = mdiPayload(event);
+      const result = await handleMdiWebhook({
+        authorization: "mdi_authorization_secret",
+        mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+        payload,
+        receivedAt: "2026-06-09T12:00:00.000Z",
+        secret: mdiSecret(),
+        signature: signMdiPayload(payload),
+        webhookRepository: createWebhookProcessingRepository(repository),
+      });
+      expect(result).toMatchObject({ ok: true, status: 200, body: { action: "processed" } });
+    }
+
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub, limit: 250 });
+    expect(evidence.ok && evidence.value.items
+      .filter((event) => event.eventType === "mdi_dashboard_cue_recorded")
+      .map((event) => event.metadata?.cue_code)
+      .sort()).toEqual([
+        "file_action_needed",
+        "files_unavailable",
+        "open_mdi_files",
+        "open_mdi_files",
+      ].sort());
+    expect(JSON.stringify(evidence)).toContain("mdi_file_opaque_001");
+    expect(JSON.stringify(evidence)).not.toContain("access-link-sentinel");
+    expect(JSON.stringify(evidence)).not.toContain("FILE_METADATA_SENTINEL");
+    expect(JSON.stringify(evidence)).not.toContain("LAB_RESULT_SENTINEL");
+    expect(JSON.stringify(evidence)).not.toContain("LAB_STATUS_SENTINEL");
+  });
+
+  it("records voucher cue status with opaque voucher IDs only", async () => {
+    const repository = seededMdiRepository("mdi_submitted");
+    for (const event of [
+      { event_type: "voucher_created", voucher_id: "mdi_voucher_opaque_001" },
+      { event_type: "voucher_used", voucher_id: "mdi_voucher_opaque_001", metadata: "VOUCHER_METADATA_SENTINEL" },
+    ]) {
+      const payload = mdiPayload(event);
+      const result = await handleMdiWebhook({
+        authorization: "mdi_authorization_secret",
+        mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+        payload,
+        receivedAt: "2026-06-09T12:00:00.000Z",
+        secret: mdiSecret(),
+        signature: signMdiPayload(payload),
+        webhookRepository: createWebhookProcessingRepository(repository),
+      });
+      expect(result).toMatchObject({ ok: true, status: 200, body: { action: "processed" } });
+    }
+
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub, limit: 250 });
+    const cues = evidence.ok
+      ? evidence.value.items.filter((event) => event.eventType === "mdi_dashboard_cue_recorded")
+      : [];
+    expect(cues.map((event) => event.metadata)).toEqual([
+      {
+        cue_action: "status_available",
+        cue_code: "benefit_status_pending",
+        cue_family: "voucher",
+      },
+      {
+        cue_action: "noop",
+        cue_code: "cue_noop",
+        cue_family: "voucher",
+      },
+    ]);
+    expect(cues.map((event) => event.status)).toEqual(["recorded", "skipped"]);
+    expect(JSON.stringify(evidence)).toContain("mdi_voucher_opaque_001");
+    expect(JSON.stringify(evidence)).not.toContain("VOUCHER_METADATA_SENTINEL");
   });
 
   it("terminally no-ops signed preferred pharmacy request payloads without storing raw body", async () => {
