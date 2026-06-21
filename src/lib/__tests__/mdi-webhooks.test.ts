@@ -8,6 +8,7 @@ import {
   linkMdiPatientCase,
   linkStripeCustomer,
   listEvidenceEventsForPatient,
+  mdiCaseStatusMirrorKey,
   type AppDataError,
   type BillingStatus,
   createWebhookEvidenceEventId,
@@ -260,6 +261,46 @@ describe("MDI webhook receiver service", () => {
     expect(evidence.ok && evidence.value.items
       .filter((event) => event.metadata?.side_effect === "mdi_status_update")
       .map((event) => event.metadata?.case_status)).toEqual(["cancelled"]);
+    expect(JSON.stringify(evidence)).not.toContain("activate_billing");
+  });
+
+  it("uses the current status mirror to reject stale lifecycle races before evidence writes", async () => {
+    const repository = seededMdiRepository("clinical_review", "payment_method_collected");
+    const staleApprovalPayload = mdiPayload({
+      event_type: "case_clinically_approved",
+      timestamp: 1_781_006_400,
+    });
+
+    expect(repository.put({
+      ...mdiCaseStatusMirrorKey(mdiCaseId),
+      recordType: "mdiCaseStatusMirror",
+      schemaVersion: 1,
+      caseStatus: "cancelled",
+      cognitoSub,
+      createdAt: "2026-06-09T12:00:00.000Z",
+      mdiCaseId,
+      mdiPatientId,
+      providerTimestamp: "2026-06-09T12:01:40.000Z",
+      statusRank: 50,
+      terminal: true,
+      updatedAt: "2026-06-09T12:00:00.000Z",
+      webhookEventId: "mdi_evt_concurrent_cancel_001",
+    }).ok).toBe(true);
+
+    const staleApproval = await handleMdiWebhook({
+      authorization: "mdi_authorization_secret",
+      mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+      payload: staleApprovalPayload,
+      receivedAt: "2026-06-09T12:00:01.000Z",
+      secret: mdiSecret(),
+      signature: signMdiPayload(staleApprovalPayload),
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(staleApproval).toMatchObject({ ok: true, status: 200, body: { action: "processed" } });
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub });
+    expect(evidence.ok && evidence.value.items
+      .filter((event) => event.metadata?.side_effect === "mdi_status_update")).toEqual([]);
     expect(JSON.stringify(evidence)).not.toContain("activate_billing");
   });
 

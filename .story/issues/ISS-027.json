@@ -8,9 +8,9 @@
   "location": [],
   "phase": null,
   "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Added an atomic MDI case status mirror record and transaction helper so status evidence only writes when the incoming lifecycle webhook advances the current case mirror. Concurrent stale lifecycle events now fail closed as stale transitions before writing status evidence or evaluating billing decisions; focused app-data and webhook tests cover the race window.",
+  "resolvedDate": "2026-06-21",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[concurrency] Non-blocking implementation note: make the latest-status mirror update condition"
 }

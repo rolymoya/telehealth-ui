@@ -152,6 +152,18 @@ export type MdiCaseCreateAttemptRecord = BaseRecord & {
   mdiSubmissionId?: string;
 };
 
+export type MdiCaseStatusMirrorRecord = BaseRecord & {
+  recordType: "mdiCaseStatusMirror";
+  cognitoSub: string;
+  mdiPatientId: string;
+  mdiCaseId: string;
+  caseStatus: MdiMirroredCaseStatus;
+  providerTimestamp: string;
+  webhookEventId: string;
+  statusRank: number;
+  terminal: boolean;
+};
+
 export type StripeLinkageRecord = BaseRecord & {
   recordType: "stripeLinkage";
   cognitoSub: string;
@@ -260,6 +272,7 @@ export type AppDataRecord =
   | MdiReverseLookupRecord
   | MdiPatientCreateAttemptRecord
   | MdiCaseCreateAttemptRecord
+  | MdiCaseStatusMirrorRecord
   | StripeLinkageRecord
   | StripeReverseLookupRecord
   | ConsentEvidenceRecord
@@ -288,6 +301,19 @@ export type TransactWriteOperation =
   | { type: "update"; record: AppDataRecord; expected?: AppDataRecord }
   | { type: "delete"; key: AppDataKey; expected?: AppDataRecord };
 
+export type MdiMirroredCaseStatus =
+  | "assigned"
+  | "billing_ready"
+  | "cancelled"
+  | "clinical_review"
+  | "completed"
+  | "created"
+  | "declined"
+  | "processing"
+  | "support"
+  | "tagged"
+  | "waiting";
+
 export type WebhookClaimOutcome =
   | { outcome: "claimed"; record: WebhookIdempotencyRecord }
   | { outcome: "alreadyProcessing"; record: WebhookIdempotencyRecord }
@@ -314,6 +340,10 @@ export function mdiPatientReverseKey(mdiPatientId: string): AppDataKey {
 
 export function mdiCaseReverseKey(mdiCaseId: string): AppDataKey {
   return { pk: `MDI#CASE#${mdiCaseId}`, sk: "PATIENT" };
+}
+
+export function mdiCaseStatusMirrorKey(mdiCaseId: string): AppDataKey {
+  return { pk: `MDI#CASE#${mdiCaseId}`, sk: "STATUS#CURRENT" };
 }
 
 export function mdiPatientCreateAttemptKey(cognitoSub: string): AppDataKey {
@@ -1816,6 +1846,101 @@ export function recordEvidenceEvent(
     : written;
 }
 
+export function recordCurrentMdiCaseStatusEvidence(
+  repository: AppDataRepository,
+  input: Parameters<typeof createEvidenceEventRecord>[0] & {
+    caseStatus: MdiMirroredCaseStatus;
+    statusRank: number;
+    terminal: boolean;
+  },
+): AppDataResult<{ applied: boolean; record: EvidenceEventRecord }> {
+  const record = createEvidenceEventRecord(input);
+  const writes = createEvidenceEventWriteOperations(record);
+  if (!writes.ok) {
+    return writes;
+  }
+  if (
+    record.mdiCaseId === undefined ||
+    record.mdiPatientId === undefined ||
+    record.webhookEventId === undefined
+  ) {
+    return err("validation_failed", "MDI case status evidence is missing linkage");
+  }
+
+  const mirrorKey = mdiCaseStatusMirrorKey(record.mdiCaseId);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const existing = repository.get(mirrorKey);
+    if (!existing.ok) {
+      return existing;
+    }
+    if (existing.value && existing.value.recordType !== "mdiCaseStatusMirror") {
+      return err("validation_failed", "MDI case status mirror key contains another record type");
+    }
+    if (existing.value?.webhookEventId === record.webhookEventId) {
+      return ok({ applied: false, record });
+    }
+    if (existing.value && !isIncomingMdiCaseStatusCurrent(existing.value, input)) {
+      return err("stale_transition", "MDI case status mirror is newer than incoming event");
+    }
+
+    const mirror: MdiCaseStatusMirrorRecord = {
+      ...mirrorKey,
+      recordType: "mdiCaseStatusMirror",
+      schemaVersion: 1,
+      caseStatus: input.caseStatus,
+      cognitoSub: record.cognitoSub,
+      createdAt: existing.value?.createdAt ?? record.recordedAt,
+      mdiCaseId: record.mdiCaseId,
+      mdiPatientId: record.mdiPatientId,
+      providerTimestamp: record.occurredAt,
+      statusRank: input.statusRank,
+      terminal: input.terminal,
+      updatedAt: record.recordedAt,
+      webhookEventId: record.webhookEventId,
+    };
+
+    const written = repository.transactWrite([
+      existing.value
+        ? { type: "update", record: mirror, expected: existing.value }
+        : { type: "put", record: mirror, ifNotExists: true },
+      ...writes.value.operations,
+    ]);
+    if (written.ok) {
+      return ok({ applied: true, record });
+    }
+    if (written.error.kind !== "conditional_conflict") {
+      return written;
+    }
+  }
+
+  return err("conditional_conflict", "MDI case status mirror update conflicted");
+}
+
+function isIncomingMdiCaseStatusCurrent(
+  current: MdiCaseStatusMirrorRecord,
+  incoming: {
+    occurredAt: string;
+    statusRank: number;
+    terminal: boolean;
+  },
+) {
+  const incomingTime = Date.parse(incoming.occurredAt);
+  const currentTime = Date.parse(current.providerTimestamp);
+  if (!Number.isFinite(incomingTime) || !Number.isFinite(currentTime)) {
+    return false;
+  }
+  if (incomingTime < currentTime) {
+    return false;
+  }
+  if (current.terminal && !incoming.terminal) {
+    return false;
+  }
+  if (incomingTime === currentTime && incoming.statusRank < current.statusRank) {
+    return false;
+  }
+  return !(current.statusRank >= 30 && incoming.statusRank < current.statusRank && !incoming.terminal);
+}
+
 export function transitionOnboardingStatus(
   repository: AppDataRepository,
   input: {
@@ -2005,6 +2130,7 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         : err("validation_failed", "Invalid MDI patient create attempt record");
     case "mdiCaseCreateAttempt":
       return typeof record.cognitoSub === "string" &&
+        isCognitoSub(record.cognitoSub) &&
         isMdiCaseCreateStatus(record.status) &&
         Number.isInteger(record.attempts) &&
         record.attempts >= 0 &&
@@ -2021,6 +2147,21 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         keysMatch(record, mdiCaseCreateAttemptKey(record.cognitoSub))
         ? ok(record)
         : err("validation_failed", "Invalid MDI case create attempt record");
+    case "mdiCaseStatusMirror":
+      return typeof record.cognitoSub === "string" &&
+        isCognitoSub(record.cognitoSub) &&
+        isMdiPatientId(record.mdiPatientId) &&
+        isMdiCaseId(record.mdiCaseId) &&
+        isMdiMirroredCaseStatus(record.caseStatus) &&
+        isWebhookEventIdForProvider("mdi", record.webhookEventId) &&
+        optionalIsoDate(record.providerTimestamp) &&
+        typeof record.statusRank === "number" &&
+        Number.isInteger(record.statusRank) &&
+        record.statusRank >= 0 &&
+        typeof record.terminal === "boolean" &&
+        keysMatch(record, mdiCaseStatusMirrorKey(record.mdiCaseId))
+        ? ok(record)
+        : err("validation_failed", "Invalid MDI case status mirror record");
     case "stripeLinkage":
       return typeof record.cognitoSub === "string" &&
         typeof record.stripeCustomerId === "string" &&
@@ -2765,6 +2906,10 @@ function isMdiCaseCreateStatus(value: unknown): value is MdiCaseCreateStatus {
   return mdiCaseCreateStatuses.has(value as MdiCaseCreateStatus);
 }
 
+function isMdiMirroredCaseStatus(value: unknown): value is MdiMirroredCaseStatus {
+  return mdiMirroredCaseStatuses.has(value as MdiMirroredCaseStatus);
+}
+
 function isMdiBillingUnlockAction(value: unknown): value is string {
   return mdiBillingUnlockActions.has(value as string);
 }
@@ -2982,6 +3127,20 @@ const mdiCaseCreateStatuses = new Set<MdiCaseCreateStatus>([
   "submitted",
 ]);
 
+const mdiMirroredCaseStatuses = new Set<MdiMirroredCaseStatus>([
+  "assigned",
+  "billing_ready",
+  "cancelled",
+  "clinical_review",
+  "completed",
+  "created",
+  "declined",
+  "processing",
+  "support",
+  "tagged",
+  "waiting",
+]);
+
 const mdiBillingUnlockActions = new Set([
   "activate_billing",
   "await_clinical_review",
@@ -3188,6 +3347,16 @@ const allowedFields: Record<string, Set<string>> = {
     "mdiPatientId",
     "mdiCaseId",
     "mdiSubmissionId",
+  ),
+  mdiCaseStatusMirror: allow(
+    "cognitoSub",
+    "mdiPatientId",
+    "mdiCaseId",
+    "caseStatus",
+    "providerTimestamp",
+    "webhookEventId",
+    "statusRank",
+    "terminal",
   ),
   stripeLinkage: allow(
     "cognitoSub",

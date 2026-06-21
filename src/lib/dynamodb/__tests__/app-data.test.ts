@@ -29,11 +29,13 @@ import {
   linkStripeCustomer,
   markWebhookEventStatus,
   mdiPatientReverseKey,
+  mdiCaseStatusMirrorKey,
   operationalStatusKey,
   patientEvidenceEventUniquenessKey,
   patientProfileKey,
   recordCurrentConsentAcceptance,
   recordConsentEvidence,
+  recordCurrentMdiCaseStatusEvidence,
   recordEvidenceEvent,
   transitionOnboardingStatus,
   upsertPatientProfile,
@@ -1803,6 +1805,96 @@ describe("DynamoDB app-data helpers", () => {
         metadata: { side_effect: "mdi_status_update" },
       }),
     ).toMatchObject({ ok: false, error: { kind: "conditional_conflict" } });
+  });
+
+  it("atomically advances MDI case status mirror with status evidence", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    expect(
+      linkMdiPatientCase(repository, {
+        cognitoSub: "cognito-sub-001",
+        mdiPatientId: "mdi_patient_001",
+        mdiCaseId: "mdi_case_001",
+        now,
+      }).ok,
+    ).toBe(true);
+
+    const newer = recordCurrentMdiCaseStatusEvidence(repository, {
+      actorType: "vendor",
+      caseStatus: "cancelled",
+      cognitoSub: "cognito-sub-001",
+      eventCategory: "webhook",
+      eventId: createWebhookEvidenceEventId(
+        "mdi",
+        "mdi_evt_case_cancelled_001",
+        "WEBHOOK_SIDE_EFFECT_APPLIED",
+        "mdi_status_update",
+      ),
+      eventType: "webhook_side_effect_applied",
+      occurredAt: "2026-06-04T18:10:00.000Z",
+      recordedAt: "2026-06-04T18:10:01.000Z",
+      mdiPatientId: "mdi_patient_001",
+      mdiCaseId: "mdi_case_001",
+      metadata: { side_effect: "mdi_status_update", case_status: "cancelled" },
+      source: "webhook",
+      status: "succeeded",
+      statusRank: 50,
+      summaryCode: "WEBHOOK_SIDE_EFFECT_APPLIED",
+      terminal: true,
+      webhookEventId: "mdi_evt_case_cancelled_001",
+      webhookProvider: "mdi",
+    });
+    const stale = recordCurrentMdiCaseStatusEvidence(repository, {
+      actorType: "vendor",
+      caseStatus: "billing_ready",
+      cognitoSub: "cognito-sub-001",
+      eventCategory: "webhook",
+      eventId: createWebhookEvidenceEventId(
+        "mdi",
+        "mdi_evt_case_approved_001",
+        "WEBHOOK_SIDE_EFFECT_APPLIED",
+        "mdi_status_update",
+      ),
+      eventType: "webhook_side_effect_applied",
+      occurredAt: "2026-06-04T18:09:00.000Z",
+      recordedAt: "2026-06-04T18:10:02.000Z",
+      mdiPatientId: "mdi_patient_001",
+      mdiCaseId: "mdi_case_001",
+      metadata: { side_effect: "mdi_status_update", case_status: "billing_ready" },
+      source: "webhook",
+      status: "succeeded",
+      statusRank: 30,
+      summaryCode: "WEBHOOK_SIDE_EFFECT_APPLIED",
+      terminal: false,
+      webhookEventId: "mdi_evt_case_approved_001",
+      webhookProvider: "mdi",
+    });
+
+    expect(newer).toMatchObject({ ok: true, value: { applied: true } });
+    expect(stale).toMatchObject({ ok: false, error: { kind: "stale_transition" } });
+    expect(repository.get(mdiCaseStatusMirrorKey("mdi_case_001"))).toMatchObject({
+      ok: true,
+      value: {
+        caseStatus: "cancelled",
+        providerTimestamp: "2026-06-04T18:10:00.000Z",
+        recordType: "mdiCaseStatusMirror",
+        webhookEventId: "mdi_evt_case_cancelled_001",
+      },
+    });
+    expect(
+      listEvidenceEventsForMdiCase(repository, {
+        mdiCaseId: "mdi_case_001",
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        items: [
+          expect.objectContaining({
+            metadata: { side_effect: "mdi_status_update", case_status: "cancelled" },
+          }),
+        ],
+      },
+    });
   });
 
   it("allows distinct webhook side-effect evidence for the same provider event", () => {

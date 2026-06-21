@@ -18,6 +18,7 @@ import {
   listEvidenceEventsForMdiCase,
   mdiCaseReverseKey,
   mdiPatientReverseKey,
+  recordCurrentMdiCaseStatusEvidence,
   recordEvidenceEvent,
   transitionOnboardingStatus,
 } from "@/lib/dynamodb/app-data";
@@ -26,6 +27,7 @@ import {
   getMdiLinkageDynamoDb,
   getStripeLinkageDynamoDb,
   listEvidenceEventsForMdiCaseDynamoDb,
+  recordCurrentMdiCaseStatusEvidenceDynamoDb,
   recordEvidenceEventDynamoDb,
   transitionOnboardingStatusDynamoDb,
 } from "@/lib/dynamodb/app-data-dynamodb";
@@ -133,6 +135,9 @@ export type MdiWebhookMirrorRepository = {
   recordEvidenceEvent(
     input: Parameters<typeof recordEvidenceEvent>[1],
   ): Promise<AppDataResult<EvidenceEventRecord>>;
+  recordCurrentCaseStatusEvidence(
+    input: Parameters<typeof recordCurrentMdiCaseStatusEvidence>[1],
+  ): Promise<AppDataResult<{ applied: boolean; record: EvidenceEventRecord }>>;
   transitionOnboardingStatus(input: {
     cognitoSub: string;
     expected: OnboardingStatus;
@@ -232,6 +237,9 @@ export function createInMemoryMdiWebhookMirrorRepository(
     async recordEvidenceEvent(input) {
       return recordEvidenceEvent(repository, input);
     },
+    async recordCurrentCaseStatusEvidence(input) {
+      return recordCurrentMdiCaseStatusEvidence(repository, input);
+    },
     async transitionOnboardingStatus(input) {
       return transitionOnboardingStatus(repository, input);
     },
@@ -259,6 +267,9 @@ export function createDynamoDbMdiWebhookMirrorRepository(
     },
     async recordEvidenceEvent(input) {
       return recordEvidenceEventDynamoDb(repository, input);
+    },
+    async recordCurrentCaseStatusEvidence(input) {
+      return recordCurrentMdiCaseStatusEvidenceDynamoDb(repository, input);
     },
     async transitionOnboardingStatus(input) {
       return transitionOnboardingStatusDynamoDb(repository, input);
@@ -509,8 +520,9 @@ async function handleVerifiedMdiEvent(input: {
     }
   }
 
-  const evidence = await input.mdiMirrorRepository.recordEvidenceEvent({
+  const evidence = await input.mdiMirrorRepository.recordCurrentCaseStatusEvidence({
     actorType: "vendor",
+    caseStatus,
     cognitoSub: patient.value,
     eventCategory: "webhook",
     eventId: createWebhookEvidenceEventId(
@@ -527,11 +539,16 @@ async function handleVerifiedMdiEvent(input: {
     metadata: { case_status: caseStatus, side_effect: "mdi_status_update" },
     source: "webhook",
     status: "succeeded",
+    statusRank: caseStatusRank(caseStatus),
     summaryCode: "WEBHOOK_SIDE_EFFECT_APPLIED",
+    terminal: isTerminalCaseStatus(caseStatus),
     webhookEventId: input.webhook.eventId,
     webhookProvider: "mdi",
   });
   if (!evidence.ok) {
+    if (evidence.error.kind === "stale_transition") {
+      return { outcome: "processed" as const };
+    }
     if (evidence.error.kind !== "conditional_conflict") {
       return appDataFailure(evidence.error);
     }

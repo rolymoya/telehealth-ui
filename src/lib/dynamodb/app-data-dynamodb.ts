@@ -14,7 +14,9 @@ import {
   type BillingStatus,
   type ConsentEvidenceRecord,
   type EvidenceEventRecord,
+  type MdiCaseStatusMirrorRecord,
   type MdiLinkageRecord,
+  type MdiMirroredCaseStatus,
   type MdiReverseLookupRecord,
   type OnboardingStatus,
   type PatientProfileRecord,
@@ -31,6 +33,7 @@ import {
   createPatientProfileRecord,
   isIdempotentEvidenceReplay,
   mdiCaseReverseKey,
+  mdiCaseStatusMirrorKey,
   mdiLinkageKey,
   mdiPatientReverseKey,
   patientProfileKey,
@@ -649,6 +652,76 @@ export async function recordEvidenceEventDynamoDb(
     isIdempotentEvidenceReplay(record, existing.value)
     ? ok(existing.value)
     : written;
+}
+
+export async function recordCurrentMdiCaseStatusEvidenceDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
+  input: Parameters<typeof createEvidenceEventRecord>[0] & {
+    caseStatus: MdiMirroredCaseStatus;
+    statusRank: number;
+    terminal: boolean;
+  },
+): Promise<AppDataResult<{ applied: boolean; record: EvidenceEventRecord }>> {
+  const record = createEvidenceEventRecord(input);
+  const writes = createEvidenceEventWriteOperations(record);
+  if (!writes.ok) {
+    return writes as AppDataResult<{ applied: boolean; record: EvidenceEventRecord }>;
+  }
+  if (
+    record.mdiCaseId === undefined ||
+    record.mdiPatientId === undefined ||
+    record.webhookEventId === undefined
+  ) {
+    return err("validation_failed", "MDI case status evidence is missing linkage");
+  }
+
+  const mirrorKey = mdiCaseStatusMirrorKey(record.mdiCaseId);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const existing = await repository.get(mirrorKey);
+    if (!existing.ok) {
+      return existing;
+    }
+    if (existing.value && existing.value.recordType !== "mdiCaseStatusMirror") {
+      return err("validation_failed", "MDI case status mirror key contains another record type");
+    }
+    if (existing.value?.webhookEventId === record.webhookEventId) {
+      return ok({ applied: false, record });
+    }
+    if (existing.value && !isIncomingMdiCaseStatusCurrent(existing.value, input)) {
+      return err("stale_transition", "MDI case status mirror is newer than incoming event");
+    }
+
+    const mirror: MdiCaseStatusMirrorRecord = {
+      ...mirrorKey,
+      recordType: "mdiCaseStatusMirror",
+      schemaVersion: 1,
+      caseStatus: input.caseStatus,
+      cognitoSub: record.cognitoSub,
+      createdAt: existing.value?.createdAt ?? record.recordedAt,
+      mdiCaseId: record.mdiCaseId,
+      mdiPatientId: record.mdiPatientId,
+      providerTimestamp: record.occurredAt,
+      statusRank: input.statusRank,
+      terminal: input.terminal,
+      updatedAt: record.recordedAt,
+      webhookEventId: record.webhookEventId,
+    };
+
+    const written = await repository.transactWrite([
+      existing.value
+        ? { type: "update", record: mirror, expected: existing.value }
+        : { type: "put", record: mirror, ifNotExists: true },
+      ...writes.value.operations,
+    ]);
+    if (written.ok) {
+      return ok({ applied: true, record });
+    }
+    if (written.error.kind !== "conditional_conflict") {
+      return written;
+    }
+  }
+
+  return err("conditional_conflict", "MDI case status mirror update conflicted");
 }
 
 export async function claimWebhookEventDynamoDb(
@@ -1393,6 +1466,31 @@ function cleanEnv(value: string | undefined) {
 
 function addSecondsIso(value: string, seconds: number) {
   return new Date(new Date(value).getTime() + seconds * 1000).toISOString();
+}
+
+function isIncomingMdiCaseStatusCurrent(
+  current: MdiCaseStatusMirrorRecord,
+  incoming: {
+    occurredAt: string;
+    statusRank: number;
+    terminal: boolean;
+  },
+) {
+  const incomingTime = Date.parse(incoming.occurredAt);
+  const currentTime = Date.parse(current.providerTimestamp);
+  if (!Number.isFinite(incomingTime) || !Number.isFinite(currentTime)) {
+    return false;
+  }
+  if (incomingTime < currentTime) {
+    return false;
+  }
+  if (current.terminal && !incoming.terminal) {
+    return false;
+  }
+  if (incomingTime === currentTime && incoming.statusRank < current.statusRank) {
+    return false;
+  }
+  return !(current.statusRank >= 30 && incoming.statusRank < current.statusRank && !incoming.terminal);
 }
 
 function isAtOrBefore(left: string, right: string) {
