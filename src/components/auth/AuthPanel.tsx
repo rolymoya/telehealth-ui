@@ -171,6 +171,7 @@ function VerifyEmailForm({
   returnTo?: string | null;
 }) {
   const resolvedReturnTo = useResolvedReturnTo(returnTo);
+  const [email, setEmail] = useState(initialEmail);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -194,6 +195,24 @@ function VerifyEmailForm({
     });
   }
 
+  async function onResend() {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setStatus(null);
+      setError("Enter your email to resend the code.");
+      return;
+    }
+    await submitAuthAction({
+      setError,
+      setLoading,
+      onSuccess: () => setStatus("We sent a new verification code."),
+      action: () =>
+        client.resendEmailConfirmation({
+          email: trimmedEmail,
+        }),
+    });
+  }
+
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       <Field
@@ -201,7 +220,8 @@ function VerifyEmailForm({
         name="email"
         type="email"
         autoComplete="email"
-        defaultValue={initialEmail}
+        value={email}
+        onChange={(event) => setEmail(event.currentTarget.value)}
       />
       <Field label="Verification code" name="code" inputMode="numeric" autoComplete="one-time-code" />
       <SubmitButton loading={loading}>Verify email</SubmitButton>
@@ -211,9 +231,14 @@ function VerifyEmailForm({
           Sign in and continue
         </SecondaryLink>
       ) : (
-        <SecondaryLink href={authRouteHref("/sign-in", resolvedReturnTo)}>
-          Go to sign in
-        </SecondaryLink>
+        <>
+          <SecondaryButton loading={loading} onClick={onResend}>
+            Resend code
+          </SecondaryButton>
+          <SecondaryLink href={authRouteHref("/sign-in", resolvedReturnTo)}>
+            Go to sign in
+          </SecondaryLink>
+        </>
       )}
     </form>
   );
@@ -523,6 +548,29 @@ function SecondaryLink({
       <Link className="font-medium text-clay-deep hover:text-clay" href={href}>
         {children}
       </Link>
+    </p>
+  );
+}
+
+function SecondaryButton({
+  children,
+  loading,
+  onClick,
+}: {
+  children: ReactNode;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <p className="text-[1rem]">
+      <button
+        type="button"
+        disabled={loading}
+        onClick={onClick}
+        className="font-medium text-clay-deep hover:text-clay disabled:cursor-wait disabled:text-ash"
+      >
+        {loading ? "Working" : children}
+      </button>
     </p>
   );
 }

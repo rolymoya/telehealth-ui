@@ -48,6 +48,7 @@ describe("browser Cognito auth client", () => {
       {},
       {},
       {},
+      {},
     ]);
     const sessionTransport = fakeSessionTransport();
     const client = createBrowserCognitoAuthClient({
@@ -62,6 +63,12 @@ describe("browser Cognito auth client", () => {
     ).resolves.toEqual({
       ok: true,
       value: { status: "verification_required", destination: "email" },
+    });
+    await expect(
+      client.resendEmailConfirmation({ email: "patient@example.com" }),
+    ).resolves.toEqual({
+      ok: true,
+      value: { status: "verification_code_sent", destination: "email" },
     });
     await expect(
       client.confirmEmail({ email: "patient@example.com", code: "123456" }),
@@ -88,6 +95,7 @@ describe("browser Cognito auth client", () => {
 
     expect(transport.calls.map((call) => call.operation)).toEqual([
       "SignUp",
+      "ResendConfirmationCode",
       "ConfirmSignUp",
       "ForgotPassword",
       "ConfirmForgotPassword",
@@ -96,6 +104,10 @@ describe("browser Cognito auth client", () => {
       ClientId: config.userPoolClientId,
       Username: "patient@example.com",
       UserAttributes: [{ Name: "email", Value: "patient@example.com" }],
+    });
+    expect(transport.calls[1].payload).toEqual({
+      ClientId: config.userPoolClientId,
+      Username: "patient@example.com",
     });
   });
 

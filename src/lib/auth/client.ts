@@ -6,6 +6,7 @@ import {
   cognitoIssuer,
   resolveCognitoAuthConfig,
   type AuthEmailConfirmationInput,
+  type AuthEmailConfirmationResendInput,
   type AuthMfaChallengeInput,
   type AuthPasswordResetConfirmInput,
   type AuthPasswordResetRequestInput,
@@ -78,6 +79,17 @@ export function createBrowserCognitoAuthClient(
         return result;
       }
       return authOk({ status: "email_confirmed" as const });
+    },
+
+    async resendEmailConfirmation(input: AuthEmailConfirmationResendInput) {
+      const result = await sendCognito(transport, "ResendConfirmationCode", {
+        ClientId: options.config.userPoolClientId,
+        Username: input.email,
+      });
+      if (!result.ok) {
+        return result;
+      }
+      return authOk({ status: "verification_code_sent", destination: "email" as const });
     },
 
     async signIn(input: AuthSignInInput): Promise<AuthResult<AuthSignInState>> {
@@ -581,6 +593,7 @@ type CognitoOperation =
   | "ForgotPassword"
   | "GlobalSignOut"
   | "InitiateAuth"
+  | "ResendConfirmationCode"
   | "RespondToAuthChallenge"
   | "AssociateSoftwareToken"
   | "SignUp"

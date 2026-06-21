@@ -369,6 +369,13 @@ class InMemoryPatientAuthAdapter implements PatientAuthAdapter {
     return ok({ status: "email_confirmed" } as const);
   }
 
+  async resendEmailConfirmation(input: { email: string }) {
+    if (!this.users.has(input.email)) {
+      return err("user_not_found", "User confirmation failed");
+    }
+    return ok({ status: "verification_code_sent", destination: "email" } as const);
+  }
+
   async signIn(input: { email: string; password: string }): Promise<AuthResult<AuthSignInState>> {
     const user = this.users.get(input.email);
     if (!user || user.password !== input.password) {

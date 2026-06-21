@@ -46,6 +46,26 @@ describe("AuthPanel", () => {
     expect(screen.queryByLabelText(/condition|medication|symptom|diagnosis/i)).toBeNull();
   });
 
+  it("resends the verification code from the verification step", async () => {
+    const user = userEvent.setup();
+    const client = fakeAuthClient();
+
+    render(<AuthPanel mode="sign-up" client={client} returnTo="/get-started" />);
+
+    await user.type(screen.getByLabelText("Email"), "patient@example.com");
+    await user.type(screen.getByLabelText("Password"), "Password12345");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+    await user.click(screen.getByRole("button", { name: "Resend code" }));
+
+    expect(client.resendEmailConfirmation).toHaveBeenCalledWith({
+      email: "patient@example.com",
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "We sent a new verification code.",
+    );
+    expect(screen.queryByLabelText(/condition|medication|symptom|diagnosis/i)).toBeNull();
+  });
+
   it("shows password requirements before sign-up submission", () => {
     const client = fakeAuthClient();
 
@@ -246,6 +266,7 @@ function fakeAuthClient(options: {
   return {
     signUp: vi.fn(async () => options.signUpResult ?? ok({ status: "verification_required", destination: "email" } as const)),
     confirmEmail: vi.fn(async () => ok({ status: "email_confirmed" } as const)),
+    resendEmailConfirmation: vi.fn(async () => ok({ status: "verification_code_sent", destination: "email" } as const)),
     signIn: vi.fn(async () => ok(options.signInResult ?? { status: "signed_in", session } as const)),
     completeTotpChallenge: vi.fn(async () => ok({ status: "signed_in", session } as const)),
     requestPasswordReset: vi.fn(async () => ok({ status: "password_reset_code_sent", destination: "email" } as const)),

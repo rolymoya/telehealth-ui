@@ -82,6 +82,10 @@ export type AuthEmailConfirmationInput = {
   code: string;
 };
 
+export type AuthEmailConfirmationResendInput = {
+  email: string;
+};
+
 export type AuthSignInInput = {
   email: string;
   password: string;
@@ -111,6 +115,11 @@ export type AuthEmailConfirmationState = {
   status: "email_confirmed";
 };
 
+export type AuthEmailConfirmationResendState = {
+  status: "verification_code_sent";
+  destination: "email";
+};
+
 export type AuthPasswordResetRequestState = {
   status: "password_reset_code_sent";
   destination: "email";
@@ -132,6 +141,7 @@ export type AuthSignOutState = {
 export type PatientAuthAdapter = {
   signUp(input: AuthSignUpInput): Promise<AuthResult<AuthSignUpState>>;
   confirmEmail(input: AuthEmailConfirmationInput): Promise<AuthResult<AuthEmailConfirmationState>>;
+  resendEmailConfirmation(input: AuthEmailConfirmationResendInput): Promise<AuthResult<AuthEmailConfirmationResendState>>;
   signIn(input: AuthSignInInput): Promise<AuthResult<AuthSignInState>>;
   completeTotpChallenge(input: AuthMfaChallengeInput): Promise<AuthResult<AuthSignInState>>;
   requestPasswordReset(input: AuthPasswordResetRequestInput): Promise<AuthResult<AuthPasswordResetRequestState>>;
