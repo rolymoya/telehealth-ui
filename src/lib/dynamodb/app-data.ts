@@ -2660,6 +2660,25 @@ function isEvidenceEventId(record: EvidenceEventRecord) {
       }
       return false;
     }
+    case "mdi_workflow_url_requested": {
+      const workflow = record.metadata?.workflow;
+      const requestId = mdiWorkflowRequestIdFromEventId(record.eventId);
+      if (
+        typeof record.mdiPatientId !== "string" ||
+        !isMdiPatientId(record.mdiPatientId) ||
+        !isMdiWorkflowCode(workflow) ||
+        typeof requestId !== "string" ||
+        record.requestId !== requestId ||
+        !isRequestId(requestId) ||
+        (workflow !== "messaging" && record.mdiCaseId !== undefined)
+      ) {
+        return false;
+      }
+      return new RegExp(
+        `^mdi:workflow_url:${record.mdiPatientId}:${workflow}:req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`,
+      ).test(record.eventId) &&
+        !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
+    }
     case "stripe_payment_method_collected":
       return record.stripeCustomerId !== undefined &&
         record.eventId === `stripe:payment-method:${record.stripeCustomerId}:collected`;
@@ -2752,6 +2771,17 @@ function isMdiBillingUnlockAction(value: unknown): value is string {
 
 function isMdiDashboardCueCode(value: unknown): value is string {
   return mdiDashboardCueCodes.has(value as string);
+}
+
+function isMdiWorkflowCode(value: unknown): value is string {
+  return mdiWorkflowCodes.has(value as string);
+}
+
+function mdiWorkflowRequestIdFromEventId(eventId: string) {
+  const parts = eventId.split(":");
+  return parts.length === 5 && parts[0] === "mdi" && parts[1] === "workflow_url"
+    ? parts[4]
+    : undefined;
 }
 
 function isMdiDashboardCuePointer(cueCode: string, value: unknown): value is string {
@@ -2975,6 +3005,12 @@ const mdiDashboardCueCodes = new Set([
   "ops_review_required",
 ]);
 
+const mdiWorkflowCodes = new Set([
+  "file_upload",
+  "intro_video",
+  "messaging",
+]);
+
 const defaultEvidenceEventPageLimit = 25;
 const maxEvidenceEventPageLimit = 100;
 const maxWebhookEventIdLength = 128;
@@ -3021,6 +3057,7 @@ const evidenceEventIdPatterns = [
   /^mdi:billing_unlock:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:activate_billing$/,
   /^mdi:billing_unlock:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:await_clinical_review|await_payment_method|cancel_active_billing|cancel_pending_billing|do_not_charge|manual_review_required|no_op|provider_unavailable):mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^mdi:dashboard_cue:(?:case:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*|patient:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*):(?:benefit_status_pending|cue_noop|exam_action_needed|file_action_needed|files_unavailable|open_mdi_files|open_mdi_messages|ops_review_required):[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
+  /^mdi:workflow_url:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:file_upload|intro_video|messaging):req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:payment-method:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:collected$/,
   /^stripe:billing:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:payment_method_pending|payment_method_collected|active|past_due|canceled)$/,
   /^webhook:(?:stripe|mdi):(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:[A-Z][A-Z0-9_]{1,79}(?::[a-z][a-z0-9_]{0,39})?$/,

@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createMdiCase,
   createMdiPatient,
+  getMdiFileUploadWorkflowUrl,
+  getMdiIntroVideoWorkflowUrl,
+  getMdiMessagingWorkflowUrl,
   getMdiQuestionnaireQuestions,
   requestMdi,
   submitMdiQuestionnaireResponses,
@@ -237,6 +240,92 @@ describe("MDI HTTP client", () => {
         method: "POST",
       }),
     );
+  });
+
+  it("retrieves approved workflow URLs without returning verification codes", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        auth_link: "https://mdi.example.test/messages?token=URL_TOKEN_SENTINEL",
+        verification_code: "VERIFICATION_CODE_SENTINEL",
+      }))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        file_url: "https://mdi.example.test/file-upload?token=FILE_TOKEN_SENTINEL",
+        verification_code: "VERIFICATION_CODE_SENTINEL",
+      }))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        intro_video_url: "https://mdi.example.test/intro-video?token=VIDEO_TOKEN_SENTINEL",
+        verification_code: "VERIFICATION_CODE_SENTINEL",
+      }));
+
+    const messaging = await getMdiMessagingWorkflowUrl({
+      caseId: "mdi_case_opaque_001",
+      patientId: "mdi_patient_opaque_001",
+    }, clientOptions(fetchMock));
+    expect(messaging).toEqual({
+      ok: true,
+      value: {
+        url: "https://mdi.example.test/messages?token=URL_TOKEN_SENTINEL",
+        workflow: "messaging",
+      },
+    });
+    const fileUpload = await getMdiFileUploadWorkflowUrl({ patientId: "mdi_patient_opaque_001" }, clientOptions(fetchMock));
+    expect(fileUpload).toEqual({
+      ok: true,
+      value: {
+        url: "https://mdi.example.test/file-upload?token=FILE_TOKEN_SENTINEL",
+        workflow: "file_upload",
+      },
+    });
+    const introVideo = await getMdiIntroVideoWorkflowUrl({ patientId: "mdi_patient_opaque_001" }, clientOptions(fetchMock));
+    expect(introVideo).toEqual({
+      ok: true,
+      value: {
+        url: "https://mdi.example.test/intro-video?token=VIDEO_TOKEN_SENTINEL",
+        workflow: "intro_video",
+      },
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://example.invalid/mdi/partner/patients/mdi_patient_opaque_001/auth?case_id=mdi_case_opaque_001&full=true&fullscreen=true",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "https://example.invalid/mdi/partner/patients/mdi_patient_opaque_001/file-url?fullscreen=true",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "https://example.invalid/mdi/partner/patients/mdi_patient_opaque_001/intro-video?fullscreen=true",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(JSON.stringify([messaging, fileUpload, introVideo])).not.toContain("VERIFICATION_CODE_SENTINEL");
+  });
+
+  it("rejects malformed or non-HTTPS workflow URLs", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        auth_link: "http://mdi.example.test/messages?token=insecure",
+        verification_code: "VERIFICATION_CODE_SENTINEL",
+      }));
+
+    await expect(
+      getMdiMessagingWorkflowUrl({
+        caseId: "mdi_case_opaque_001",
+        patientId: "mdi_patient_opaque_001",
+      }, clientOptions(fetchMock)),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "invalid_response",
+        retryable: false,
+      },
+    });
   });
 
   it("canonicalizes raw UUID MDI case create identifiers", async () => {

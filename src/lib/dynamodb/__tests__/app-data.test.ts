@@ -2338,6 +2338,109 @@ describe("DynamoDB app-data helpers", () => {
         },
       }),
     ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:workflow_url:mdi_patient_001:messaging:req_workflow_001",
+        eventType: "mdi_workflow_url_requested",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:08:00.000Z",
+        recordedAt: "2026-06-04T18:08:00.000Z",
+        actorType: "system",
+        status: "recorded",
+        summaryCode: "MDI_WORKFLOW_URL_REQUESTED",
+        mdiPatientId: "mdi_patient_001",
+        mdiCaseId: "mdi_case_001",
+        requestId: "req_workflow_001",
+        source: "app",
+        metadata: {
+          outcome: "issued",
+          workflow: "messaging",
+        },
+      }).ok,
+    ).toBe(true);
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:workflow_url:mdi_patient_001:exam:req_workflow_002",
+        eventType: "mdi_workflow_url_requested",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:09:00.000Z",
+        recordedAt: "2026-06-04T18:09:00.000Z",
+        actorType: "system",
+        status: "recorded",
+        summaryCode: "MDI_WORKFLOW_URL_REQUESTED",
+        mdiPatientId: "mdi_patient_001",
+        requestId: "req_workflow_002",
+        source: "app",
+        metadata: {
+          outcome: "issued",
+          workflow: "exam",
+        },
+      } as never),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:workflow_url:mdi_patient_001:file_upload:req_bearer_token_secret",
+        eventType: "mdi_workflow_url_requested",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:10:00.000Z",
+        recordedAt: "2026-06-04T18:10:00.000Z",
+        actorType: "system",
+        status: "recorded",
+        summaryCode: "MDI_WORKFLOW_URL_REQUESTED",
+        mdiPatientId: "mdi_patient_001",
+        requestId: "req_bearer_token_secret",
+        source: "app",
+        metadata: {
+          outcome: "issued",
+          workflow: "file_upload",
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:workflow_url:mdi_patient_001:file_upload:req_workflow_004",
+        eventType: "mdi_workflow_url_requested",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:10:30.000Z",
+        recordedAt: "2026-06-04T18:10:30.000Z",
+        actorType: "system",
+        status: "recorded",
+        summaryCode: "MDI_WORKFLOW_URL_REQUESTED",
+        mdiPatientId: "mdi_patient_001",
+        mdiCaseId: "mdi_case_001",
+        requestId: "req_workflow_004",
+        source: "app",
+        metadata: {
+          outcome: "issued",
+          workflow: "file_upload",
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:workflow_url:mdi_patient_001:intro_video:req_workflow_003",
+        eventType: "mdi_workflow_url_requested",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:11:00.000Z",
+        recordedAt: "2026-06-04T18:11:00.000Z",
+        actorType: "system",
+        status: "recorded",
+        summaryCode: "MDI_WORKFLOW_URL_REQUESTED",
+        mdiPatientId: "mdi_patient_001",
+        requestId: "req_workflow_003",
+        source: "app",
+        metadata: {
+          outcome: "issued",
+          verification_code: "123456",
+          workflow: "intro_video",
+        },
+      } as never),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
   });
 
   it("rejects evidence events with clinical, raw payload, or free-text metadata", () => {

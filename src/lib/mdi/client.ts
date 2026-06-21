@@ -113,6 +113,13 @@ export type MdiQuestionnaireSubmission = {
   status: string;
 };
 
+export type MdiWorkflowCode = "file_upload" | "intro_video" | "messaging";
+
+export type MdiWorkflowUrl = {
+  workflow: MdiWorkflowCode;
+  url: string;
+};
+
 const defaultTimeoutMs = 10_000;
 
 export async function requestMdi<T = unknown>(
@@ -206,6 +213,51 @@ export async function submitMdiQuestionnaireResponses(
       method: "POST",
       parse: parseSubmission,
       path: `/partner/questionnaires/${encodeURIComponent(input.questionnaireId)}/responses`,
+    },
+    options,
+  );
+}
+
+export async function getMdiMessagingWorkflowUrl(
+  input: {
+    caseId: string;
+    patientId: string;
+  },
+  options: MdiClientOptions = {},
+) {
+  return requestMdi<MdiWorkflowUrl>(
+    {
+      method: "GET",
+      parse: (payload) => parseWorkflowUrl(payload, "auth_link", "messaging"),
+      path: `/partner/patients/${encodeURIComponent(input.patientId)}/auth?case_id=${encodeURIComponent(input.caseId)}&full=true&fullscreen=true`,
+    },
+    options,
+  );
+}
+
+export async function getMdiFileUploadWorkflowUrl(
+  input: { patientId: string },
+  options: MdiClientOptions = {},
+) {
+  return requestMdi<MdiWorkflowUrl>(
+    {
+      method: "GET",
+      parse: (payload) => parseWorkflowUrl(payload, "file_url", "file_upload"),
+      path: `/partner/patients/${encodeURIComponent(input.patientId)}/file-url?fullscreen=true`,
+    },
+    options,
+  );
+}
+
+export async function getMdiIntroVideoWorkflowUrl(
+  input: { patientId: string },
+  options: MdiClientOptions = {},
+) {
+  return requestMdi<MdiWorkflowUrl>(
+    {
+      method: "GET",
+      parse: (payload) => parseWorkflowUrl(payload, "intro_video_url", "intro_video"),
+      path: `/partner/patients/${encodeURIComponent(input.patientId)}/intro-video?fullscreen=true`,
     },
     options,
   );
@@ -409,6 +461,23 @@ function parseCreatedCase(payload: unknown): MdiCreatedCase {
   return { mdiCaseId: canonicalCaseId };
 }
 
+function parseWorkflowUrl(
+  payload: unknown,
+  urlField: "auth_link" | "file_url" | "intro_video_url",
+  workflow: MdiWorkflowCode,
+): MdiWorkflowUrl {
+  if (!isRecord(payload) || typeof payload[urlField] !== "string") {
+    throw new Error("Invalid MDI workflow URL response fields");
+  }
+
+  const url = payload[urlField];
+  if (!isHttpsUrl(url)) {
+    throw new Error("Invalid MDI workflow URL");
+  }
+
+  return { workflow, url };
+}
+
 async function safeJson(response: Awaited<ReturnType<FetchLike>>) {
   try {
     return { ok: true as const, value: await response.json() };
@@ -509,6 +578,14 @@ function isTokenFailureCode(code: string) {
 
 function isAbortError(error: unknown) {
   return isRecord(error) && error.name === "AbortError";
+}
+
+function isHttpsUrl(value: string) {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

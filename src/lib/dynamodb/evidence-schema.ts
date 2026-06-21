@@ -136,6 +136,27 @@ export const evidenceEventSchema = {
     },
     linkage: "mdi_patient",
   },
+  mdi_workflow_url_requested: {
+    category: "mdi_handoff",
+    summaryCode: "MDI_WORKFLOW_URL_REQUESTED",
+    statuses: ["recorded", "skipped"],
+    metadata: {
+      outcome: [
+        "expired",
+        "invalid_response",
+        "issued",
+        "not_linked",
+        "unavailable",
+        "unsupported",
+      ],
+      workflow: [
+        "file_upload",
+        "intro_video",
+        "messaging",
+      ],
+    },
+    linkage: "mdi_patient",
+  },
   stripe_payment_method_collected: {
     category: "stripe_billing",
     summaryCode: "STRIPE_PAYMENT_METHOD_COLLECTED",

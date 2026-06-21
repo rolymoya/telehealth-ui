@@ -3,13 +3,14 @@
     "T-054",
     "T-079"
   ],
-  "completedDate": null,
+  "claimedBySession": "a7daaed0-9d59-4f65-ab7b-e439cf644fc4",
+  "completedDate": "2026-06-21",
   "createdDate": "2026-05-19",
   "description": "Generate or retrieve short-lived MDI workflow URLs for sensitive clinical sub-flows when MDI should own the interaction.\n\n**Scope**\n- Implement helpers for the launch-approved embedded workflows from T-079.\n- Ensure URLs are short-lived, user-scoped, and never logged in full.\n- Use patient-safe fallback states when URL creation fails or MDI is unavailable.\n\n**Acceptance**\n- Dashboard can request an embedded URL for each approved launch workflow.\n- Full URLs/tokens do not appear in logs, analytics, or support metadata.\n- Expired/missing URL states are handled gracefully.",
   "id": "T-062",
   "order": 110,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI embedded workflow URL helpers",
   "type": "feature"
 }
