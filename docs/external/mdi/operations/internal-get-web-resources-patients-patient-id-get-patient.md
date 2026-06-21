@@ -1,0 +1,36 @@
+# GET /web/resources/patients/:patient_id
+
+Generated from `docs/external/MD Integrations API.postman_collection.json`. The raw Postman collection remains authoritative.
+
+## Index
+
+- Operation slug: `internal-get-web-resources-patients-patient-id-get-patient`
+- Surface: `internal`
+- Method: `GET`
+- Path: `/web/resources/patients/:patient_id`
+- Raw URL template: `{{url}}/web/resources/patients/:patient_id?with_relationships[]=REDACTED_SCALAR&with_relationships[]=REDACTED_SCALAR`
+- Source folders: `Internal` / `Web` / `Resources`
+- Source request: `Get Patient`
+
+## Implementation Guidance
+
+Default-deny for Apoth implementation. Use only with an explicit future architecture/product decision.
+
+## Request Shape
+
+- Auth type in source: `not specified`
+- Path params: `patient_id`
+- Query params: `with_relationships[]`
+- Header names: `none`
+- Body mode: `none`
+- Body note: Omitted because this surface is default-deny for Apoth implementation.
+
+- Detailed body shape omitted for this default-deny surface.
+
+## Response Shape
+
+Detailed response shape omitted for this default-deny surface.
+
+## PHI Handling
+
+Generated docs contain schema shape only. Do not log or persist MDI payloads beyond opaque IDs and minimal status/linkage records required by Apoth.

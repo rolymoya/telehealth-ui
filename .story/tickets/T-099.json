@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "claimedBySession": "82f714c1-6075-45f9-8bcb-eba270c4aa17",
+  "completedDate": "2026-06-20",
+  "createdDate": "2026-06-20",
+  "description": "Create a lightweight generated retrieval layer over `docs/external/MD Integrations API.postman_collection.json` so future MDI implementation tickets can pull endpoint-specific context without loading the full 3.3 MB collection.\n\n**Scope**\n- Keep the raw Postman collection unchanged as the source of truth.\n- Add a generator script, e.g. `scripts/mdi-docs/extract-postman.mjs`, that parses the collection and emits compact docs under `docs/external/mdi/`.\n- Generate an endpoint index (`endpoint-index.jsonl` and/or `endpoint-index.md`) with folder path, operation name, method, URL/path, surface classification (`partner`, `webhook`, `internal`, etc.), and source provenance.\n- Generate one compact markdown file per relevant operation or a small set of operation files grouped by folder when that is more practical.\n- Generate ticket-focused packs for at least T-055, T-056, and T-057: patient linkage, case/questionnaire submission without local answer retention, and webhook verification/idempotency.\n- Mark internal/admin routes clearly so implementation work defaults to `partner` and `webhook` surfaces unless explicitly justified.\n- Avoid copying full PHI-like sample payloads into generated docs; prefer field names, request/response shape summaries, and redacted examples.\n- Document how future sessions should search the generated index with `rg` and open only the endpoint/pack files needed.\n\n**Acceptance**\n- Future agents can answer \"which MDI endpoints do I need for T-055/T-056/T-057?\" by reading the generated pack files and a few endpoint files, not the raw collection.\n- Generated docs preserve source pointers back to the Postman folder/request names.\n- Thin-PHI posture is explicit: no questionnaire answers or clinical payload examples are stored in Apoth-generated docs beyond redacted schema shape.\n- The generator is deterministic and can be rerun when the Postman collection changes.\n- Add focused tests or script validation where practical, such as confirming the expected packs/index files are generated and classify partner/webhook/internal routes.",
+  "id": "T-099",
+  "order": 170,
+  "phase": "mdi-integration",
+  "status": "complete",
+  "title": "Generate MDI API retrieval index from Postman collection",
+  "type": "chore"
+}

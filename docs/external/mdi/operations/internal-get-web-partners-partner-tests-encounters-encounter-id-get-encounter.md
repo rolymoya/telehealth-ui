@@ -1,0 +1,36 @@
+# GET /web/partners/:partner/tests/encounters/:encounter_id
+
+Generated from `docs/external/MD Integrations API.postman_collection.json`. The raw Postman collection remains authoritative.
+
+## Index
+
+- Operation slug: `internal-get-web-partners-partner-tests-encounters-encounter-id-get-encounter`
+- Surface: `internal`
+- Method: `GET`
+- Path: `/web/partners/:partner/tests/encounters/:encounter_id`
+- Raw URL template: `{{url}}/web/partners/:partner/tests/encounters/:encounter_id`
+- Source folders: `Internal` / `Web` / `Partners` / `Tests` / `Encounters`
+- Source request: `Get Encounter`
+
+## Implementation Guidance
+
+Default-deny for Apoth implementation. Use only with an explicit future architecture/product decision.
+
+## Request Shape
+
+- Auth type in source: `bearer`
+- Path params: `encounter_id`, `partner`
+- Query params: `environments[]`, `id`
+- Header names: `Version`
+- Body mode: `none`
+- Body note: Omitted because this surface is default-deny for Apoth implementation.
+
+- Detailed body shape omitted for this default-deny surface.
+
+## Response Shape
+
+Detailed response shape omitted for this default-deny surface.
+
+## PHI Handling
+
+Generated docs contain schema shape only. Do not log or persist MDI payloads beyond opaque IDs and minimal status/linkage records required by Apoth.

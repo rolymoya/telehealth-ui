@@ -1,0 +1,36 @@
+# GET /app/user/notifications/messages
+
+Generated from `docs/external/MD Integrations API.postman_collection.json`. The raw Postman collection remains authoritative.
+
+## Index
+
+- Operation slug: `internal-get-app-user-notifications-messages-get-notifications-messages`
+- Surface: `internal`
+- Method: `GET`
+- Path: `/app/user/notifications/messages`
+- Raw URL template: `{{url}}/app/user/notifications/messages?status=REDACTED_SCALAR`
+- Source folders: `Internal` / `App` / `User` / `Notifications`
+- Source request: `Get Notifications (Messages)`
+
+## Implementation Guidance
+
+Default-deny for Apoth implementation. Use only with an explicit future architecture/product decision.
+
+## Request Shape
+
+- Auth type in source: `bearer`
+- Path params: `none`
+- Query params: `channel`, `clinicians[]`, `environments[]`, `order`, `page`, `partners[]`, `per_page`, `status`
+- Header names: `Version`
+- Body mode: `none`
+- Body note: Omitted because this surface is default-deny for Apoth implementation.
+
+- Detailed body shape omitted for this default-deny surface.
+
+## Response Shape
+
+Detailed response shape omitted for this default-deny surface.
+
+## PHI Handling
+
+Generated docs contain schema shape only. Do not log or persist MDI payloads beyond opaque IDs and minimal status/linkage records required by Apoth.

@@ -1,0 +1,36 @@
+# POST /app/user/logout/all
+
+Generated from `docs/external/MD Integrations API.postman_collection.json`. The raw Postman collection remains authoritative.
+
+## Index
+
+- Operation slug: `internal-post-app-user-logout-all-logout-user-all`
+- Surface: `internal`
+- Method: `POST`
+- Path: `/app/user/logout/all`
+- Raw URL template: `{{url}}/app/user/logout/all`
+- Source folders: `Internal` / `App` / `User` / `Logouts`
+- Source request: `Logout User (All)`
+
+## Implementation Guidance
+
+Default-deny for Apoth implementation. Use only with an explicit future architecture/product decision.
+
+## Request Shape
+
+- Auth type in source: `bearer`
+- Path params: `none`
+- Query params: `none`
+- Header names: `Version`
+- Body mode: `none`
+- Body note: Omitted because this surface is default-deny for Apoth implementation.
+
+- Detailed body shape omitted for this default-deny surface.
+
+## Response Shape
+
+Detailed response shape omitted for this default-deny surface.
+
+## PHI Handling
+
+Generated docs contain schema shape only. Do not log or persist MDI payloads beyond opaque IDs and minimal status/linkage records required by Apoth.
