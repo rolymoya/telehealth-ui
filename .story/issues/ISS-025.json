@@ -5,14 +5,16 @@
   "discoveredDate": "2026-06-20",
   "id": "ISS-025",
   "impact": "UsernameExistsException intentionally reveals that an account exists for that email. This matches T-096 acceptance criteria but is a deliberate auth-enumeration tradeoff worth keeping documented as product/security posture.",
-  "location": [],
+  "location": [
+    "docs/runbooks/serverless-iac.md"
+  ],
   "phase": null,
   "relatedTickets": [
     "T-096"
   ],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Documented the T-096 UsernameExistsException posture in the Cognito Patient Auth Setup runbook: sign-up intentionally uses narrow patient-facing copy that an account already exists for the submitted email, while still forbidding raw Cognito responses, provider internals, tokens, challenge/session values, stack traces, and broad disclosure in other auth flows.",
+  "resolvedDate": "2026-06-21",
   "severity": "low",
-  "status": "open",
+  "status": "resolved",
   "title": "Document UsernameExistsException account-existence disclosure posture"
 }

@@ -142,6 +142,17 @@ The current Cognito launch posture is:
   `USER_PASSWORD_AUTH` fallback, refresh-token auth, and user-existence error
   prevention. Hosted UI/OAuth and client-secret generation are disabled.
 
+Sign-up intentionally maps Cognito `UsernameExistsException` to patient-facing
+copy that says an account already exists for the submitted email. This is a
+deliberate product/security tradeoff from T-096: it reduces new-patient
+confusion and account-creation dead ends, but it is an account-existence
+disclosure. Keep the message narrow, do not expose raw Cognito responses,
+request IDs, challenge/session values, stack traces, or provider internals, and
+revisit this posture if launch security review or counsel requires stronger
+anti-enumeration behavior. Sign-in, password reset, and MFA flows should
+continue to avoid raw provider detail and use patient-safe generic copy unless
+a separately approved UX/security decision changes that posture.
+
 ### Staging Test User Smoke Path
 
 Use a dedicated non-clinical test email and synthetic data only.
