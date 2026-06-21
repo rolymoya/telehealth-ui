@@ -8,6 +8,7 @@ import {
 import path from "node:path";
 import {
   AccountRecovery,
+  CfnUserPool,
   Mfa,
   UserPool,
   UserPoolClient,
@@ -99,11 +100,7 @@ export class ServerlessPlatformStack extends Stack {
       accountRecovery: AccountRecovery.EMAIL_ONLY,
       autoVerify: { email: true },
       deletionProtection: props.config.deletionProtection,
-      mfa: Mfa.REQUIRED,
-      mfaSecondFactor: {
-        otp: true,
-        sms: false,
-      },
+      mfa: Mfa.OFF,
       passwordPolicy: {
         minLength: 12,
         requireDigits: true,
@@ -113,6 +110,17 @@ export class ServerlessPlatformStack extends Stack {
       },
       removalPolicy: props.config.removalPolicy,
     });
+    const userPoolResource = userPool.node.defaultChild as CfnUserPool;
+    userPoolResource.emailConfiguration = {
+      emailSendingAccount: "COGNITO_DEFAULT",
+      from: `${props.config.authEmailFromName} <${props.config.authEmailFromAddress}>`,
+      replyToEmailAddress: props.config.authEmailFromAddress,
+      sourceArn: this.formatArn({
+        service: "ses",
+        resource: "identity",
+        resourceName: props.config.authEmailDomain,
+      }),
+    };
 
     const userPoolClient = new UserPoolClient(this, "PatientUserPoolClient", {
       userPool,

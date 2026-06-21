@@ -444,8 +444,14 @@ describe("ServerlessPlatformStack", () => {
         AllowAdminCreateUserOnly: false,
       },
       AutoVerifiedAttributes: ["email"],
-      EnabledMfas: ["SOFTWARE_TOKEN_MFA"],
-      MfaConfiguration: "ON",
+      EmailConfiguration: {
+        EmailSendingAccount: "COGNITO_DEFAULT",
+        From: "Apoth <contact@apothhealth.com>",
+        ReplyToEmailAddress: "contact@apothhealth.com",
+        SourceArn: Match.anyValue(),
+      },
+      EnabledMfas: Match.absent(),
+      MfaConfiguration: "OFF",
       Policies: {
         PasswordPolicy: {
           MinimumLength: 12,
@@ -468,15 +474,29 @@ describe("ServerlessPlatformStack", () => {
       GenerateSecret: Match.absent(),
       PreventUserExistenceErrors: "ENABLED",
     });
+    expect(JSON.stringify(template.toJSON())).toContain("identity/apothhealth.com");
   });
 
-  it("uses MFA and stage-specific CORS origins", () => {
+  it("keeps the auth email sender on the verified Apoth domain", () => {
+    expect(getStageConfig("staging")).toMatchObject({
+      authEmailDomain: "apothhealth.com",
+      authEmailFromAddress: "contact@apothhealth.com",
+      authEmailFromName: "Apoth",
+    });
+    expect(getStageConfig("production")).toMatchObject({
+      authEmailDomain: "apothhealth.com",
+      authEmailFromAddress: "contact@apothhealth.com",
+      authEmailFromName: "Apoth",
+    });
+  });
+
+  it("uses no required MFA and stage-specific CORS origins", () => {
     const stagingTemplate = synthesizeTemplate("staging");
     const productionTemplate = synthesizeTemplate("production");
 
     stagingTemplate.hasResourceProperties("AWS::Cognito::UserPool", {
-      MfaConfiguration: "ON",
-      EnabledMfas: ["SOFTWARE_TOKEN_MFA"],
+      MfaConfiguration: "OFF",
+      EnabledMfas: Match.absent(),
     });
 
     stagingTemplate.hasResourceProperties("AWS::ApiGatewayV2::Api", {
