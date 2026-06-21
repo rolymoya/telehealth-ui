@@ -102,6 +102,19 @@ export const evidenceEventSchema = {
     },
     linkage: "mdi_case",
   },
+  mdi_partner_charge_recorded: {
+    category: "mdi_handoff",
+    summaryCode: "MDI_PARTNER_CHARGE_RECORDED",
+    statuses: ["recorded", "skipped"],
+    metadata: {
+      amount_cents: [],
+      charge_code: ["partner_additional_charge", "vouched_amount_charge"],
+      currency: ["usd"],
+      fingerprint: [],
+      reference_type: ["charge", "voucher"],
+    },
+    linkage: "mdi_case",
+  },
   mdi_dashboard_cue_recorded: {
     category: "mdi_handoff",
     summaryCode: "MDI_DASHBOARD_CUE_RECORDED",

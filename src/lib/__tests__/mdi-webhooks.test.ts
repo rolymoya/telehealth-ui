@@ -19,6 +19,7 @@ import {
   handleMdiWebhook,
   mdiWebhookEventContracts,
 } from "@/lib/mdi-webhooks";
+import caseChargeEvents from "../../../tests/fixtures/mdi/case-charge-events.json";
 import { createWebhookProcessingRepository } from "@/lib/webhook-processing-repository";
 import type { WebhookProcessingRepository } from "@/lib/webhooks";
 
@@ -692,6 +693,195 @@ describe("MDI webhook receiver service", () => {
     expect(JSON.stringify(evidence)).not.toContain("VOUCHER_METADATA_SENTINEL");
   });
 
+  it("replays sanitized partner charge fixtures into bounded case evidence exactly once", async () => {
+    const repository = seededChargeFixtureRepository();
+    const webhookRepository = createWebhookProcessingRepository(repository);
+
+    for (const event of caseChargeEvents.events) {
+      for (let index = 0; index < 2; index += 1) {
+        const payload = mdiChargePayload(event);
+        const result = await handleMdiWebhook({
+          authorization: "mdi_authorization_secret",
+          mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+          payload,
+          receivedAt: event.occurredAt,
+          secret: mdiSecret(),
+          signature: signMdiPayload(payload),
+          webhookRepository,
+        });
+        expect(result).toMatchObject({
+          ok: true,
+          status: 200,
+          body: { action: index === 0 ? "processed" : "skipped" },
+        });
+      }
+    }
+
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub: chargeFixtureCognitoSub, limit: 250 });
+    const charges = evidence.ok
+      ? evidence.value.items.filter((event) => event.eventType === "mdi_partner_charge_recorded")
+      : [];
+    expect(charges).toHaveLength(2);
+    expect(charges.map((event) => event.metadata)).toEqual([
+      {
+        amount_cents: "1000",
+        charge_code: "partner_additional_charge",
+        currency: "usd",
+        fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+        reference_type: "charge",
+      },
+      {
+        amount_cents: "2500",
+        charge_code: "vouched_amount_charge",
+        currency: "usd",
+        fingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+        reference_type: "voucher",
+      },
+    ]);
+    for (const event of charges) {
+      expect(Object.keys(event.metadata ?? {}).sort()).toEqual(
+        event.metadata?.reference_type
+          ? ["amount_cents", "charge_code", "currency", "fingerprint", "reference_type"]
+          : ["amount_cents", "charge_code", "currency", "fingerprint"],
+      );
+      expect(event.eventCategory).toBe("mdi_handoff");
+      expect(event.status).toBe("recorded");
+      expect(event.source).toBe("webhook");
+      expect(event.webhookProvider).toBeUndefined();
+      expect(event.webhookEventId).toBeUndefined();
+    }
+    expect(JSON.stringify(evidence)).not.toContain("chargeReferenceId");
+    expect(JSON.stringify(evidence)).not.toContain("voucherId");
+    expect(JSON.stringify(evidence)).not.toContain("questionnaire");
+    expect(JSON.stringify(evidence)).not.toContain("prescription");
+    expect(JSON.stringify(evidence)).not.toContain("medication");
+  });
+
+  it("keeps missing local charge case linkage retryable without charge evidence", async () => {
+    const repository = createInMemoryAppDataRepository([
+      createPatientProfileRecord({
+        cognitoSub: chargeFixtureCognitoSub,
+        onboardingStatus: "mdi_submitted",
+        now: "2026-06-05T12:00:00.000Z",
+      }),
+    ]);
+    const event = caseChargeEvents.events[0];
+    const payload = mdiChargePayload(event);
+
+    const result = await handleMdiWebhook({
+      authorization: "mdi_authorization_secret",
+      mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+      payload,
+      receivedAt: event.occurredAt,
+      secret: mdiSecret(),
+      signature: signMdiPayload(payload),
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toEqual({ ok: false, status: 409, body: { error: "retry_later" } });
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub: chargeFixtureCognitoSub, limit: 250 });
+    expect(evidence).toMatchObject({ ok: true, value: { items: [] } });
+    expect(JSON.stringify(evidence)).not.toContain("partner_additional_charge");
+  });
+
+  it.each([
+    ["fractional cents", { amountCents: 1000.5 }],
+    ["zero cents", { amountCents: 0 }],
+    ["missing provider event ID", { eventId: undefined }],
+    ["missing currency", { currency: undefined }],
+    ["unsupported currency", { currency: "eur" }],
+    ["unsafe charge reference", { chargeReferenceId: "mdi_charge_medication_name" }],
+    ["ambiguous decimal precision", { amountCents: undefined, charge_amount: "10.999" }],
+  ])("fails closed for invalid partner charge payloads: %s", async (_label, overrides) => {
+    const repository = seededChargeFixtureRepository();
+    const claim = vi.fn();
+    const event = caseChargeEvents.events[0];
+    const payload = mdiChargePayload(event, overrides);
+
+    const result = await handleMdiWebhook({
+      authorization: "mdi_authorization_secret",
+      mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+      payload,
+      receivedAt: event.occurredAt,
+      secret: mdiSecret(),
+      signature: signMdiPayload(payload),
+      webhookRepository: {
+        claim,
+        markFailed: vi.fn(),
+        markProcessed: vi.fn(),
+      } as unknown as WebhookProcessingRepository,
+    });
+
+    expect(result).toEqual({ ok: false, status: 400, body: { error: "invalid_payload" } });
+    expect(claim).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["charge product", 0, { chargeReferenceId: "mdi_charge_product_name" }],
+    ["charge prescription", 0, { chargeReferenceId: "mdi_charge_prescription_detail" }],
+    ["voucher product", 1, { voucherId: "mdi_voucher_product_name" }],
+    ["voucher prescription", 1, { voucherId: "mdi_voucher_prescription_detail" }],
+  ] as const)("fails closed for unsafe charge reference vocabulary: %s", async (_label, eventIndex, overrides) => {
+    const repository = seededChargeFixtureRepository();
+    const claim = vi.fn();
+    const event = caseChargeEvents.events[eventIndex];
+    const payload = mdiChargePayload(event, overrides);
+
+    const result = await handleMdiWebhook({
+      authorization: "mdi_authorization_secret",
+      mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+      payload,
+      receivedAt: event.occurredAt,
+      secret: mdiSecret(),
+      signature: signMdiPayload(payload),
+      webhookRepository: {
+        claim,
+        markFailed: vi.fn(),
+        markProcessed: vi.fn(),
+      } as unknown as WebhookProcessingRepository,
+    });
+
+    expect(result).toEqual({ ok: false, status: 400, body: { error: "invalid_payload" } });
+    expect(claim).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when a duplicate partner charge event has a different bounded fingerprint", async () => {
+    const repository = seededChargeFixtureRepository();
+    const webhookRepository = createWebhookProcessingRepository(repository);
+    const event = caseChargeEvents.events[0];
+    const firstPayload = mdiChargePayload(event);
+    const conflictingPayload = mdiChargePayload(event, { amountCents: 1100 });
+
+    const first = await handleMdiWebhook({
+      authorization: "mdi_authorization_secret",
+      mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+      payload: firstPayload,
+      receivedAt: event.occurredAt,
+      secret: mdiSecret(),
+      signature: signMdiPayload(firstPayload),
+      webhookRepository,
+    });
+    const conflict = await handleMdiWebhook({
+      authorization: "mdi_authorization_secret",
+      mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+      payload: conflictingPayload,
+      receivedAt: event.occurredAt,
+      secret: mdiSecret(),
+      signature: signMdiPayload(conflictingPayload),
+      webhookRepository,
+    });
+
+    expect(first).toMatchObject({ ok: true, status: 200, body: { action: "processed" } });
+    expect(conflict).toMatchObject({ ok: true, status: 200, body: { action: "terminal_failed" } });
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub: chargeFixtureCognitoSub, limit: 250 });
+    const charges = evidence.ok
+      ? evidence.value.items.filter((event) => event.eventType === "mdi_partner_charge_recorded")
+      : [];
+    expect(charges).toHaveLength(1);
+    expect(charges[0].metadata).toMatchObject({ amount_cents: "1000" });
+    expect(JSON.stringify(evidence)).not.toContain("1100");
+  });
+
   it("terminally no-ops signed preferred pharmacy request payloads without storing raw body", async () => {
     const repository = seededMdiRepository("mdi_submitted");
     const payload = "preferred_pharmacy_request=redacted";
@@ -840,6 +1030,7 @@ describe("MDI webhook receiver service", () => {
       "offering_submitted",
       "order_status_changed",
       "order_tracking_number_changed",
+      "partner_additional_charge",
       "partner_charge",
       "patient_created",
       "patient_deleted",
@@ -849,6 +1040,7 @@ describe("MDI webhook receiver service", () => {
       "patient_tag_attached",
       "preferred_pharmacy_requested",
       "prescription_insurance_coverage_updated",
+      "vouched_amount_charge",
       "voucher_created",
       "voucher_expired",
       "voucher_reminder_sent",
@@ -863,6 +1055,7 @@ const rawMdiPatientId = "123e4567-e89b-12d3-a456-426614174000";
 const rawMdiCaseId = "123e4567-e89b-12d3-a456-426614174111";
 const mdiPatientId = "mdi_patient_123e4567e89b12d3a456426614174000";
 const mdiCaseId = "mdi_case_123e4567e89b12d3a456426614174111";
+const chargeFixtureCognitoSub = "cognito-sub-charge0123456789abcdef";
 
 function seededMdiRepository(
   onboardingStatus: "mdi_submitted" | "clinical_review",
@@ -895,6 +1088,25 @@ function seededMdiRepository(
   return repository;
 }
 
+function seededChargeFixtureRepository() {
+  const firstEvent = caseChargeEvents.events[0];
+  const repository = createInMemoryAppDataRepository([
+    createPatientProfileRecord({
+      cognitoSub: chargeFixtureCognitoSub,
+      onboardingStatus: "mdi_submitted",
+      now: "2026-06-05T12:00:00.000Z",
+    }),
+  ]);
+  const linked = linkMdiPatientCase(repository, {
+    cognitoSub: chargeFixtureCognitoSub,
+    mdiCaseId: canonicalFixtureMdiId(firstEvent.mdiCaseId, "mdi_case"),
+    mdiPatientId: canonicalFixtureMdiId(firstEvent.mdiPatientId, "mdi_patient"),
+    now: "2026-06-05T12:00:00.000Z",
+  });
+  expect(linked.ok).toBe(true);
+  return repository;
+}
+
 function mdiPayload(overrides: Record<string, unknown> = {}) {
   return JSON.stringify(withoutUndefined({
     case_id: rawMdiCaseId,
@@ -904,6 +1116,29 @@ function mdiPayload(overrides: Record<string, unknown> = {}) {
     timestamp: 1_781_006_400,
     ...overrides,
   }));
+}
+
+function mdiChargePayload(
+  event: typeof caseChargeEvents.events[number],
+  overrides: Record<string, unknown> = {},
+) {
+  return JSON.stringify(withoutUndefined({
+    amountCents: event.amountCents,
+    case_id: event.mdiCaseId,
+    chargeReferenceId: "chargeReferenceId" in event ? event.chargeReferenceId : undefined,
+    currency: event.currency,
+    eventId: event.eventId,
+    event_type: event.type,
+    patient_id: event.mdiPatientId,
+    timestamp: Math.floor(Date.parse(event.occurredAt) / 1000),
+    voucherId: "voucherId" in event ? event.voucherId : undefined,
+    ...overrides,
+  }));
+}
+
+function canonicalFixtureMdiId(value: string, prefix: "mdi_case" | "mdi_patient") {
+  const uuid = value.startsWith(`${prefix}_`) ? value.slice(`${prefix}_`.length) : value;
+  return `${prefix}_${uuid.replaceAll("-", "").toLowerCase()}`;
 }
 
 function signMdiPayload(payload: string, secret = "mdi_webhook_signing_secret") {

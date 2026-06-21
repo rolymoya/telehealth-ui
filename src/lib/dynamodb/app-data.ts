@@ -2777,6 +2777,17 @@ function isEvidenceEventId(record: EvidenceEventRecord) {
         `^mdi:billing_unlock:${record.mdiCaseId}:${record.metadata.billing_action}:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`,
       ).test(record.eventId) &&
         !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
+    case "mdi_partner_charge_recorded":
+      return typeof record.mdiCaseId === "string" &&
+        isMdiCaseId(record.mdiCaseId) &&
+        (
+          record.metadata?.charge_code === "partner_additional_charge" ||
+          record.metadata?.charge_code === "vouched_amount_charge"
+        ) &&
+        new RegExp(
+          `^mdi:partner_charge:${record.mdiCaseId}:${record.metadata.charge_code}:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`,
+        ).test(record.eventId) &&
+        !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
     case "mdi_dashboard_cue_recorded": {
       const cueCode = record.metadata?.cue_code;
       const cuePointer = mdiDashboardCuePointerFromEventId(record.eventId);
@@ -3076,6 +3087,15 @@ function isEvidenceMetadataValue(
   key: string,
   value: string,
 ) {
+  if (eventType === "mdi_partner_charge_recorded") {
+    if (key === "amount_cents") {
+      return /^[1-9][0-9]{0,7}$/.test(value);
+    }
+    if (key === "fingerprint") {
+      return /^[a-f0-9]{64}$/.test(value);
+    }
+  }
+
   const allowedMetadata = evidenceEventSchema[eventType].metadata as Record<
     string,
     readonly string[]
@@ -3215,6 +3235,7 @@ const evidenceEventIdPatterns = [
   /^mdi:status:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:assigned|billing_ready|cancelled|clinical_review|completed|created|declined|processing|support|tagged|waiting)$/,
   /^mdi:billing_unlock:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:activate_billing$/,
   /^mdi:billing_unlock:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:await_clinical_review|await_payment_method|cancel_active_billing|cancel_pending_billing|do_not_charge|manual_review_required|no_op|provider_unavailable):mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
+  /^mdi:partner_charge:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:partner_additional_charge|vouched_amount_charge):mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^mdi:dashboard_cue:(?:case:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*|patient:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*):(?:benefit_status_pending|cue_noop|exam_action_needed|file_action_needed|files_unavailable|open_mdi_files|open_mdi_messages|ops_review_required):[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^mdi:workflow_url:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:file_upload|intro_video|messaging):req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:payment-method:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:collected$/,

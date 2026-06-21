@@ -1,0 +1,23 @@
+{
+  "components": [
+    "tests",
+    "mdi-intake",
+    "app-data"
+  ],
+  "discoveredDate": "2026-06-21",
+  "id": "ISS-028",
+  "impact": "Full npm test currently fails in src/lib/__tests__/mdi-intake.test.ts because the fixture subject `cognito-sub-mdi-intake` does not satisfy the app-data Cognito subject allowlist. This blocks full-suite verification even though focused T-059 webhook/app-data tests pass.",
+  "location": [
+    "src/lib/__tests__/mdi-intake.test.ts:24",
+    "src/lib/dynamodb/app-data.ts:2699"
+  ],
+  "phase": null,
+  "relatedTickets": [
+    "T-059"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "MDI intake tests use invalid Cognito subject fixture"
+}

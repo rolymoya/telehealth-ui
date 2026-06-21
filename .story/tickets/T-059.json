@@ -3,13 +3,14 @@
     "T-057",
     "T-058"
   ],
-  "completedDate": null,
+  "claimedBySession": "7422d5fa-ad33-411b-a4e8-7f181d5a6e42",
+  "completedDate": "2026-06-21",
   "createdDate": "2026-05-19",
   "description": "Handle MDI partner charge/cost events as billing operations data without expanding Apoth's clinical record.\n\n**Scope**\n- Identify the actual MDI event and payload shape from T-052.\n- Store opaque event ID, amount/currency if non-PHI, occurred timestamp, linked MDI case pointer, and processing status in DynamoDB or the billing mirror.\n- Do not store clinical diagnosis, prescription, questionnaire answer, or message/file content.\n- Use idempotency to avoid duplicate cost records.\n\n**Acceptance**\n- Replayed fixture produces exactly one cost/status record.\n- Missing local case pointer routes to ops/DLQ without data loss.\n- Reporting data remains non-PHI and opaque-ID based.",
   "id": "T-059",
   "order": 80,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI partner-charge event handling",
   "type": "task"
 }

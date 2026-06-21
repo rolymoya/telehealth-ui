@@ -56,7 +56,7 @@ export type MdiWebhookResult =
   | { ok: false; status: 409; body: { error: "retry_later" } }
   | { ok: false; status: 500; body: { error: "webhook_processing_failed" } };
 
-export type MdiWebhookEventHandling = "cue" | "inline" | "terminal";
+export type MdiWebhookEventHandling = "charge" | "cue" | "inline" | "terminal";
 
 export type MdiWebhookEventContract = {
   type: string;
@@ -97,7 +97,9 @@ export const mdiWebhookEventContracts = [
   { type: "case_assigned_to_clinician", handling: "terminal" },
   { type: "clinical_note_created", handling: "terminal" },
   { type: "case_tag_attached", handling: "terminal" },
+  { type: "partner_additional_charge", handling: "charge" },
   { type: "partner_charge", handling: "terminal" },
+  { type: "vouched_amount_charge", handling: "charge" },
   { type: "offering_submitted", handling: "terminal" },
   { type: "prescription_insurance_coverage_updated", handling: "terminal" },
   { type: "order_status_changed", handling: "terminal" },
@@ -164,12 +166,24 @@ export type HandleMdiWebhookInput = {
 
 type NormalizedMdiWebhook = {
   caseId?: string;
+  charge?: NormalizedMdiPartnerCharge;
+  claimEventId?: string;
   contract: MdiWebhookEventContract;
   cuePointer?: string;
   eventId: string;
   eventType: string;
   patientId?: string;
   providerTimestamp: string;
+};
+
+type MdiPartnerChargeCode = "partner_additional_charge" | "vouched_amount_charge";
+
+type NormalizedMdiPartnerCharge = {
+  amountCents: number;
+  chargeCode: MdiPartnerChargeCode;
+  currency: "usd";
+  fingerprint: string;
+  referenceType?: "charge" | "voucher";
 };
 
 type MdiDashboardCueFamily = "exam" | "file" | "lab" | "message" | "voucher" | "workflow";
@@ -298,7 +312,7 @@ export async function handleMdiWebhook(input: HandleMdiWebhookInput): Promise<Md
 
   const envelope: VerifiedWebhookEnvelope = {
     provider: "mdi",
-    eventId: normalized.value.eventId,
+    eventId: normalized.value.claimEventId ?? normalized.value.eventId,
     eventCategory: normalized.value.caseId ? "case" : "patient",
     routeCode: normalized.value.caseId ? "mdi.case" : "mdi.patient",
     receivedAt: input.receivedAt,
@@ -379,12 +393,15 @@ function normalizeMdiWebhookPayload(input: {
 
   const rawCaseId = stringField(parsed, "case_id");
   const rawPatientId = stringField(parsed, "patient_id");
-  const caseId = rawCaseId === undefined ? undefined : canonicalMdiCaseId(rawCaseId);
-  const patientId = rawPatientId === undefined ? undefined : canonicalMdiPatientId(rawPatientId);
+  const caseId = rawCaseId === undefined ? undefined : canonicalMdiCasePointer(rawCaseId);
+  const patientId = rawPatientId === undefined ? undefined : canonicalMdiPatientPointer(rawPatientId);
   if ((rawCaseId !== undefined && caseId === null) || (rawPatientId !== undefined && patientId === null)) {
     return { ok: false };
   }
   if (contract.handling === "inline" && caseId === undefined) {
+    return { ok: false };
+  }
+  if (contract.handling === "charge" && caseId === undefined) {
     return { ok: false };
   }
   if (contract.handling === "cue" && caseId === undefined && patientId === undefined) {
@@ -400,20 +417,41 @@ function normalizeMdiWebhookPayload(input: {
   if (contract.handling === "cue" && cuePointer === null) {
     return { ok: false };
   }
+  const providedEventId = providerMdiEventId(parsed);
+  if (contract.handling === "charge" && providedEventId === undefined) {
+    return { ok: false };
+  }
+  const eventId = providedEventId ?? createDeterministicMdiEventId({
+    caseId: caseId ?? undefined,
+    eventType,
+    patientId: patientId ?? undefined,
+    resourceId: cuePointer ?? undefined,
+    timestamp,
+  });
+  const charge = contract.handling === "charge"
+    ? normalizeMdiPartnerCharge({
+      caseId: caseId ?? undefined,
+      eventId,
+      eventType,
+      parsed,
+      patientId: patientId ?? undefined,
+    })
+    : undefined;
+  if (charge === null) {
+    return { ok: false };
+  }
 
   return {
     ok: true,
     value: {
       caseId: caseId ?? undefined,
+      charge: charge ?? undefined,
+      claimEventId: charge
+        ? `${eventId}_charge_${charge.fingerprint.slice(0, 16)}`
+        : undefined,
       contract,
       cuePointer: cuePointer ?? undefined,
-      eventId: createDeterministicMdiEventId({
-        caseId: caseId ?? undefined,
-        eventType,
-        patientId: patientId ?? undefined,
-        resourceId: cuePointer ?? undefined,
-        timestamp,
-      }),
+      eventId,
       eventType,
       patientId: patientId ?? undefined,
       providerTimestamp: timestamp,
@@ -450,6 +488,10 @@ async function handleVerifiedMdiEvent(input: {
   now: string;
   webhook: NormalizedMdiWebhook;
 }) {
+  if (input.webhook.contract.handling === "charge") {
+    return handleVerifiedMdiPartnerCharge(input);
+  }
+
   if (input.webhook.contract.handling === "cue") {
     return handleVerifiedMdiCue(input);
   }
@@ -570,6 +612,85 @@ async function handleVerifiedMdiEvent(input: {
   }
 
   return { outcome: "processed" as const };
+}
+
+async function handleVerifiedMdiPartnerCharge(input: {
+  mdiMirrorRepository: MdiWebhookMirrorRepository;
+  now: string;
+  webhook: NormalizedMdiWebhook;
+}) {
+  const caseId = input.webhook.caseId;
+  const charge = input.webhook.charge;
+  if (!caseId || !charge) {
+    return { outcome: "failed" as const, retryable: false, durableRetry: false };
+  }
+
+  const patient = await input.mdiMirrorRepository.findPatientByMdiCase(caseId);
+  if (!patient.ok) {
+    return appDataFailure(patient.error);
+  }
+  if (!patient.value) {
+    return { outcome: "failed" as const, retryable: true, durableRetry: false };
+  }
+
+  const linkage = await input.mdiMirrorRepository.getMdiLinkage(patient.value);
+  if (!linkage.ok) {
+    return appDataFailure(linkage.error);
+  }
+  if (!linkage.value || linkage.value.mdiCaseId !== caseId) {
+    return { outcome: "failed" as const, retryable: true, durableRetry: false };
+  }
+
+  const eventId = mdiPartnerChargeEventId({
+    caseId,
+    chargeCode: charge.chargeCode,
+    webhookEventId: input.webhook.eventId,
+  });
+  const metadata = {
+    amount_cents: String(charge.amountCents),
+    charge_code: charge.chargeCode,
+    currency: charge.currency,
+    fingerprint: charge.fingerprint,
+    ...(charge.referenceType === undefined ? {} : { reference_type: charge.referenceType }),
+  };
+  const evidence = await input.mdiMirrorRepository.recordEvidenceEvent({
+    actorType: "vendor",
+    cognitoSub: patient.value,
+    eventCategory: "mdi_handoff",
+    eventId,
+    eventType: "mdi_partner_charge_recorded",
+    occurredAt: input.webhook.providerTimestamp,
+    recordedAt: input.now,
+    mdiCaseId: caseId,
+    mdiPatientId: linkage.value.mdiPatientId,
+    metadata,
+    source: "webhook",
+    status: "recorded",
+    summaryCode: "MDI_PARTNER_CHARGE_RECORDED",
+  });
+  if (evidence.ok) {
+    return { outcome: "processed" as const };
+  }
+  if (evidence.error.kind !== "conditional_conflict") {
+    return appDataFailure(evidence.error);
+  }
+
+  const priorEvidence = await input.mdiMirrorRepository.listEvidenceEventsForMdiCase({
+    cognitoSub: patient.value,
+    mdiCaseId: caseId,
+    limit: 100,
+  });
+  if (!priorEvidence.ok) {
+    return appDataFailure(priorEvidence.error);
+  }
+  const existing = priorEvidence.value.find((event) => event.eventId === eventId);
+  if (
+    existing?.eventType === "mdi_partner_charge_recorded" &&
+    existing.metadata?.fingerprint === charge.fingerprint
+  ) {
+    return { outcome: "processed" as const };
+  }
+  return { outcome: "failed" as const, retryable: false, durableRetry: false };
 }
 
 async function handleVerifiedMdiCue(input: {
@@ -875,6 +996,14 @@ function mdiBillingUnlockDecisionEventId(input: {
     : `mdi:billing_unlock:${input.caseId}:${input.action}:${input.webhookEventId}`;
 }
 
+function mdiPartnerChargeEventId(input: {
+  caseId: string;
+  chargeCode: MdiPartnerChargeCode;
+  webhookEventId: string;
+}) {
+  return `mdi:partner_charge:${input.caseId}:${input.chargeCode}:${input.webhookEventId}`;
+}
+
 function dashboardCueForMdiWebhook(webhook: NormalizedMdiWebhook): MdiDashboardCue | null {
   if (!webhook.cuePointer) {
     return null;
@@ -1040,6 +1169,145 @@ function stringField(record: Record<string, unknown>, key: string) {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+function providerMdiEventId(record: Record<string, unknown>) {
+  const value = stringField(record, "event_id") ?? stringField(record, "eventId") ?? stringField(record, "id");
+  return value && /^mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/.test(value)
+    ? value
+    : undefined;
+}
+
+function canonicalMdiPatientPointer(value: string) {
+  return canonicalMdiPatientId(value) ??
+    (value.startsWith("mdi_patient_") ? canonicalMdiPatientId(value.slice("mdi_patient_".length)) : null);
+}
+
+function canonicalMdiCasePointer(value: string) {
+  return canonicalMdiCaseId(value) ??
+    (value.startsWith("mdi_case_") ? canonicalMdiCaseId(value.slice("mdi_case_".length)) : null);
+}
+
+function normalizeMdiPartnerCharge(input: {
+  caseId?: string;
+  eventId: string;
+  eventType: string;
+  parsed: Record<string, unknown>;
+  patientId?: string;
+}): NormalizedMdiPartnerCharge | null {
+  if (!isMdiPartnerChargeCode(input.eventType) || !input.caseId) {
+    return null;
+  }
+
+  const amountCents = parseMdiChargeAmountCents(input.parsed);
+  if (amountCents === null) {
+    return null;
+  }
+
+  const currency = stringField(input.parsed, "currency")?.toLowerCase();
+  if (currency !== "usd") {
+    return null;
+  }
+
+  const reference = mdiPartnerChargeReference(input.eventType, input.parsed);
+  if (reference === null) {
+    return null;
+  }
+
+  const fingerprint = sha256([
+    input.eventId,
+    input.eventType,
+    input.patientId ?? "",
+    input.caseId,
+    String(amountCents),
+    currency,
+    reference?.id ?? "",
+  ].join("|"));
+
+  return {
+    amountCents,
+    chargeCode: input.eventType,
+    currency,
+    fingerprint,
+    ...(reference === undefined ? {} : { referenceType: reference.type }),
+  };
+}
+
+function parseMdiChargeAmountCents(record: Record<string, unknown>) {
+  const directCents = record.amountCents ?? record.amount_cents;
+  if (directCents !== undefined) {
+    return parseIntegralCents(directCents);
+  }
+
+  const chargeAmount = record.charge_amount;
+  if (typeof chargeAmount !== "string") {
+    return null;
+  }
+  if (!/^[0-9]+(?:\.[0-9]{1,2})?$/.test(chargeAmount)) {
+    return null;
+  }
+  const [dollars, cents = ""] = chargeAmount.split(".");
+  return parseIntegralCents(`${dollars}${cents.padEnd(2, "0")}`);
+}
+
+function parseIntegralCents(value: unknown) {
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value)) {
+      return null;
+    }
+    return validChargeAmountCents(value) ? value : null;
+  }
+  if (typeof value !== "string" || !/^[0-9]+$/.test(value)) {
+    return null;
+  }
+  const cents = Number(value);
+  return Number.isSafeInteger(cents) && validChargeAmountCents(cents) ? cents : null;
+}
+
+function validChargeAmountCents(value: number) {
+  return value > 0 && value <= maxMdiPartnerChargeAmountCents;
+}
+
+function mdiPartnerChargeReference(
+  eventType: MdiPartnerChargeCode,
+  record: Record<string, unknown>,
+) {
+  if (eventType === "partner_additional_charge") {
+    const id = normalizeSafeMdiReferenceId(
+      stringField(record, "chargeReferenceId") ?? stringField(record, "charge_reference_id"),
+      "mdi_charge",
+    );
+    return id === null ? null : id === undefined ? undefined : { id, type: "charge" as const };
+  }
+
+  const id = normalizeSafeMdiReferenceId(
+    stringField(record, "voucherId") ?? stringField(record, "voucher_id"),
+    "mdi_voucher",
+  );
+  return id === null ? null : id === undefined ? undefined : { id, type: "voucher" as const };
+}
+
+function normalizeSafeMdiReferenceId(value: string | undefined, prefix: "mdi_charge" | "mdi_voucher") {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (unsafeMdiChargeReferencePatterns.some((pattern) => pattern.test(value))) {
+    return null;
+  }
+  if (safeMdiOpaqueId(value, prefix)) {
+    return value;
+  }
+  if (value.startsWith(`${prefix}_`)) {
+    const uuid = value.slice(`${prefix}_`.length);
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid)) {
+      return `${prefix}_${uuid.replaceAll("-", "").toLowerCase()}`;
+    }
+  }
+  return null;
+}
+
+function isMdiPartnerChargeCode(value: string): value is MdiPartnerChargeCode {
+  return value === "partner_additional_charge" || value === "vouched_amount_charge";
+}
+
 function numericTimestampToIso(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
     return null;
@@ -1115,6 +1383,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const maxMdiAuthorizationHeaderLength = 2048;
 const maxMdiCuePointerLength = 128;
+const maxMdiPartnerChargeAmountCents = 100_000;
 const maxMdiProviderRetryAttempts = 1_000_000;
 
 const unsafeMdiCuePointerPatterns = [
@@ -1131,6 +1400,18 @@ const unsafeMdiCuePointerPatterns = [
   /symptom/i,
   /token/i,
   /url/i,
+];
+
+const unsafeMdiChargeReferencePatterns = [
+  /clinical/i,
+  /diagnosis/i,
+  /medication/i,
+  /note/i,
+  /order/i,
+  /prescription/i,
+  /product/i,
+  /questionnaire/i,
+  /treatment/i,
 ];
 
 const mdiWebhookCaseStatuses = new Set<MdiWebhookCaseStatus>([
