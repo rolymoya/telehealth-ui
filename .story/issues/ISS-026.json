@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-20",
+  "id": "ISS-026",
+  "impact": "Residual non-blocking gap: dashboard surface doc test asserts key route slugs are present in the matrix but does not cross-check them against docs/external/mdi/endpoint-index.jsonl. Reviewer confirmed current slugs are valid.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[test-coverage] Residual non-blocking gap: dashboard surface doc test asserts key route slugs ar"
+}

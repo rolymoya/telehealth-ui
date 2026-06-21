@@ -57,6 +57,15 @@ All other MDI states fail closed for billing activation. `case_approved`,
 reconciliation work, but they must not create Stripe charges or active
 subscriptions unless T-078 is updated after live T-094 validation.
 
+## Dashboard Surface Contract
+
+T-079 defines the launch dashboard ownership matrix in
+`docs/dashboard/launch-surface-matrix.md`. Apoth owns the native account/status
+shell, generic action cues, Stripe billing mirror, and support entry points.
+MDI remains the source of truth and interaction surface for clinical messages,
+files/labs, clinician workflow, refills/follow-up care, and other care content
+through short-lived embedded workflow links approved by the matrix.
+
 ## Must-Handle Webhook Groups
 
 | Group | Events Observed In Collection | Apoth Action |
@@ -89,7 +98,7 @@ Sanitized fixtures live in `tests/fixtures/mdi/`:
 | Question | Current Default | Owner |
 | --- | --- | --- |
 | Which exact MDI status or charge event unlocks payment capture? | T-078 selected `case_clinically_approved` plus matching case and collected payment method. Live ordering still needs T-094 validation before broadening the contract. | T-078, T-094 |
-| Should dashboard care workflow be native Apoth UI, MDI embedded workflow URL, or mixed? | Native status shell with MDI as source of truth; embed only for care tasks that require it. | T-079 |
+| Should dashboard care workflow be native Apoth UI, MDI embedded workflow URL, or mixed? | T-079 selected a native Apoth account/status shell with short-lived MDI embedded links for clinical/care workflows; see `docs/dashboard/launch-surface-matrix.md`. | T-079, T-060, T-061, T-062, T-063 |
 | What are the exact webhook ordering guarantees and retry windows? | Assume at-least-once, duplicate, and out-of-order delivery. | T-057, T-058 |
 | What exact questionnaire submission endpoint/shape is required in the live sandbox? | Use shape-only fixture until live T-094/T-056 validation confirms request body. | T-094, T-056, T-022 |
 | How should maintenance status be detected across auth and partner routes? | Treat explicit maintenance responses and API status failures as retryable provider-unavailable states. | T-054, T-065 |
