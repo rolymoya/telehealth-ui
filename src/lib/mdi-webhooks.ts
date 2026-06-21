@@ -3,14 +3,19 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import {
   type AppDataError,
+  type AppDataKey,
   type AppDataRepository,
   type AppDataResult,
+  type BillingStatus,
   type EvidenceEventRecord,
   type MdiLinkageRecord,
   type OnboardingStatus,
+  type StripeLinkageRecord,
   createWebhookEvidenceEventId,
   findPatientByMdiPointer,
   getMdiLinkage,
+  getStripeLinkage,
+  listEvidenceEventsForMdiCase,
   mdiCaseReverseKey,
   mdiPatientReverseKey,
   recordEvidenceEvent,
@@ -19,6 +24,8 @@ import {
 import {
   type DynamoDbAppDataRepository,
   getMdiLinkageDynamoDb,
+  getStripeLinkageDynamoDb,
+  listEvidenceEventsForMdiCaseDynamoDb,
   recordEvidenceEventDynamoDb,
   transitionOnboardingStatusDynamoDb,
 } from "@/lib/dynamodb/app-data-dynamodb";
@@ -26,6 +33,10 @@ import {
   canonicalMdiCaseId,
   canonicalMdiPatientId,
 } from "@/lib/mdi/ids";
+import {
+  evaluateBillingUnlock,
+  type BillingState,
+} from "@/lib/payment-gating";
 import type { MdiApiSecretPayload } from "@/lib/secrets/contracts";
 import {
   type ProcessVerifiedWebhookResult,
@@ -52,20 +63,31 @@ export type MdiWebhookEventContract = {
 };
 
 export type MdiWebhookCaseStatus =
-  | "submitted"
-  | "clinical_review"
+  | "assigned"
   | "billing_ready"
-  | "cancelled";
+  | "cancelled"
+  | "clinical_review"
+  | "completed"
+  | "created"
+  | "declined"
+  | "processing"
+  | "support"
+  | "tagged"
+  | "waiting";
 
 export const mdiWebhookEventContracts = [
-  { type: "case_created", handling: "inline", caseStatus: "submitted" },
-  { type: "case_processing", handling: "inline", caseStatus: "clinical_review" },
-  { type: "case_waiting", handling: "inline", caseStatus: "clinical_review" },
-  { type: "case_transferred_to_support", handling: "inline", caseStatus: "clinical_review" },
+  { type: "case_created", handling: "inline", caseStatus: "created" },
+  { type: "case_processing", handling: "inline", caseStatus: "processing" },
+  { type: "case_waiting", handling: "inline", caseStatus: "waiting" },
+  { type: "case_support", handling: "inline", caseStatus: "support" },
+  { type: "case_assigned", handling: "inline", caseStatus: "assigned" },
+  { type: "case_tag_added", handling: "inline", caseStatus: "tagged" },
+  { type: "case_transferred_to_support", handling: "inline", caseStatus: "support" },
   { type: "case_approved", handling: "inline", caseStatus: "billing_ready" },
   { type: "case_clinically_approved", handling: "inline", caseStatus: "billing_ready" },
-  { type: "case_completed", handling: "inline", caseStatus: "billing_ready" },
+  { type: "case_completed", handling: "inline", caseStatus: "completed" },
   { type: "case_cancelled", handling: "inline", caseStatus: "cancelled" },
+  { type: "case_declined", handling: "inline", caseStatus: "declined" },
   { type: "case_file_added", handling: "terminal" },
   { type: "case_file_deleted", handling: "terminal" },
   { type: "medical_necessity_file_generated", handling: "terminal" },
@@ -102,6 +124,12 @@ export type MdiWebhookMirrorRepository = {
   findPatientByMdiCase(mdiCaseId: string): Promise<AppDataResult<string | null>>;
   findPatientByMdiPatient(mdiPatientId: string): Promise<AppDataResult<string | null>>;
   getMdiLinkage(cognitoSub: string): Promise<AppDataResult<MdiLinkageRecord | null>>;
+  getStripeLinkage(cognitoSub: string): Promise<AppDataResult<StripeLinkageRecord | null>>;
+  listEvidenceEventsForMdiCase(input: {
+    cognitoSub: string;
+    mdiCaseId: string;
+    limit?: number;
+  }): Promise<AppDataResult<EvidenceEventRecord[]>>;
   recordEvidenceEvent(
     input: Parameters<typeof recordEvidenceEvent>[1],
   ): Promise<AppDataResult<EvidenceEventRecord>>;
@@ -151,6 +179,30 @@ export function createInMemoryMdiWebhookMirrorRepository(
     async getMdiLinkage(cognitoSub) {
       return getMdiLinkage(repository, cognitoSub);
     },
+    async getStripeLinkage(cognitoSub) {
+      return getStripeLinkage(repository, cognitoSub);
+    },
+    async listEvidenceEventsForMdiCase(input) {
+      const items: EvidenceEventRecord[] = [];
+      let exclusiveStartKey: AppDataKey | undefined;
+      do {
+        const result = listEvidenceEventsForMdiCase(repository, {
+          ...input,
+          exclusiveStartKey,
+          limit: input.limit ?? 100,
+        });
+        if (!result.ok) {
+          return result;
+        }
+        if (result.value) {
+          items.push(...result.value.items);
+          exclusiveStartKey = result.value.nextKey;
+        } else {
+          exclusiveStartKey = undefined;
+        }
+      } while (exclusiveStartKey);
+      return { ok: true, value: items };
+    },
     async recordEvidenceEvent(input) {
       return recordEvidenceEvent(repository, input);
     },
@@ -161,7 +213,7 @@ export function createInMemoryMdiWebhookMirrorRepository(
 }
 
 export function createDynamoDbMdiWebhookMirrorRepository(
-  repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite" | "update">,
+  repository: Pick<DynamoDbAppDataRepository, "get" | "queryByKeyPrefix" | "transactWrite" | "update">,
 ): MdiWebhookMirrorRepository {
   return {
     async findPatientByMdiCase(mdiCaseId) {
@@ -172,6 +224,12 @@ export function createDynamoDbMdiWebhookMirrorRepository(
     },
     async getMdiLinkage(cognitoSub) {
       return getMdiLinkageDynamoDb(repository, cognitoSub);
+    },
+    async getStripeLinkage(cognitoSub) {
+      return getStripeLinkageDynamoDb(repository, cognitoSub);
+    },
+    async listEvidenceEventsForMdiCase(input) {
+      return listEvidenceEventsForMdiCaseDynamoDb(repository, input);
     },
     async recordEvidenceEvent(input) {
       return recordEvidenceEventDynamoDb(repository, input);
@@ -369,7 +427,30 @@ async function handleVerifiedMdiEvent(input: {
     };
   }
 
-  const target = onboardingTargetForMdiCaseStatus(input.webhook.contract.caseStatus);
+  const caseStatus = input.webhook.contract.caseStatus;
+  if (!caseStatus) {
+    return { outcome: "processed" as const };
+  }
+
+  const priorEvidence = await input.mdiMirrorRepository.listEvidenceEventsForMdiCase({
+    cognitoSub: patient.value,
+    mdiCaseId: caseId,
+    limit: 100,
+  });
+  if (!priorEvidence.ok) {
+    return appDataFailure(priorEvidence.error);
+  }
+  if (!isCurrentCaseLifecycleEvent({
+    incoming: {
+      occurredAt: input.webhook.providerTimestamp,
+      status: caseStatus,
+    },
+    priorEvents: priorEvidence.value,
+  })) {
+    return { outcome: "processed" as const };
+  }
+
+  const target = onboardingTargetForMdiCaseStatus(caseStatus);
   if (target) {
     const transitioned = await applyOnboardingMirror(input.mdiMirrorRepository, {
       cognitoSub: patient.value,
@@ -398,7 +479,7 @@ async function handleVerifiedMdiEvent(input: {
     recordedAt: input.now,
     mdiCaseId: caseId,
     mdiPatientId: linkage.value.mdiPatientId,
-    metadata: { side_effect: "mdi_status_update" },
+    metadata: { case_status: caseStatus, side_effect: "mdi_status_update" },
     source: "webhook",
     status: "succeeded",
     summaryCode: "WEBHOOK_SIDE_EFFECT_APPLIED",
@@ -406,12 +487,85 @@ async function handleVerifiedMdiEvent(input: {
     webhookProvider: "mdi",
   });
   if (!evidence.ok) {
-    return evidence.error.kind === "conditional_conflict"
-      ? { outcome: "processed" as const }
-      : appDataFailure(evidence.error);
+    if (evidence.error.kind !== "conditional_conflict") {
+      return appDataFailure(evidence.error);
+    }
+  }
+
+  const billing = await recordBillingUnlockDecision(input.mdiMirrorRepository, {
+    caseId,
+    cognitoSub: patient.value,
+    eventType: input.webhook.eventType,
+    mdiPatientId: linkage.value.mdiPatientId,
+    now: input.now,
+    providerTimestamp: input.webhook.providerTimestamp,
+    webhookEventId: input.webhook.eventId,
+  });
+  if (!billing.ok) {
+    return billing.retryable
+      ? { outcome: "failed" as const, retryable: true, durableRetry: false }
+      : { outcome: "failed" as const, retryable: false, durableRetry: false };
   }
 
   return { outcome: "processed" as const };
+}
+
+async function recordBillingUnlockDecision(
+  repository: MdiWebhookMirrorRepository,
+  input: {
+    caseId: string;
+    cognitoSub: string;
+    eventType: string;
+    mdiPatientId: string;
+    now: string;
+    providerTimestamp: string;
+    webhookEventId: string;
+  },
+): Promise<{ ok: true } | { ok: false; retryable: boolean }> {
+  const stripe = await repository.getStripeLinkage(input.cognitoSub);
+  if (!stripe.ok) {
+    return { ok: false, retryable: stripe.error.kind !== "validation_failed" };
+  }
+
+  const decision = evaluateBillingUnlock({
+    billingState: billingStateForStripeStatus(stripe.value?.billingStatus),
+    event: {
+      provider: "mdi",
+      type: input.eventType,
+      mdiCaseId: input.caseId,
+    },
+    expectedMdiCaseId: input.caseId,
+  });
+  const eventId = mdiBillingUnlockDecisionEventId({
+    action: decision.action,
+    caseId: input.caseId,
+    webhookEventId: input.webhookEventId,
+  });
+  const evidence = await repository.recordEvidenceEvent({
+    actorType: "vendor",
+    cognitoSub: input.cognitoSub,
+    eventCategory: "mdi_handoff",
+    eventId,
+    eventType: "mdi_billing_unlock_decision",
+    occurredAt: input.providerTimestamp,
+    recordedAt: input.now,
+    mdiCaseId: input.caseId,
+    mdiPatientId: input.mdiPatientId,
+    metadata: {
+      billing_action: decision.action,
+      billing_reason: decision.reason,
+    },
+    source: "webhook",
+    status: decision.canActivate ? "recorded" : "skipped",
+    summaryCode: "MDI_BILLING_UNLOCK_DECISION",
+  });
+  if (evidence.ok || evidence.error.kind === "conditional_conflict") {
+    return { ok: true };
+  }
+  return {
+    ok: false,
+    retryable: evidence.error.kind !== "validation_failed",
+  };
 }
 
 async function applyOnboardingMirror(
@@ -473,15 +627,121 @@ function onboardingTargetForMdiCaseStatus(
   status: MdiWebhookCaseStatus | undefined,
 ): OnboardingStatus | null {
   switch (status) {
+    case "assigned":
     case "clinical_review":
+    case "processing":
+    case "support":
+    case "tagged":
+    case "waiting":
       return "clinical_review";
     case "billing_ready":
+    case "completed":
       return "billing_ready";
-    case "submitted":
     case "cancelled":
+    case "created":
+    case "declined":
     case undefined:
       return null;
   }
+}
+
+function isCurrentCaseLifecycleEvent(input: {
+  incoming: {
+    occurredAt: string;
+    status: MdiWebhookCaseStatus;
+  };
+  priorEvents: readonly EvidenceEventRecord[];
+}) {
+  const latest = latestCaseStatusEvidence(input.priorEvents);
+  if (!latest) {
+    return true;
+  }
+
+  const incomingTime = Date.parse(input.incoming.occurredAt);
+  const latestTime = Date.parse(latest.occurredAt);
+  if (!Number.isFinite(incomingTime) || !Number.isFinite(latestTime)) {
+    return false;
+  }
+  if (incomingTime < latestTime) {
+    return false;
+  }
+  if (isTerminalCaseStatus(latest.status) && !isTerminalCaseStatus(input.incoming.status)) {
+    return false;
+  }
+
+  const incomingRank = caseStatusRank(input.incoming.status);
+  const latestRank = caseStatusRank(latest.status);
+  if (incomingTime === latestTime && incomingRank < latestRank) {
+    return false;
+  }
+  return !(
+    latestRank >= caseStatusRank("billing_ready") &&
+    incomingRank < latestRank &&
+    !isTerminalCaseStatus(input.incoming.status)
+  );
+}
+
+function latestCaseStatusEvidence(events: readonly EvidenceEventRecord[]) {
+  let latest: { occurredAt: string; status: MdiWebhookCaseStatus } | null = null;
+  for (const event of events) {
+    const status = event.metadata?.case_status;
+    if (
+      event.eventType !== "webhook_side_effect_applied" ||
+      event.metadata?.side_effect !== "mdi_status_update" ||
+      !isMdiWebhookCaseStatus(status)
+    ) {
+      continue;
+    }
+
+    const eventTime = Date.parse(event.occurredAt);
+    const latestTime = latest === null ? Number.NEGATIVE_INFINITY : Date.parse(latest.occurredAt);
+    if (!Number.isFinite(eventTime)) {
+      continue;
+    }
+    if (
+      !latest ||
+      eventTime > latestTime ||
+      (eventTime === latestTime && caseStatusRank(status) > caseStatusRank(latest.status))
+    ) {
+      latest = {
+        occurredAt: event.occurredAt,
+        status,
+      };
+    }
+  }
+  return latest;
+}
+
+function isMdiWebhookCaseStatus(value: unknown): value is MdiWebhookCaseStatus {
+  return typeof value === "string" && mdiWebhookCaseStatuses.has(value as MdiWebhookCaseStatus);
+}
+
+function isTerminalCaseStatus(status: MdiWebhookCaseStatus) {
+  return status === "cancelled" || status === "declined";
+}
+
+function caseStatusRank(status: MdiWebhookCaseStatus) {
+  return caseStatusRanks[status];
+}
+
+function billingStateForStripeStatus(status: BillingStatus | undefined): BillingState {
+  if (status === "payment_method_collected") {
+    return "payment_method_collected";
+  }
+  if (status === "active") {
+    return "subscription_active";
+  }
+  return "payment_method_pending";
+}
+
+function mdiBillingUnlockDecisionEventId(input: {
+  action: string;
+  caseId: string;
+  webhookEventId: string;
+}) {
+  return input.action === "activate_billing"
+    ? `mdi:billing_unlock:${input.caseId}:activate_billing`
+    : `mdi:billing_unlock:${input.caseId}:${input.action}:${input.webhookEventId}`;
 }
 
 function resultForProcessedWebhook(processed: ProcessVerifiedWebhookResult): MdiWebhookResult {
@@ -605,3 +865,31 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const maxMdiAuthorizationHeaderLength = 2048;
 const maxMdiProviderRetryAttempts = 1_000_000;
+
+const mdiWebhookCaseStatuses = new Set<MdiWebhookCaseStatus>([
+  "assigned",
+  "billing_ready",
+  "cancelled",
+  "clinical_review",
+  "completed",
+  "created",
+  "declined",
+  "processing",
+  "support",
+  "tagged",
+  "waiting",
+]);
+
+const caseStatusRanks: Record<MdiWebhookCaseStatus, number> = {
+  assigned: 20,
+  billing_ready: 30,
+  cancelled: 50,
+  clinical_review: 20,
+  completed: 40,
+  created: 10,
+  declined: 50,
+  processing: 20,
+  support: 20,
+  tagged: 20,
+  waiting: 20,
+};

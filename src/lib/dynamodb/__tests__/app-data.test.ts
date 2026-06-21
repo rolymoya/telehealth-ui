@@ -2237,6 +2237,46 @@ describe("DynamoDB app-data helpers", () => {
         metadata: { side_effect: "billing_status_update" },
       }),
     ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:billing_unlock:mdi_case_001:await_payment_method:mdi_evt_opaque_001",
+        eventType: "mdi_billing_unlock_decision",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:03:00.000Z",
+        recordedAt: "2026-06-04T18:03:00.000Z",
+        actorType: "vendor",
+        status: "skipped",
+        summaryCode: "MDI_BILLING_UNLOCK_DECISION",
+        mdiPatientId: "mdi_patient_001",
+        mdiCaseId: "mdi_case_001",
+        source: "webhook",
+        metadata: {
+          billing_action: "await_payment_method",
+          billing_reason: "payment_method_not_collected",
+        },
+      }).ok,
+    ).toBe(true);
+    expect(
+      recordEvidenceEvent(repository, {
+        cognitoSub: "cognito-sub-001",
+        eventId: "mdi:billing_unlock:mdi_case_001:await_payment_method:mdi_evt_opaque_002",
+        eventType: "mdi_billing_unlock_decision",
+        eventCategory: "mdi_handoff",
+        occurredAt: "2026-06-04T18:04:00.000Z",
+        recordedAt: "2026-06-04T18:04:00.000Z",
+        actorType: "vendor",
+        status: "skipped",
+        summaryCode: "MDI_BILLING_UNLOCK_DECISION",
+        mdiPatientId: "mdi_patient_001",
+        mdiCaseId: "mdi_case_001",
+        source: "webhook",
+        metadata: {
+          billing_action: "cancel_pending_billing",
+          billing_reason: "declined",
+        },
+      }),
+    ).toMatchObject({ ok: false, error: { kind: "validation_failed" } });
   });
 
   it("rejects evidence events with clinical, raw payload, or free-text metadata", () => {

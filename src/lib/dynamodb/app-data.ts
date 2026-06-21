@@ -2618,6 +2618,21 @@ function isEvidenceEventId(record: EvidenceEventRecord) {
       return record.mdiCaseId !== undefined &&
         typeof record.metadata?.status === "string" &&
         record.eventId === `mdi:status:${record.mdiCaseId}:${record.metadata.status}`;
+    case "mdi_billing_unlock_decision":
+      if (
+        typeof record.mdiCaseId !== "string" ||
+        !isMdiCaseId(record.mdiCaseId) ||
+        !isMdiBillingUnlockAction(record.metadata?.billing_action)
+      ) {
+        return false;
+      }
+      if (record.metadata.billing_action === "activate_billing") {
+        return record.eventId === `mdi:billing_unlock:${record.mdiCaseId}:activate_billing`;
+      }
+      return new RegExp(
+        `^mdi:billing_unlock:${record.mdiCaseId}:${record.metadata.billing_action}:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`,
+      ).test(record.eventId) &&
+        !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
     case "stripe_payment_method_collected":
       return record.stripeCustomerId !== undefined &&
         record.eventId === `stripe:payment-method:${record.stripeCustomerId}:collected`;
@@ -2702,6 +2717,10 @@ function isMdiPatientCreateStatus(value: unknown): value is MdiPatientCreateStat
 
 function isMdiCaseCreateStatus(value: unknown): value is MdiCaseCreateStatus {
   return mdiCaseCreateStatuses.has(value as MdiCaseCreateStatus);
+}
+
+function isMdiBillingUnlockAction(value: unknown): value is string {
+  return mdiBillingUnlockActions.has(value as string);
 }
 
 function isAtOrBefore(leftIso: string, rightIso: string) {
@@ -2855,6 +2874,18 @@ const mdiCaseCreateStatuses = new Set<MdiCaseCreateStatus>([
   "submitted",
 ]);
 
+const mdiBillingUnlockActions = new Set([
+  "activate_billing",
+  "await_clinical_review",
+  "await_payment_method",
+  "cancel_active_billing",
+  "cancel_pending_billing",
+  "do_not_charge",
+  "manual_review_required",
+  "no_op",
+  "provider_unavailable",
+]);
+
 const defaultEvidenceEventPageLimit = 25;
 const maxEvidenceEventPageLimit = 100;
 const maxWebhookEventIdLength = 128;
@@ -2897,7 +2928,9 @@ const evidenceEventIdPatterns = [
   /^consent:terms-\d{4}-\d{2}-\d{2}$/,
   /^mdi:handoff:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^mdi:handoff:failed:(?:req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*|mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*)$/,
-  /^mdi:status:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:clinical_review|completed|declined|cancelled)$/,
+  /^mdi:status:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:assigned|billing_ready|cancelled|clinical_review|completed|created|declined|processing|support|tagged|waiting)$/,
+  /^mdi:billing_unlock:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:activate_billing$/,
+  /^mdi:billing_unlock:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:await_clinical_review|await_payment_method|cancel_active_billing|cancel_pending_billing|do_not_charge|manual_review_required|no_op|provider_unavailable):mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:payment-method:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:collected$/,
   /^stripe:billing:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:payment_method_pending|payment_method_collected|active|past_due|canceled)$/,
   /^webhook:(?:stripe|mdi):(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:[A-Z][A-Z0-9_]{1,79}(?::[a-z][a-z0-9_]{0,39})?$/,

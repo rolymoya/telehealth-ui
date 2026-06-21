@@ -3,13 +3,14 @@
     "T-057",
     "T-078"
   ],
-  "completedDate": null,
+  "claimedBySession": "a7daaed0-9d59-4f65-ab7b-e439cf644fc4",
+  "completedDate": "2026-06-21",
   "createdDate": "2026-05-19",
   "description": "Handle MDI case lifecycle events and mirror the minimum status Apoth needs for onboarding, dashboard, and billing gates.\n\n**Scope**\n- Implement handlers for case created/assigned/processing/completed/declined/cancelled or the actual event names from T-052.\n- Drop stale events using provider timestamps where available.\n- Update DynamoDB case status and evidence records only.\n- Trigger billing unlock workflow only when the event contract from T-078 says it is safe.\n\n**Acceptance**\n- Fixture replay updates case status deterministically.\n- Out-of-order stale event does not regress status.\n- Completed/approved event can unlock billing exactly once and only when T-078 rules pass.",
   "id": "T-058",
   "order": 70,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI case-lifecycle webhook handlers",
   "type": "task"
 }

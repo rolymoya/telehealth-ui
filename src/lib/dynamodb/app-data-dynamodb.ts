@@ -414,6 +414,54 @@ export async function getStripeLinkageDynamoDb(
   return ok(record.value);
 }
 
+export async function listEvidenceEventsForMdiCaseDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "queryByKeyPrefix">,
+  input: {
+    mdiCaseId: string;
+    cognitoSub: string;
+    limit?: number;
+  },
+): Promise<AppDataResult<EvidenceEventRecord[]>> {
+  if (!/^mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/.test(input.mdiCaseId)) {
+    return err("validation_failed", "Invalid evidence case lookup ID");
+  }
+
+  const events: EvidenceEventRecord[] = [];
+  let exclusiveStartKey: AppDataKey | undefined;
+  do {
+    const pointers = await repository.queryByKeyPrefix({
+      pk: mdiCaseReverseKey(input.mdiCaseId).pk,
+      skPrefix: "EVIDENCE#",
+      limit: input.limit ?? 100,
+      exclusiveStartKey,
+    });
+    if (!pointers.ok) {
+      return pointers;
+    }
+
+    for (const pointer of pointers.value.items) {
+      if (pointer.recordType !== "evidenceCaseIndex") {
+        return err("validation_failed", "Evidence case timeline contained another record type");
+      }
+      if (pointer.cognitoSub !== input.cognitoSub || pointer.mdiCaseId !== input.mdiCaseId) {
+        return err("validation_failed", "Evidence case pointer did not match lookup");
+      }
+
+      const event = await repository.get({ pk: pointer.evidencePk, sk: pointer.evidenceSk });
+      if (!event.ok) {
+        return event;
+      }
+      if (!event.value || event.value.recordType !== "evidenceEvent") {
+        return err("validation_failed", "Evidence case pointer target was invalid");
+      }
+      events.push(event.value);
+    }
+    exclusiveStartKey = pointers.value.nextKey;
+  } while (exclusiveStartKey);
+
+  return ok(events);
+}
+
 export async function getConsentEvidenceDynamoDb(
   repository: Pick<DynamoDbAppDataRepository, "get">,
   input: Parameters<typeof consentEvidenceKey> extends [

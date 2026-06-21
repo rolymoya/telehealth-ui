@@ -1,0 +1,16 @@
+{
+  "components": [
+    "autonomous"
+  ],
+  "discoveredDate": "2026-06-21",
+  "id": "ISS-027",
+  "impact": "Non-blocking implementation note: make the latest-status mirror update conditional/atomic when possible so concurrent lifecycle webhooks cannot race a stale status over a newer one.",
+  "location": [],
+  "phase": null,
+  "relatedTickets": [],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "medium",
+  "status": "open",
+  "title": "[concurrency] Non-blocking implementation note: make the latest-status mirror update condition"
+}
