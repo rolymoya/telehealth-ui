@@ -1,6 +1,9 @@
 name: Deploy static UI
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       stage:
@@ -16,7 +19,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: deploy-static-ui-${{ inputs.stage }}
+  group: deploy-static-ui-staging
   cancel-in-progress: false
 
 env:
