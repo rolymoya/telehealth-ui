@@ -8,6 +8,11 @@ import {
   recordEvidenceEvent,
 } from "@/lib/dynamodb/app-data";
 import {
+  type DynamoDbAppDataRepository,
+  getMdiLinkageDynamoDb,
+  recordEvidenceEventDynamoDb,
+} from "@/lib/dynamodb/app-data-dynamodb";
+import {
   type MdiClientOptions,
   type MdiWorkflowCode,
   getMdiFileUploadWorkflowUrl,
@@ -142,6 +147,93 @@ export async function requestMdiWorkflowUrl(
   };
 }
 
+export async function requestMdiWorkflowUrlDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
+  input: {
+    cognitoSub: string;
+    workflow: MdiWorkflowCode | string;
+  },
+  options: RequestMdiWorkflowUrlOptions,
+): Promise<MdiWorkflowLaunchResult> {
+  if (!isMdiWorkflowCode(input.workflow)) {
+    return fallback("unsupported", "unsupported");
+  }
+  if (!isMdiWorkflowRequestId(options.requestId)) {
+    return fallback(input.workflow, "unavailable");
+  }
+
+  const linkage = await getMdiLinkageDynamoDb(repository, input.cognitoSub);
+  if (!linkage.ok) {
+    return fallback(input.workflow, "unavailable");
+  }
+  if (!linkage.value) {
+    return fallback(input.workflow, "not_linked");
+  }
+  if (input.workflow === "messaging" && !linkage.value.mdiCaseId) {
+    const evidence = await recordWorkflowEvidenceDynamoDb(
+      repository,
+      input.cognitoSub,
+      linkage.value,
+      {
+        outcome: "not_linked",
+        recordedAt: nowIso(options),
+        requestId: options.requestId,
+        workflow: input.workflow,
+      },
+    );
+    if (!evidence.ok) {
+      return fallback(input.workflow, "unavailable");
+    }
+    return fallback(input.workflow, "not_linked");
+  }
+
+  const gateway = options.gateway ?? defaultMdiWorkflowUrlGateway;
+  const result = await requestFromMdi(gateway, input.workflow, linkage.value, options.clientOptions);
+  const recordedAt = nowIso(options);
+  if (!result.ok) {
+    const outcome = outcomeForClientFailure(result.error.code);
+    const evidence = await recordWorkflowEvidenceDynamoDb(
+      repository,
+      input.cognitoSub,
+      linkage.value,
+      {
+        outcome,
+        recordedAt,
+        requestId: options.requestId,
+        workflow: input.workflow,
+      },
+    );
+    if (!evidence.ok) {
+      return fallback(input.workflow, "unavailable");
+    }
+    return fallback(input.workflow, outcome === "expired" ? "expired" : "unavailable");
+  }
+
+  const expiresAt = addSecondsIso(recordedAt, options.ttlSeconds ?? defaultTtlSeconds);
+  const evidence = await recordWorkflowEvidenceDynamoDb(
+    repository,
+    input.cognitoSub,
+    linkage.value,
+    {
+      outcome: "issued",
+      recordedAt,
+      requestId: options.requestId,
+      workflow: input.workflow,
+    },
+  );
+  if (!evidence.ok) {
+    return fallback(input.workflow, "unavailable");
+  }
+
+  return {
+    ok: true,
+    expiresAt,
+    launchMode: "link",
+    url: result.value.url,
+    workflow: input.workflow,
+  };
+}
+
 export function isMdiWorkflowCode(value: unknown): value is MdiWorkflowCode {
   return value === "file_upload" || value === "intro_video" || value === "messaging";
 }
@@ -214,6 +306,44 @@ async function recordWorkflowEvidence(
   },
 ): Promise<AppDataResult<unknown>> {
   return recordEvidenceEvent(repository, {
+    actorType: "system",
+    cognitoSub,
+    eventCategory: "mdi_handoff",
+    eventId: createMdiWorkflowUrlEventId({
+      mdiPatientId: linkage.mdiPatientId,
+      requestId: input.requestId,
+      workflow: input.workflow,
+    }),
+    eventType: "mdi_workflow_url_requested",
+    occurredAt: input.recordedAt,
+    recordedAt: input.recordedAt,
+    ...(input.workflow === "messaging" && linkage.mdiCaseId !== undefined
+      ? { mdiCaseId: linkage.mdiCaseId }
+      : {}),
+    mdiPatientId: linkage.mdiPatientId,
+    metadata: {
+      outcome: input.outcome,
+      workflow: input.workflow,
+    },
+    requestId: input.requestId,
+    source: "app",
+    status: input.outcome === "issued" ? "recorded" : "skipped",
+    summaryCode: "MDI_WORKFLOW_URL_REQUESTED",
+  });
+}
+
+async function recordWorkflowEvidenceDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
+  cognitoSub: string,
+  linkage: MdiLinkageRecord,
+  input: {
+    outcome: MdiWorkflowEvidenceOutcome;
+    recordedAt: string;
+    requestId: MdiWorkflowRequestId;
+    workflow: MdiWorkflowCode;
+  },
+): Promise<AppDataResult<unknown>> {
+  return recordEvidenceEventDynamoDb(repository, {
     actorType: "system",
     cognitoSub,
     eventCategory: "mdi_handoff",

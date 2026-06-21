@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { ProductPlaceholder } from "@/components/product/ProductPlaceholder";
+import { createUnavailablePatientDashboard } from "@/lib/patient-dashboard";
+import { PatientDashboardClient } from "./PatientDashboardClient";
 
 export const metadata: Metadata = {
   title: "Dashboard · Apoth",
@@ -7,11 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function DashboardPage() {
-  return (
-    <ProductPlaceholder
-      eyebrow="Patient account"
-      title="Dashboard"
-      body="Review account workflow status after required onboarding steps are complete."
-    />
-  );
+  return <PatientDashboardClient initialDashboard={createUnavailablePatientDashboard()} />;
 }

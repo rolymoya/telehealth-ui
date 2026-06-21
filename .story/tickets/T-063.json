@@ -7,13 +7,14 @@
     "T-062",
     "T-079"
   ],
-  "completedDate": null,
+  "claimedBySession": "d6c8a31f-1000-4943-8bb0-fe401b80fafd",
+  "completedDate": "2026-06-21",
   "createdDate": "2026-05-19",
   "description": "Build the authenticated patient dashboard around MDI-backed care status and minimal Apoth account/billing state.\n\n**Scope**\n- Show onboarding/case status from DynamoDB mirrors and fresh MDI reads where feasible.\n- Provide links or embeds for MDI-owned care workflows selected in T-079.\n- Show billing status from Stripe/DynamoDB mirrors without clinical descriptors.\n- Include account/profile basics and support pathways.\n\n**Acceptance**\n- Dashboard gives a patient a clear status for pending, approved, declined, action-needed, billing issue, and MDI-unavailable states.\n- Refreshing dashboard does not require local questionnaire answers.\n- Clinical messages/files remain in MDI or embedded workflows unless a future decision expands scope.",
   "id": "T-063",
   "order": 120,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "Patient dashboard: MDI-backed status, billing, and workflow access",
   "type": "feature"
 }
