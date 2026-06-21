@@ -44,6 +44,19 @@ but not the submitted response payload.
 | Messages and notifications | Message created, notification sent, text amount events | Message/notification pointer, channel/status, patient/case pointers. | Notification and message events may duplicate operational status. | P2 | Update dashboard badges without storing message body. | Event envelope and pointer only. | T-079, T-058 |
 | Dashboard workflow | MDI patient/case/workflow reads or embedded workflow URL routes | Native status fields or embedded workflow URL. | Native dashboard should prefer MDI source of truth; embedded URL may be needed for care tasks. | P1 | Decide native-vs-embedded dashboard boundaries. | Pointers, URL expiry metadata if allowed, status only. | T-079 |
 
+## Billing Unlock Contract
+
+T-078 defines the launch billing unlock rule in
+`docs/payments/mdi-billing-unlock-contract.md`. Stripe billing activation is
+allowed only for the selected `case_clinically_approved` event when the event's
+opaque `mdiCaseId` matches the local billing target and the local payment
+method state is `payment_method_collected`.
+
+All other MDI states fail closed for billing activation. `case_approved`,
+`case_completed`, and later charge/order events may still inform dashboard or
+reconciliation work, but they must not create Stripe charges or active
+subscriptions unless T-078 is updated after live T-094 validation.
+
 ## Must-Handle Webhook Groups
 
 | Group | Events Observed In Collection | Apoth Action |
@@ -75,7 +88,7 @@ Sanitized fixtures live in `tests/fixtures/mdi/`:
 
 | Question | Current Default | Owner |
 | --- | --- | --- |
-| Which exact MDI status or charge event unlocks payment capture? | Use approved case status plus payment method collection until T-078 defines the trigger. | T-078 |
+| Which exact MDI status or charge event unlocks payment capture? | T-078 selected `case_clinically_approved` plus matching case and collected payment method. Live ordering still needs T-094 validation before broadening the contract. | T-078, T-094 |
 | Should dashboard care workflow be native Apoth UI, MDI embedded workflow URL, or mixed? | Native status shell with MDI as source of truth; embed only for care tasks that require it. | T-079 |
 | What are the exact webhook ordering guarantees and retry windows? | Assume at-least-once, duplicate, and out-of-order delivery. | T-057, T-058 |
 | What exact questionnaire submission endpoint/shape is required in the live sandbox? | Use shape-only fixture until live T-094/T-056 validation confirms request body. | T-094, T-056, T-022 |

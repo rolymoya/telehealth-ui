@@ -1576,13 +1576,18 @@ describe("regulated launch invariants", () => {
 
   it("does not activate billing before the selected MDI clinical approval event", () => {
     expect(
-      canActivateBilling(mdiCaseCreatedEventFixture, "payment_method_collected"),
+      canActivateBilling(
+        mdiCaseCreatedEventFixture,
+        "payment_method_collected",
+        mdiCaseCreatedEventFixture.mdiCaseId,
+      ),
     ).toBe(false);
 
     expect(
       canActivateBilling(
         mdiClinicalApprovalEventFixture,
         "payment_method_pending",
+        mdiClinicalApprovalEventFixture.mdiCaseId,
       ),
     ).toBe(false);
 
@@ -1590,6 +1595,15 @@ describe("regulated launch invariants", () => {
       canActivateBilling(
         mdiClinicalApprovalEventFixture,
         "payment_method_collected",
+        "mdi_case_other_001",
+      ),
+    ).toBe(false);
+
+    expect(
+      canActivateBilling(
+        mdiClinicalApprovalEventFixture,
+        "payment_method_collected",
+        mdiClinicalApprovalEventFixture.mdiCaseId,
       ),
     ).toBe(true);
   });
