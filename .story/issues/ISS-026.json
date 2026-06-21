@@ -8,9 +8,9 @@
   "location": [],
   "phase": null,
   "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "resolution": "Added a dashboard surface matrix test cross-check that parses docs/external/mdi/endpoint-index.jsonl and verifies each approved embedded workflow slug documented in the matrix exists in the generated endpoint index as a partner-surface operation.",
+  "resolvedDate": "2026-06-21",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[test-coverage] Residual non-blocking gap: dashboard surface doc test asserts key route slugs ar"
 }

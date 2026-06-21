@@ -75,6 +75,7 @@ describe("dashboard launch surface matrix", () => {
       join(process.cwd(), "docs/dashboard/launch-surface-matrix.md"),
       "utf8",
     );
+    const endpointIndex = readMdiEndpointIndex();
 
     for (const operationSlug of [
       "partner-get-partner-patients-patient-id-auth-get-messaging-app-url",
@@ -82,6 +83,10 @@ describe("dashboard launch surface matrix", () => {
       "partner-get-partner-patients-patient-id-intro-video-get-intro-video-request-url",
     ]) {
       expect(matrix).toContain(operationSlug);
+      expect(endpointIndex.get(operationSlug)).toMatchObject({
+        slug: operationSlug,
+        surface: "partner",
+      });
     }
 
     for (const deferredDecision of [
@@ -93,3 +98,20 @@ describe("dashboard launch surface matrix", () => {
     }
   });
 });
+
+function readMdiEndpointIndex() {
+  const index = readFileSync(
+    join(process.cwd(), "docs/external/mdi/endpoint-index.jsonl"),
+    "utf8",
+  );
+
+  return new Map(
+    index
+      .trim()
+      .split("\n")
+      .map((line) => {
+        const entry = JSON.parse(line) as { slug: string; surface: string };
+        return [entry.slug, entry] as const;
+      }),
+  );
+}
