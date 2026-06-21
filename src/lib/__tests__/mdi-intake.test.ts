@@ -1,5 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createInMemoryAppDataRepository,
+  createMdiCaseCreateAttemptRecord,
+  createPatientProfileRecord,
+  getMdiCaseCreateAttempt,
+  linkMdiPatientCase,
+  mdiLinkageKey,
+  patientProfileKey,
+} from "@/lib/dynamodb/app-data";
+import {
+  createAppDataMdiIntakeRepository,
+  createMdiCaseIdempotencyKey,
   loadMdiIntake,
   mdiIntakeFailure,
   submitMdiIntake,
@@ -11,8 +22,29 @@ import {
 import questionnaireFlow from "../../../tests/fixtures/mdi/questionnaire-flow.json";
 
 const cognitoSub = "cognito-sub-mdi-intake";
-const now = "2026-06-10T22:15:00.000Z";
-const fixtureQuestionnaire = questionnaireFlow.questionnaire as MdiIntakeQuestionnaire;
+const now = "2026-06-20T22:15:00.000Z";
+const mdiPatientId = "mdi_patient_intake_001";
+const mdiCaseId = "mdi_case_intake_001";
+const fixtureQuestionnaire = {
+  ...(questionnaireFlow.questionnaire as MdiIntakeQuestionnaire),
+  patientId: mdiPatientId,
+};
+const casePayload = {
+  case_questions: [
+    {
+      answer: "ANSWER_VALUE_SENTINEL",
+      question: "QUESTION_TEXT_SENTINEL",
+      type: "single_select",
+    },
+  ],
+  diseases: [{ disease_id: "mdi_disease_transient_001" }],
+};
+const responses = [
+  {
+    questionId: fixtureQuestionnaire.questions[0].questionId,
+    value: "ANSWER_VALUE_SENTINEL",
+  },
+];
 
 describe("MDI intake orchestration", () => {
   it("loads questions only after precheck is complete", async () => {
@@ -42,8 +74,8 @@ describe("MDI intake orchestration", () => {
     const repository = repositoryWithStatus({
       onboardingStatus: "mdi_submitted",
       linkage: {
-        mdiPatientId: fixtureQuestionnaire.patientId,
-        mdiCaseId: fixtureQuestionnaire.caseId,
+        mdiPatientId,
+        mdiCaseId,
       },
     });
 
@@ -53,60 +85,49 @@ describe("MDI intake orchestration", () => {
         value: {
           status: "submitted",
           linkage: {
-            mdiPatientId: fixtureQuestionnaire.patientId,
-            mdiCaseId: fixtureQuestionnaire.caseId,
+            mdiPatientId,
+            mdiCaseId,
           },
         },
       });
     expect(gateway.loadQuestionnaire).not.toHaveBeenCalled();
   });
 
-  it("submits transient responses and persists only MDI pointers", async () => {
-    const saved: unknown[] = [];
-    const submitResponses = vi.fn(async () => ({
+  it("creates a case from transient responses and persists only MDI pointers", async () => {
+    const repository = createInMemoryAppDataRepository([
+      createPatientProfileRecord({
+        cognitoSub,
+        now,
+        onboardingStatus: "intake_ready",
+      }),
+    ]);
+    linkMdiPatientCase(repository, {
+      cognitoSub,
+      mdiPatientId,
+      now,
+    });
+    const createCase = vi.fn(async (input) => ({
       ok: true as const,
       value: {
         linkage: {
-          mdiPatientId: fixtureQuestionnaire.patientId,
-          mdiCaseId: fixtureQuestionnaire.caseId,
+          mdiPatientId: input.patientId,
+          mdiCaseId,
         },
         submissionId: "mdi_submission_opaque_001",
       },
     }));
-    const gateway = gatewayWithQuestionnaire({ submitResponses });
-    const repository = repositoryWithStatus(
-      {
-        onboardingStatus: "intake_ready",
-        linkage: {
-          mdiPatientId: fixtureQuestionnaire.patientId,
-          mdiCaseId: fixtureQuestionnaire.caseId,
-        },
-      },
-      {
-        saveSubmitted: vi.fn(async (input) => {
-          saved.push(input);
-          return { ok: true as const, value: input.linkage };
-        }),
-      },
-    );
 
     const result = await submitMdiIntake(
       {
+        casePayload,
         cognitoSub,
-        caseId: fixtureQuestionnaire.caseId,
-        patientId: fixtureQuestionnaire.patientId,
         questionnaireId: fixtureQuestionnaire.questionnaireId,
-        responses: [
-          {
-            questionId: fixtureQuestionnaire.questions[0].questionId,
-            value: "ANSWER_VALUE_SENTINEL",
-          },
-        ],
+        responses,
       },
       {
-        gateway,
-        repository,
+        gateway: gatewayWithQuestionnaire({ createCase }),
         now: () => new Date(now),
+        repository: createAppDataMdiIntakeRepository(repository),
       },
     );
 
@@ -115,50 +136,63 @@ describe("MDI intake orchestration", () => {
       value: {
         status: "submitted",
         linkage: {
-          mdiPatientId: fixtureQuestionnaire.patientId,
-          mdiCaseId: fixtureQuestionnaire.caseId,
+          mdiPatientId,
+          mdiCaseId,
         },
         submissionId: "mdi_submission_opaque_001",
       },
     });
-    expect(JSON.stringify(submitResponses.mock.calls)).toContain("ANSWER_VALUE_SENTINEL");
-    expect(JSON.stringify(saved)).not.toContain("ANSWER_VALUE_SENTINEL");
-    expect(JSON.stringify(saved)).not.toContain("QUESTION_TEXT_SENTINEL");
-    expect(saved).toEqual([
-      {
-        cognitoSub,
-        linkage: {
-          mdiPatientId: fixtureQuestionnaire.patientId,
-          mdiCaseId: fixtureQuestionnaire.caseId,
-        },
-        now,
+    expect(createCase).toHaveBeenCalledWith({
+      casePayload,
+      cognitoSub,
+      idempotencyKey: createMdiCaseIdempotencyKey(cognitoSub),
+      patientId: mdiPatientId,
+      questionnaireId: fixtureQuestionnaire.questionnaireId,
+      responses,
+    });
+    expect(repository.get(mdiLinkageKey(cognitoSub))).toMatchObject({
+      ok: true,
+      value: {
+        mdiCaseId,
+        mdiPatientId,
       },
-    ]);
+    });
+    expect(getMdiCaseCreateAttempt(repository, cognitoSub)).toMatchObject({
+      ok: true,
+      value: {
+        mdiCaseId,
+        mdiPatientId,
+        mdiSubmissionId: "mdi_submission_opaque_001",
+        status: "submitted",
+      },
+    });
+
+    const stored = repository.queryByKeyPrefix({
+      pk: patientProfileKey(cognitoSub).pk,
+      skPrefix: "",
+    });
+    expect(JSON.stringify(stored)).not.toContain("ANSWER_VALUE_SENTINEL");
+    expect(JSON.stringify(stored)).not.toContain("QUESTION_TEXT_SENTINEL");
+    expect(JSON.stringify(stored)).not.toContain("mdi_disease_transient_001");
   });
 
-  it("does not resubmit if DynamoDB already has the handoff pointer", async () => {
-    const submitResponses = vi.fn();
-    const gateway = gatewayWithQuestionnaire({ submitResponses });
+  it("does not create another case when a case pointer already exists", async () => {
+    const createCase = vi.fn();
+    const gateway = gatewayWithQuestionnaire({ createCase });
     const repository = repositoryWithStatus({
       onboardingStatus: "clinical_review",
       linkage: {
-        mdiPatientId: fixtureQuestionnaire.patientId,
-        mdiCaseId: fixtureQuestionnaire.caseId,
+        mdiPatientId,
+        mdiCaseId,
       },
     });
 
     await expect(submitMdiIntake(
       {
+        casePayload,
         cognitoSub,
-        caseId: fixtureQuestionnaire.caseId,
-        patientId: fixtureQuestionnaire.patientId,
         questionnaireId: fixtureQuestionnaire.questionnaireId,
-        responses: [
-          {
-            questionId: fixtureQuestionnaire.questions[0].questionId,
-            value: "ANSWER_VALUE_SENTINEL",
-          },
-        ],
+        responses,
       },
       { gateway, repository },
     )).resolves.toMatchObject({
@@ -167,172 +201,299 @@ describe("MDI intake orchestration", () => {
         status: "submitted",
       },
     });
-    expect(submitResponses).not.toHaveBeenCalled();
+    expect(createCase).not.toHaveBeenCalled();
   });
 
-  it("does not submit upstream when another request already claimed submission", async () => {
-    const submitResponses = vi.fn();
-    const gateway = gatewayWithQuestionnaire({ submitResponses });
-    const repository = repositoryWithStatus(
-      {
+  it("links a stored case pointer after retryable storage failure before provider calls", async () => {
+    const repository = createInMemoryAppDataRepository([
+      createPatientProfileRecord({
+        cognitoSub,
+        now,
         onboardingStatus: "intake_ready",
-        linkage: {
-          mdiPatientId: fixtureQuestionnaire.patientId,
-          mdiCaseId: fixtureQuestionnaire.caseId,
-        },
+      }),
+    ]);
+    linkMdiPatientCase(repository, {
+      cognitoSub,
+      mdiPatientId,
+      now,
+    });
+    repository.put(createMdiCaseCreateAttemptRecord({
+      attempts: 1,
+      cognitoSub,
+      idempotencyKey: "mdi-case-existing-key",
+      lastAttemptAt: now,
+      mdiCaseId,
+      mdiPatientId,
+      now,
+      status: "case_storage_retryable_failure",
+    }));
+    const createCase = vi.fn();
+
+    await expect(submitMdiIntake(
+      {
+        casePayload,
+        cognitoSub,
+        questionnaireId: fixtureQuestionnaire.questionnaireId,
+        responses,
       },
       {
-        claimSubmission: vi.fn(async () =>
-          mdiIntakeFailure(
-            "submission_in_progress",
-            "MDI intake submission is already in progress",
-            { retryable: true, status: 409 },
-          )
-        ),
+        gateway: gatewayWithQuestionnaire({ createCase }),
+        now: () => new Date("2026-06-20T22:30:00.000Z"),
+        repository: createAppDataMdiIntakeRepository(repository),
+      },
+    )).resolves.toMatchObject({
+      ok: true,
+      value: {
+        linkage: {
+          mdiCaseId,
+          mdiPatientId,
+        },
+      },
+    });
+    expect(createCase).not.toHaveBeenCalled();
+  });
+
+  it("retries an expired case claim with the same idempotency key", async () => {
+    const repository = createInMemoryAppDataRepository([
+      createPatientProfileRecord({
+        cognitoSub,
+        now,
+        onboardingStatus: "intake_ready",
+      }),
+    ]);
+    linkMdiPatientCase(repository, {
+      cognitoSub,
+      mdiPatientId,
+      now,
+    });
+    repository.put(createMdiCaseCreateAttemptRecord({
+      attempts: 1,
+      claimExpiresAt: "2026-06-20T22:20:00.000Z",
+      cognitoSub,
+      idempotencyKey: "mdi-case-expired-key",
+      lastAttemptAt: now,
+      mdiPatientId,
+      now,
+      status: "claiming_case",
+    }));
+    const createCase = vi.fn(async (input) => ({
+      ok: true as const,
+      value: {
+        linkage: {
+          mdiCaseId,
+          mdiPatientId: input.patientId,
+        },
+      },
+    }));
+
+    await submitMdiIntake(
+      {
+        casePayload,
+        cognitoSub,
+        questionnaireId: fixtureQuestionnaire.questionnaireId,
+        responses,
+      },
+      {
+        gateway: gatewayWithQuestionnaire({ createCase }),
+        now: () => new Date("2026-06-20T22:30:00.000Z"),
+        repository: createAppDataMdiIntakeRepository(repository),
       },
     );
 
-    await expect(submitMdiIntake(
-      {
-        cognitoSub,
-        caseId: fixtureQuestionnaire.caseId,
-        patientId: fixtureQuestionnaire.patientId,
-        questionnaireId: fixtureQuestionnaire.questionnaireId,
-        responses: [
-          {
-            questionId: fixtureQuestionnaire.questions[0].questionId,
-            value: "ANSWER_VALUE_SENTINEL",
-          },
-        ],
-      },
-      { gateway, repository },
-    )).resolves.toMatchObject({
-      ok: false,
-      error: {
-        code: "submission_in_progress",
-      },
-    });
-    expect(submitResponses).not.toHaveBeenCalled();
+    expect(createCase).toHaveBeenCalledWith(expect.objectContaining({
+      idempotencyKey: "mdi-case-expired-key",
+    }));
   });
 
-  it("rejects tampered MDI pointers before calling the gateway", async () => {
-    const submitResponses = vi.fn();
-    const gateway = gatewayWithQuestionnaire({ submitResponses });
-    const repository = repositoryWithStatus({
-      onboardingStatus: "intake_ready",
-      linkage: {
-        mdiPatientId: fixtureQuestionnaire.patientId,
-        mdiCaseId: fixtureQuestionnaire.caseId,
-      },
-    });
+  it("records provider-created case IDs when local submitted storage fails", async () => {
+    const recordFailure = vi.fn(async () => ({
+      ok: true as const,
+      value: createMdiCaseCreateAttemptRecord({
+        attempts: 1,
+        cognitoSub,
+        idempotencyKey: "mdi-case-claim",
+        mdiCaseId,
+        mdiPatientId,
+        now,
+        status: "case_storage_retryable_failure",
+      }),
+    }));
+    const repository: MdiIntakeRepository = {
+      claimSubmission: vi.fn(async () => ({
+        ok: true as const,
+        value: {
+          idempotencyKey: "mdi-case-claim",
+          outcome: "claimed" as const,
+        },
+      })),
+      getStatus: vi.fn(async () => ({
+        ok: true as const,
+        value: {
+          linkage: { mdiPatientId },
+          onboardingStatus: "intake_ready" as const,
+        },
+      })),
+      recordFailure,
+      saveSubmitted: vi.fn(async () =>
+        mdiIntakeFailure("storage_failed", "DynamoDB unavailable", {
+          retryable: true,
+          status: 500,
+        })
+      ),
+    };
 
     await expect(submitMdiIntake(
       {
+        casePayload,
         cognitoSub,
-        caseId: "mdi_case_tampered",
-        patientId: fixtureQuestionnaire.patientId,
         questionnaireId: fixtureQuestionnaire.questionnaireId,
-        responses: [
-          {
-            questionId: fixtureQuestionnaire.questions[0].questionId,
-            value: "ANSWER_VALUE_SENTINEL",
-          },
-        ],
-      },
-      { gateway, repository },
-    )).resolves.toMatchObject({
-      ok: false,
-      error: {
-        code: "not_ready",
-      },
-    });
-    expect(repository.claimSubmission).not.toHaveBeenCalled();
-    expect(submitResponses).not.toHaveBeenCalled();
-  });
-
-  it("rejects tampered questionnaire IDs before claiming submission", async () => {
-    const submitResponses = vi.fn();
-    const gateway = gatewayWithQuestionnaire({ submitResponses });
-    const repository = repositoryWithStatus({
-      onboardingStatus: "intake_ready",
-      linkage: {
-        mdiPatientId: fixtureQuestionnaire.patientId,
-        mdiCaseId: fixtureQuestionnaire.caseId,
-      },
-    });
-
-    await expect(submitMdiIntake(
-      {
-        cognitoSub,
-        caseId: fixtureQuestionnaire.caseId,
-        patientId: fixtureQuestionnaire.patientId,
-        questionnaireId: "mdi_questionnaire_tampered",
-        responses: [
-          {
-            questionId: fixtureQuestionnaire.questions[0].questionId,
-            value: "ANSWER_VALUE_SENTINEL",
-          },
-        ],
+        responses,
       },
       {
-        expectedQuestionnaireId: fixtureQuestionnaire.questionnaireId,
-        gateway,
+        gateway: gatewayWithQuestionnaire({
+          createCase: vi.fn(async () => ({
+            ok: true as const,
+            value: {
+              linkage: { mdiCaseId, mdiPatientId },
+            },
+          })),
+        }),
+        now: () => new Date(now),
         repository,
       },
     )).resolves.toMatchObject({
       ok: false,
       error: {
-        code: "invalid_input",
+        code: "storage_failed",
       },
     });
-    expect(repository.getStatus).not.toHaveBeenCalled();
-    expect(repository.claimSubmission).not.toHaveBeenCalled();
-    expect(submitResponses).not.toHaveBeenCalled();
+
+    expect(recordFailure).toHaveBeenCalledWith(expect.objectContaining({
+      mdiCaseId,
+      status: "case_storage_retryable_failure",
+    }));
   });
 
-  it("passes the claim idempotency key to the MDI gateway", async () => {
-    const submitResponses = vi.fn(async (input) => ({
+  it("does not persist a provider case when the returned patient pointer mismatches", async () => {
+    const recordFailure = vi.fn(async () => ({
       ok: true as const,
-      value: {
-        linkage: {
-          mdiPatientId: input.patientId,
-          mdiCaseId: input.caseId,
-        },
-      },
+      value: createMdiCaseCreateAttemptRecord({
+        attempts: 1,
+        cognitoSub,
+        idempotencyKey: "mdi-case-claim",
+        mdiPatientId,
+        now,
+        status: "case_provider_terminal_failure",
+      }),
     }));
-    const gateway = gatewayWithQuestionnaire({ submitResponses });
-    const repository = repositoryWithStatus({
-      onboardingStatus: "intake_ready",
-      linkage: {
-        mdiPatientId: fixtureQuestionnaire.patientId,
-        mdiCaseId: fixtureQuestionnaire.caseId,
+    const repository: MdiIntakeRepository = {
+      claimSubmission: vi.fn(async () => ({
+        ok: true as const,
+        value: {
+          idempotencyKey: "mdi-case-claim",
+          outcome: "claimed" as const,
+        },
+      })),
+      getStatus: vi.fn(async () => ({
+        ok: true as const,
+        value: {
+          linkage: { mdiPatientId },
+          onboardingStatus: "intake_ready" as const,
+        },
+      })),
+      recordFailure,
+      saveSubmitted: vi.fn(),
+    };
+
+    await expect(submitMdiIntake(
+      {
+        casePayload,
+        cognitoSub,
+        questionnaireId: fixtureQuestionnaire.questionnaireId,
+        responses,
+      },
+      {
+        gateway: gatewayWithQuestionnaire({
+          createCase: vi.fn(async () => ({
+            ok: true as const,
+            value: {
+              linkage: {
+                mdiCaseId,
+                mdiPatientId: "mdi_patient_foreign_001",
+              },
+            },
+          })),
+        }),
+        now: () => new Date(now),
+        repository,
+      },
+    )).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "provider_unavailable",
+        retryable: false,
       },
     });
 
-    await submitMdiIntake(
-      {
-        cognitoSub,
-        caseId: fixtureQuestionnaire.caseId,
-        patientId: fixtureQuestionnaire.patientId,
-        questionnaireId: fixtureQuestionnaire.questionnaireId,
-        responses: [
-          {
-            questionId: fixtureQuestionnaire.questions[0].questionId,
-            value: "ANSWER_VALUE_SENTINEL",
-          },
-        ],
-      },
-      { gateway, repository },
-    );
-
-    expect(submitResponses).toHaveBeenCalledWith(expect.objectContaining({
-      idempotencyKey: "mdi-intake-idempotency-key",
+    expect(repository.saveSubmitted).not.toHaveBeenCalled();
+    expect(recordFailure).toHaveBeenCalledWith(expect.not.objectContaining({
+      mdiCaseId,
     }));
+    expect(recordFailure).toHaveBeenCalledWith(expect.objectContaining({
+      mdiPatientId,
+      status: "case_provider_terminal_failure",
+    }));
+  });
+
+  it("does not reuse a saved case attempt from a different MDI patient", async () => {
+    const repository = createInMemoryAppDataRepository([
+      createPatientProfileRecord({
+        cognitoSub,
+        now,
+        onboardingStatus: "intake_ready",
+      }),
+    ]);
+    linkMdiPatientCase(repository, {
+      cognitoSub,
+      mdiPatientId,
+      now,
+    });
+    repository.put(createMdiCaseCreateAttemptRecord({
+      attempts: 1,
+      cognitoSub,
+      idempotencyKey: "mdi-case-existing-key",
+      lastAttemptAt: now,
+      mdiCaseId,
+      mdiPatientId: "mdi_patient_foreign_001",
+      now,
+      status: "case_storage_retryable_failure",
+    }));
+    const createCase = vi.fn();
+
+    await expect(submitMdiIntake(
+      {
+        casePayload,
+        cognitoSub,
+        questionnaireId: fixtureQuestionnaire.questionnaireId,
+        responses,
+      },
+      {
+        gateway: gatewayWithQuestionnaire({ createCase }),
+        now: () => new Date("2026-06-20T22:30:00.000Z"),
+        repository: createAppDataMdiIntakeRepository(repository),
+      },
+    )).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "storage_failed",
+      },
+    });
+    expect(createCase).not.toHaveBeenCalled();
   });
 
   it("keeps provider failures patient-safe and answer-free", async () => {
     const gateway = gatewayWithQuestionnaire({
-      submitResponses: vi.fn(async () =>
+      createCase: vi.fn(async () =>
         mdiIntakeFailure(
           "provider_unavailable",
           "MDI provider unavailable",
@@ -343,23 +504,16 @@ describe("MDI intake orchestration", () => {
     const repository = repositoryWithStatus({
       onboardingStatus: "intake_ready",
       linkage: {
-        mdiPatientId: fixtureQuestionnaire.patientId,
-        mdiCaseId: fixtureQuestionnaire.caseId,
+        mdiPatientId,
       },
     });
 
     const result = await submitMdiIntake(
       {
+        casePayload,
         cognitoSub,
-        caseId: fixtureQuestionnaire.caseId,
-        patientId: fixtureQuestionnaire.patientId,
         questionnaireId: fixtureQuestionnaire.questionnaireId,
-        responses: [
-          {
-            questionId: fixtureQuestionnaire.questions[0].questionId,
-            value: "ANSWER_VALUE_SENTINEL",
-          },
-        ],
+        responses,
       },
       { gateway, repository },
     );
@@ -372,6 +526,7 @@ describe("MDI intake orchestration", () => {
       },
     });
     expect(JSON.stringify(result)).not.toContain("ANSWER_VALUE_SENTINEL");
+    expect(JSON.stringify(result)).not.toContain("QUESTION_TEXT_SENTINEL");
   });
 });
 
@@ -379,18 +534,18 @@ function gatewayWithQuestionnaire(
   overrides: Partial<MdiIntakeGateway> = {},
 ): MdiIntakeGateway {
   return {
-    loadQuestionnaire: vi.fn(async () => ({
-      ok: true as const,
-      value: fixtureQuestionnaire,
-    })),
-    submitResponses: vi.fn(async (input) => ({
+    createCase: vi.fn(async (input) => ({
       ok: true as const,
       value: {
         linkage: {
           mdiPatientId: input.patientId,
-          mdiCaseId: input.caseId,
+          mdiCaseId,
         },
       },
+    })),
+    loadQuestionnaire: vi.fn(async () => ({
+      ok: true as const,
+      value: fixtureQuestionnaire,
     })),
     ...overrides,
   };
@@ -408,9 +563,20 @@ function repositoryWithStatus(
     claimSubmission: vi.fn(async () => ({
       ok: true as const,
       value: {
-        claimed: true as const,
-        idempotencyKey: "mdi-intake-idempotency-key",
+        idempotencyKey: "mdi-case-idempotency-key",
+        outcome: "claimed" as const,
       },
+    })),
+    recordFailure: vi.fn(async () => ({
+      ok: true as const,
+      value: createMdiCaseCreateAttemptRecord({
+        attempts: 1,
+        cognitoSub,
+        idempotencyKey: "mdi-case-idempotency-key",
+        mdiPatientId,
+        now,
+        status: "case_provider_retryable_failure",
+      }),
     })),
     saveSubmitted: vi.fn(async (input) => ({
       ok: true as const,

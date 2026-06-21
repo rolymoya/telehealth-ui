@@ -71,6 +71,15 @@ export type MdiCreatedPatient = {
   mdiPatientId: string;
 };
 
+export type MdiCreateCaseInput = {
+  casePayload: Record<string, unknown>;
+  idempotencyKey?: string;
+};
+
+export type MdiCreatedCase = {
+  mdiCaseId: string;
+};
+
 export type MdiQuestionOption = {
   optionId: string;
   label: string;
@@ -158,6 +167,22 @@ export async function createMdiPatient(
       method: "POST",
       parse: parseCreatedPatient,
       path: "/partner/patients",
+    },
+    options,
+  );
+}
+
+export async function createMdiCase(
+  input: MdiCreateCaseInput,
+  options: MdiClientOptions = {},
+) {
+  return requestMdi<MdiCreatedCase>(
+    {
+      body: input.casePayload,
+      idempotencyKey: input.idempotencyKey,
+      method: "POST",
+      parse: parseCreatedCase,
+      path: "/partner/cases",
     },
     options,
   );
@@ -359,6 +384,23 @@ function parseCreatedPatient(payload: unknown): MdiCreatedPatient {
   }
 
   return { mdiPatientId };
+}
+
+function parseCreatedCase(payload: unknown): MdiCreatedCase {
+  if (!isRecord(payload)) {
+    throw new Error("Invalid MDI case response");
+  }
+
+  const mdiCaseId = payload.case_id ?? payload.caseId ?? payload.mdiCaseId;
+  if (typeof mdiCaseId !== "string" || !isMdiCaseId(mdiCaseId)) {
+    throw new Error("Invalid MDI case response fields");
+  }
+
+  return { mdiCaseId };
+}
+
+function isMdiCaseId(value: string) {
+  return /^mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/.test(value);
 }
 
 async function safeJson(response: Awaited<ReturnType<FetchLike>>) {

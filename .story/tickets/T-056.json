@@ -4,13 +4,14 @@
     "T-054",
     "T-055"
   ],
-  "completedDate": null,
+  "claimedBySession": "82f714c1-6075-45f9-8bcb-eba270c4aa17",
+  "completedDate": "2026-06-20",
   "createdDate": "2026-05-19",
   "description": "Create MDI cases and submit questionnaire responses while keeping MDI as the clinical source of truth.\n\n**Scope**\n- Build MDI case creation/submission helpers for the selected condition/offering.\n- Submit questionnaire answers to MDI from transient request state.\n- Store only `mdi_case_id`, case status, timestamps, and non-clinical onboarding/billing pointers in DynamoDB.\n- Fail safely if MDI rejects required disease/offering/question fields.\n\n**Acceptance**\n- A successful flow creates an MDI case and stores only the MDI pointer/status locally.\n- Tests prove questionnaire answer fields are not persisted in DynamoDB, Stripe metadata, logs, analytics, or fixtures.\n- Retrying a failed submission does not create duplicate cases when a prior MDI case ID exists.",
   "id": "T-056",
   "order": 50,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI case creation + questionnaire submission without local retention",
   "type": "feature"
 }

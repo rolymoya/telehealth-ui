@@ -4,6 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createMdiCase,
   createMdiPatient,
   getMdiQuestionnaireQuestions,
   requestMdi,
@@ -156,6 +157,97 @@ describe("MDI HTTP client", () => {
       createMdiPatient({
         patient: {
           first_name: "TRANSIENT_NAME_SENTINEL",
+        },
+      }, clientOptions(fetchMock)),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "invalid_response",
+        retryable: false,
+      },
+    });
+  });
+
+  it("creates an MDI case with transient case questions and an opaque idempotency key", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, { case_id: "mdi_case_created" }));
+
+    await expect(
+      createMdiCase({
+        casePayload: {
+          case_questions: [
+            {
+              answer: "ANSWER_VALUE_SENTINEL",
+              question: "QUESTION_TEXT_SENTINEL",
+            },
+          ],
+          patient_id: "mdi_patient_001",
+        },
+        idempotencyKey: "mdi-case-idempotency-001",
+      }, clientOptions(fetchMock)),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        mdiCaseId: "mdi_case_created",
+      },
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://example.invalid/mdi/partner/cases",
+      expect.objectContaining({
+        body: JSON.stringify({
+          case_questions: [
+            {
+              answer: "ANSWER_VALUE_SENTINEL",
+              question: "QUESTION_TEXT_SENTINEL",
+            },
+          ],
+          patient_id: "mdi_patient_001",
+        }),
+        headers: expect.objectContaining({
+          authorization: "Bearer mdi_access_token_001",
+          "content-type": "application/json",
+          "idempotency-key": "mdi-case-idempotency-001",
+        }),
+        method: "POST",
+      }),
+    );
+  });
+
+  it("rejects ambiguous MDI case create responses", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, { id: "generic_response_id", status: "created" }));
+
+    await expect(
+      createMdiCase({
+        casePayload: {
+          patient_id: "mdi_patient_001",
+        },
+      }, clientOptions(fetchMock)),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "invalid_response",
+        retryable: false,
+      },
+    });
+  });
+
+  it("rejects PHI-shaped MDI case identifiers", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, { case_id: "patient@example.invalid" }));
+
+    await expect(
+      createMdiCase({
+        casePayload: {
+          patient_id: "mdi_patient_001",
         },
       }, clientOptions(fetchMock)),
     ).resolves.toMatchObject({

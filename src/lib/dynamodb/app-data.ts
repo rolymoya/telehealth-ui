@@ -129,6 +129,29 @@ export type MdiPatientCreateAttemptRecord = BaseRecord & {
   mdiPatientId?: string;
 };
 
+export type MdiCaseCreateStatus =
+  | "claiming_case"
+  | "case_provider_retryable_failure"
+  | "case_provider_terminal_failure"
+  | "case_storage_retryable_failure"
+  | "submitted";
+
+export type MdiCaseCreateAttemptRecord = BaseRecord & {
+  recordType: "mdiCaseCreateAttempt";
+  cognitoSub: string;
+  status: MdiCaseCreateStatus;
+  attempts: number;
+  idempotencyKey: string;
+  claimExpiresAt?: string;
+  lastAttemptAt?: string;
+  linkedAt?: string;
+  submittedAt?: string;
+  providerStatus?: number;
+  mdiPatientId?: string;
+  mdiCaseId?: string;
+  mdiSubmissionId?: string;
+};
+
 export type StripeLinkageRecord = BaseRecord & {
   recordType: "stripeLinkage";
   cognitoSub: string;
@@ -236,6 +259,7 @@ export type AppDataRecord =
   | MdiLinkageRecord
   | MdiReverseLookupRecord
   | MdiPatientCreateAttemptRecord
+  | MdiCaseCreateAttemptRecord
   | StripeLinkageRecord
   | StripeReverseLookupRecord
   | ConsentEvidenceRecord
@@ -294,6 +318,10 @@ export function mdiCaseReverseKey(mdiCaseId: string): AppDataKey {
 
 export function mdiPatientCreateAttemptKey(cognitoSub: string): AppDataKey {
   return { pk: `PATIENT#${cognitoSub}`, sk: "MDI#PATIENT_CREATE" };
+}
+
+export function mdiCaseCreateAttemptKey(cognitoSub: string): AppDataKey {
+  return { pk: `PATIENT#${cognitoSub}`, sk: "MDI#CASE_CREATE" };
 }
 
 export function stripeLinkageKey(cognitoSub: string): AppDataKey {
@@ -615,6 +643,20 @@ export function getMdiPatientCreateAttempt(
   }
   if (record.value.recordType !== "mdiPatientCreateAttempt") {
     return err("validation_failed", "MDI patient create attempt key contains another record type");
+  }
+  return ok(record.value);
+}
+
+export function getMdiCaseCreateAttempt(
+  repository: AppDataRepository,
+  cognitoSub: string,
+): AppDataResult<MdiCaseCreateAttemptRecord | null> {
+  const record = repository.get(mdiCaseCreateAttemptKey(cognitoSub));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<MdiCaseCreateAttemptRecord | null>;
+  }
+  if (record.value.recordType !== "mdiCaseCreateAttempt") {
+    return err("validation_failed", "MDI case create attempt key contains another record type");
   }
   return ok(record.value);
 }
@@ -942,6 +984,114 @@ export function createMdiPatientCreateAttemptRecord(input: {
     ...(input.mdiPatientId ? { mdiPatientId: input.mdiPatientId } : {}),
     ...(input.providerStatus ? { providerStatus: input.providerStatus } : {}),
     ...(input.retryAfterSeconds ? { retryAfterSeconds: input.retryAfterSeconds } : {}),
+  };
+}
+
+export function linkMdiCaseIfAbsent(
+  repository: AppDataRepository,
+  input: {
+    cognitoSub: string;
+    mdiPatientId: string;
+    mdiCaseId: string;
+    now: string;
+  },
+): AppDataResult<MdiLinkageRecord> {
+  const existingLinkage = repository.get(mdiLinkageKey(input.cognitoSub));
+  if (!existingLinkage.ok) {
+    return existingLinkage;
+  }
+  if (!existingLinkage.value) {
+    return err("not_found", "MDI patient linkage was not found");
+  }
+  if (existingLinkage.value.recordType !== "mdiLinkage") {
+    return err("validation_failed", "MDI linkage key contains another record type");
+  }
+  if (existingLinkage.value.mdiPatientId !== input.mdiPatientId) {
+    return err("stale_transition", "MDI patient linkage did not match case creation input");
+  }
+  if (existingLinkage.value.mdiCaseId) {
+    return ok(existingLinkage.value);
+  }
+
+  const linkage: MdiLinkageRecord = {
+    ...existingLinkage.value,
+    mdiCaseId: input.mdiCaseId,
+    updatedAt: input.now,
+  };
+
+  const reverseRecord: MdiReverseLookupRecord = {
+    ...mdiCaseReverseKey(input.mdiCaseId),
+    recordType: "mdiReverseLookup",
+    schemaVersion: 1,
+    cognitoSub: input.cognitoSub,
+    pointerType: "case",
+    mdiCaseId: input.mdiCaseId,
+    createdAt: input.now,
+    updatedAt: input.now,
+  };
+
+  const reverseCheck = partitionReverseRecords(repository, [reverseRecord], input.cognitoSub);
+  if (!reverseCheck.ok) {
+    return reverseCheck;
+  }
+
+  const transaction = repository.transactWrite([
+    { type: "update", record: linkage, expected: existingLinkage.value },
+    ...reverseCheck.value.map((record) => ({
+      type: "put" as const,
+      record,
+      ifNotExists: true,
+    })),
+  ]);
+  if (!transaction.ok) {
+    if (transaction.error.kind !== "conditional_conflict") {
+      return transaction;
+    }
+    const reread = repository.get(mdiLinkageKey(input.cognitoSub));
+    if (!reread.ok) {
+      return reread;
+    }
+    if (reread.value?.recordType === "mdiLinkage" && reread.value.mdiCaseId) {
+      return ok(reread.value);
+    }
+    return transaction;
+  }
+  return ok(linkage);
+}
+
+export function createMdiCaseCreateAttemptRecord(input: {
+  attempts: number;
+  cognitoSub: string;
+  idempotencyKey: string;
+  now: string;
+  status: MdiCaseCreateStatus;
+  claimExpiresAt?: string;
+  lastAttemptAt?: string;
+  linkedAt?: string;
+  submittedAt?: string;
+  mdiPatientId?: string;
+  mdiCaseId?: string;
+  mdiSubmissionId?: string;
+  providerStatus?: number;
+}): MdiCaseCreateAttemptRecord {
+  return {
+    ...mdiCaseCreateAttemptKey(input.cognitoSub),
+    recordType: "mdiCaseCreateAttempt",
+    schemaVersion: 1,
+    cognitoSub: input.cognitoSub,
+    status: input.status,
+    attempts: input.attempts,
+    idempotencyKey: input.idempotencyKey,
+    createdAt: input.now,
+    updatedAt: input.now,
+    ...(input.claimExpiresAt ? { claimExpiresAt: input.claimExpiresAt } : {}),
+    ...(input.lastAttemptAt ? { lastAttemptAt: input.lastAttemptAt } : {}),
+    ...(input.linkedAt ? { linkedAt: input.linkedAt } : {}),
+    ...(input.submittedAt ? { submittedAt: input.submittedAt } : {}),
+    ...(input.mdiPatientId ? { mdiPatientId: input.mdiPatientId } : {}),
+    ...(input.mdiCaseId ? { mdiCaseId: input.mdiCaseId } : {}),
+    ...(input.mdiSubmissionId ? { mdiSubmissionId: input.mdiSubmissionId } : {}),
+    ...(input.providerStatus ? { providerStatus: input.providerStatus } : {}),
   };
 }
 
@@ -1830,7 +1980,8 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
     case "mdiLinkage":
       return typeof record.cognitoSub === "string" &&
         typeof record.mdiPatientId === "string" &&
-        optionalString(record.mdiCaseId) &&
+        isMdiPatientId(record.mdiPatientId) &&
+        optionalMdiCaseId(record.mdiCaseId) &&
         keysMatch(record, mdiLinkageKey(record.cognitoSub))
         ? ok(record)
         : err("validation_failed", "Invalid MDI linkage record");
@@ -1852,6 +2003,24 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         keysMatch(record, mdiPatientCreateAttemptKey(record.cognitoSub))
         ? ok(record)
         : err("validation_failed", "Invalid MDI patient create attempt record");
+    case "mdiCaseCreateAttempt":
+      return typeof record.cognitoSub === "string" &&
+        isMdiCaseCreateStatus(record.status) &&
+        Number.isInteger(record.attempts) &&
+        record.attempts >= 0 &&
+        typeof record.idempotencyKey === "string" &&
+        record.idempotencyKey.length > 0 &&
+        optionalIsoDate(record.claimExpiresAt) &&
+        optionalIsoDate(record.lastAttemptAt) &&
+        optionalIsoDate(record.linkedAt) &&
+        optionalIsoDate(record.submittedAt) &&
+        optionalHttpStatus(record.providerStatus) &&
+        optionalMdiPatientId(record.mdiPatientId) &&
+        optionalMdiCaseId(record.mdiCaseId) &&
+        optionalMdiSubmissionId(record.mdiSubmissionId) &&
+        keysMatch(record, mdiCaseCreateAttemptKey(record.cognitoSub))
+        ? ok(record)
+        : err("validation_failed", "Invalid MDI case create attempt record");
     case "stripeLinkage":
       return typeof record.cognitoSub === "string" &&
         typeof record.stripeCustomerId === "string" &&
@@ -2352,6 +2521,10 @@ function optionalMdiCaseId(value: unknown) {
   return value === undefined || (typeof value === "string" && isMdiCaseId(value));
 }
 
+function optionalMdiSubmissionId(value: unknown) {
+  return value === undefined || (typeof value === "string" && isMdiSubmissionId(value));
+}
+
 function optionalStripeCustomerId(value: unknown) {
   return value === undefined || (typeof value === "string" && isStripeCustomerId(value));
 }
@@ -2392,6 +2565,10 @@ function isMdiPatientId(value: string) {
 
 function isMdiCaseId(value: string) {
   return isSafeIdentifier(value, /^mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isMdiSubmissionId(value: string) {
+  return isSafeIdentifier(value, /^mdi_submission_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
 }
 
 function isStripeCustomerId(value: string) {
@@ -2521,6 +2698,10 @@ function isWebhookStatus(value: unknown): value is WebhookProcessingStatus {
 
 function isMdiPatientCreateStatus(value: unknown): value is MdiPatientCreateStatus {
   return mdiPatientCreateStatuses.has(value as MdiPatientCreateStatus);
+}
+
+function isMdiCaseCreateStatus(value: unknown): value is MdiCaseCreateStatus {
+  return mdiCaseCreateStatuses.has(value as MdiCaseCreateStatus);
 }
 
 function isAtOrBefore(leftIso: string, rightIso: string) {
@@ -2664,6 +2845,14 @@ const mdiPatientCreateStatuses = new Set<MdiPatientCreateStatus>([
   "provider_terminal_failure",
   "storage_retryable_failure",
   "linked",
+]);
+
+const mdiCaseCreateStatuses = new Set<MdiCaseCreateStatus>([
+  "claiming_case",
+  "case_provider_retryable_failure",
+  "case_provider_terminal_failure",
+  "case_storage_retryable_failure",
+  "submitted",
 ]);
 
 const defaultEvidenceEventPageLimit = 25;
@@ -2825,6 +3014,20 @@ const allowedFields: Record<string, Set<string>> = {
     "retryAfterSeconds",
     "providerStatus",
     "mdiPatientId",
+  ),
+  mdiCaseCreateAttempt: allow(
+    "cognitoSub",
+    "status",
+    "attempts",
+    "idempotencyKey",
+    "claimExpiresAt",
+    "lastAttemptAt",
+    "linkedAt",
+    "submittedAt",
+    "providerStatus",
+    "mdiPatientId",
+    "mdiCaseId",
+    "mdiSubmissionId",
   ),
   stripeLinkage: allow(
     "cognitoSub",

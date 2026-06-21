@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   type AppDataRepository,
   claimWebhookEvent,
+  createMdiCaseCreateAttemptRecord,
   createMdiPatientCreateAttemptRecord,
   createInMemoryAppDataRepository,
+  linkMdiCaseIfAbsent,
   createMdiPatientLinkageIfAbsent,
   createPatientProfileRecord,
   createWebhookEvidenceEventId,
@@ -16,6 +18,7 @@ import {
   getConsentEvidence,
   getRequiredConsentEvidenceStatus,
   legacyConsentEvidenceKey,
+  getMdiCaseCreateAttempt,
   getMdiPatientCreateAttempt,
   getMdiLinkage,
   getPatientProfile,
@@ -83,8 +86,8 @@ describe("DynamoDB app-data helpers", () => {
     });
     const mdi = linkMdiPatientCase(repository, {
       cognitoSub: "cognito-sub-001",
-      mdiCaseId: "mdi-case-001",
-      mdiPatientId: "mdi-patient-001",
+      mdiCaseId: "mdi_case_001",
+      mdiPatientId: "mdi_patient_001",
       now,
     });
     const stripe = linkStripeCustomer(repository, {
@@ -321,6 +324,124 @@ describe("DynamoDB app-data helpers", () => {
     expect(validateAppDataRecord({
       ...attempt,
       answers: ["forbidden"],
+    })).toMatchObject({
+      ok: false,
+      error: {
+        kind: "validation_failed",
+      },
+    });
+  });
+
+  it("adds an immutable MDI case pointer to an existing patient linkage", () => {
+    const repository = createInMemoryAppDataRepository();
+    linkMdiPatientCase(repository, {
+      cognitoSub: "cognito-sub-001",
+      mdiPatientId: "mdi_patient_001",
+      now,
+    });
+
+    expect(linkMdiCaseIfAbsent(repository, {
+      cognitoSub: "cognito-sub-001",
+      mdiCaseId: "mdi_case_001",
+      mdiPatientId: "mdi_patient_001",
+      now,
+    })).toMatchObject({
+      ok: true,
+      value: {
+        mdiCaseId: "mdi_case_001",
+      },
+    });
+    expect(linkMdiCaseIfAbsent(repository, {
+      cognitoSub: "cognito-sub-001",
+      mdiCaseId: "mdi_case_002",
+      mdiPatientId: "mdi_patient_001",
+      now: "2026-06-04T18:05:00.000Z",
+    })).toMatchObject({
+      ok: true,
+      value: {
+        mdiCaseId: "mdi_case_001",
+      },
+    });
+    expect(findPatientByMdiPointer(repository, {
+      mdiCaseId: "mdi_case_002",
+      pointerType: "case",
+    })).toEqual({ ok: true, value: null });
+  });
+
+  it("does not link a case when the reverse lookup belongs to another patient", () => {
+    const repository = createInMemoryAppDataRepository();
+    linkMdiPatientCase(repository, {
+      cognitoSub: "cognito-sub-001",
+      mdiPatientId: "mdi_patient_001",
+      now,
+    });
+    linkMdiPatientCase(repository, {
+      cognitoSub: "cognito-sub-002",
+      mdiCaseId: "mdi_case_001",
+      mdiPatientId: "mdi_patient_002",
+      now,
+    });
+
+    expect(linkMdiCaseIfAbsent(repository, {
+      cognitoSub: "cognito-sub-001",
+      mdiCaseId: "mdi_case_001",
+      mdiPatientId: "mdi_patient_001",
+      now: "2026-06-04T18:05:00.000Z",
+    })).toMatchObject({
+      ok: false,
+      error: {
+        kind: "conditional_conflict",
+      },
+    });
+    expect(getMdiLinkage(repository, "cognito-sub-001")).toMatchObject({
+      ok: true,
+      value: {
+        mdiCaseId: undefined,
+        mdiPatientId: "mdi_patient_001",
+      },
+    });
+  });
+
+  it("validates MDI case create attempt records without answer or payload fields", () => {
+    const repository = createInMemoryAppDataRepository();
+    const attempt = createMdiCaseCreateAttemptRecord({
+      attempts: 1,
+      cognitoSub: "cognito-sub-001",
+      idempotencyKey: "mdi-case-idempotency",
+      lastAttemptAt: now,
+      mdiCaseId: "mdi_case_001",
+      mdiPatientId: "mdi_patient_001",
+      now,
+      providerStatus: 503,
+      status: "case_storage_retryable_failure",
+    });
+
+    expect(repository.put(attempt)).toEqual({ ok: true, value: attempt });
+    expect(getMdiCaseCreateAttempt(repository, "cognito-sub-001")).toEqual({
+      ok: true,
+      value: attempt,
+    });
+    expect(validateAppDataRecord({
+      ...attempt,
+      payload: { answer: "forbidden" },
+    })).toMatchObject({
+      ok: false,
+      error: {
+        kind: "validation_failed",
+      },
+    });
+    expect(validateAppDataRecord({
+      ...attempt,
+      mdiCaseId: "patient@example.invalid",
+    })).toMatchObject({
+      ok: false,
+      error: {
+        kind: "validation_failed",
+      },
+    });
+    expect(validateAppDataRecord({
+      ...attempt,
+      mdiSubmissionId: "questionnaire answer says yes",
     })).toMatchObject({
       ok: false,
       error: {
