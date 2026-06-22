@@ -446,7 +446,6 @@ describe("ServerlessPlatformStack", () => {
       AutoVerifiedAttributes: ["email"],
       EmailConfiguration: {
         EmailSendingAccount: "COGNITO_DEFAULT",
-        From: "Apoth <contact@apothhealth.com>",
         ReplyToEmailAddress: "contact@apothhealth.com",
         SourceArn: Match.anyValue(),
       },
@@ -474,19 +473,17 @@ describe("ServerlessPlatformStack", () => {
       GenerateSecret: Match.absent(),
       PreventUserExistenceErrors: "ENABLED",
     });
-    expect(JSON.stringify(template.toJSON())).toContain("identity/apothhealth.com");
+    expect(JSON.stringify(template.toJSON())).toContain("identity/contact@apothhealth.com");
   });
 
   it("keeps the auth email sender on the verified Apoth domain", () => {
     expect(getStageConfig("staging")).toMatchObject({
       authEmailDomain: "apothhealth.com",
       authEmailFromAddress: "contact@apothhealth.com",
-      authEmailFromName: "Apoth",
     });
     expect(getStageConfig("production")).toMatchObject({
       authEmailDomain: "apothhealth.com",
       authEmailFromAddress: "contact@apothhealth.com",
-      authEmailFromName: "Apoth",
     });
   });
 

@@ -113,12 +113,11 @@ export class ServerlessPlatformStack extends Stack {
     const userPoolResource = userPool.node.defaultChild as CfnUserPool;
     userPoolResource.emailConfiguration = {
       emailSendingAccount: "COGNITO_DEFAULT",
-      from: `${props.config.authEmailFromName} <${props.config.authEmailFromAddress}>`,
       replyToEmailAddress: props.config.authEmailFromAddress,
       sourceArn: this.formatArn({
         service: "ses",
         resource: "identity",
-        resourceName: props.config.authEmailDomain,
+        resourceName: props.config.authEmailFromAddress,
       }),
     };
 

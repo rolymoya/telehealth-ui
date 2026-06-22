@@ -12,7 +12,6 @@ export type StageConfig = {
   allowedOrigins: string[];
   authEmailDomain: string;
   authEmailFromAddress: string;
-  authEmailFromName: string;
   mdiQuestionnaireId: string;
   tags: Record<string, string>;
 };
@@ -41,7 +40,6 @@ export function getStageConfig(stage: string): StageConfig {
       : ["http://localhost:3000"],
     authEmailDomain: "apothhealth.com",
     authEmailFromAddress: "contact@apothhealth.com",
-    authEmailFromName: "Apoth",
     mdiQuestionnaireId: process.env.APOTH_MDI_QUESTIONNAIRE_ID ??
       "mdi_questionnaire_launch",
     tags: {
