@@ -236,11 +236,72 @@ exports.handler = async () => ({
     );
     appTable.grant(scheduledHeartbeatFunction, "dynamodb:UpdateItem");
 
+    const mdiCaseReconciliationFunction = new NodejsFunction(
+      this,
+      "MdiCaseReconciliationFunction",
+      {
+        functionName: `apoth-${props.config.stage}-mdi-case-reconciliation`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "handler",
+        entry: path.join(__dirname, "lambda", "mdi-case-reconciliation.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(60),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_MDI_CASE_RECONCILIATION_LIMIT: "5",
+          APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
+          APOTH_STAGE: props.config.stage,
+          JOB_NAME: "mdi-case-reconciliation",
+        },
+        logGroup: new LogGroup(this, "MdiCaseReconciliationFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-mdi-case-reconciliation`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      mdiCaseReconciliationFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:Query",
+      "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
+    );
+    mdiCaseReconciliationFunction.addToRolePolicy(new PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        this.formatArn({
+          service: "secretsmanager",
+          resource: "secret",
+          resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
+        }),
+      ],
+    }));
+
     new Rule(this, "ScheduledHeartbeatRule", {
       ruleName: `apoth-${props.config.stage}-scheduled-heartbeat`,
       schedule: Schedule.rate(Duration.minutes(15)),
       targets: [
         new LambdaFunction(scheduledHeartbeatFunction, {
+          retryAttempts: 1,
+          maxEventAge: Duration.hours(1),
+        }),
+      ],
+    });
+
+    new Rule(this, "MdiCaseReconciliationRule", {
+      ruleName: `apoth-${props.config.stage}-mdi-case-reconciliation`,
+      schedule: Schedule.rate(Duration.hours(6)),
+      targets: [
+        new LambdaFunction(mdiCaseReconciliationFunction, {
           retryAttempts: 1,
           maxEventAge: Duration.hours(1),
         }),
@@ -256,6 +317,24 @@ exports.handler = async () => ({
     const scheduledHeartbeatErrorsMetric = scheduledHeartbeatFunction.metricErrors({
       period: Duration.minutes(5),
       statistic: "Sum",
+    });
+    const mdiCaseReconciliationErrorsMetric = mdiCaseReconciliationFunction.metricErrors({
+      period: Duration.minutes(5),
+      statistic: "Sum",
+    });
+    const mdiCaseReconciliationDriftMetric = new Metric({
+      namespace: "Apoth/ScheduledJobs",
+      metricName: "MdiCaseReconciliationCorrections",
+      dimensionsMap: {
+        Stage: props.config.stage,
+        Provider: "mdi",
+        Outcome: "recorded",
+        ReasonCode: "case_status_reconciliation",
+        RouteGroup: "scheduled",
+      },
+      period: Duration.minutes(5),
+      statistic: "Sum",
+      unit: Unit.COUNT,
     });
 
     new Alarm(this, "WebhookDlqMessagesAlarm", {
@@ -284,6 +363,28 @@ exports.handler = async () => ({
       alarmName: `apoth-${props.config.stage}-scheduled-heartbeat-errors`,
       alarmDescription: "Active alarm: scheduled heartbeat Lambda is failing.",
       metric: scheduledHeartbeatErrorsMetric,
+      threshold: 0,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    });
+
+    new Alarm(this, "MdiCaseReconciliationFailuresAlarm", {
+      alarmName: `apoth-${props.config.stage}-mdi-case-reconciliation-errors`,
+      alarmDescription: "Active alarm: MDI case-status reconciliation Lambda is failing; follow the launch ops runbook.",
+      metric: mdiCaseReconciliationErrorsMetric,
+      threshold: 0,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    });
+
+    new Alarm(this, "MdiCaseReconciliationDriftAlarm", {
+      alarmName: `apoth-${props.config.stage}-mdi-case-reconciliation-drift`,
+      alarmDescription: "Active alarm: MDI case-status reconciliation corrected local drift; follow the launch ops runbook.",
+      metric: mdiCaseReconciliationDriftMetric,
       threshold: 0,
       evaluationPeriods: 1,
       datapointsToAlarm: 1,
@@ -377,6 +478,8 @@ exports.handler = async () => ({
         apiClientError: apiClientErrorMetric,
         apiServerError: apiServerErrorMetric,
         scheduledHeartbeatErrors: scheduledHeartbeatErrorsMetric,
+        mdiCaseReconciliationErrors: mdiCaseReconciliationErrorsMetric,
+        mdiCaseReconciliationDrift: mdiCaseReconciliationDriftMetric,
         webhookDlqVisible: webhookDlqVisibleMetric,
         webhookOldestMessageAge: webhookOldestMessageAgeMetric,
       },
@@ -898,7 +1001,11 @@ function handler(event) {
       }),
       new GraphWidget({
         title: "Scheduled job failures",
-        left: [activeMetrics.scheduledHeartbeatErrors],
+        left: [
+          activeMetrics.scheduledHeartbeatErrors,
+          activeMetrics.mdiCaseReconciliationErrors,
+          activeMetrics.mdiCaseReconciliationDrift,
+        ],
       }),
       new GraphWidget({
         title: "Stripe webhook failures and lag",
@@ -968,6 +1075,8 @@ type ObservabilityMetricContract = {
 type ActiveObservabilityMetrics = {
   apiClientError: Metric;
   apiServerError: Metric;
+  mdiCaseReconciliationDrift: Metric;
+  mdiCaseReconciliationErrors: Metric;
   scheduledHeartbeatErrors: Metric;
   webhookDlqVisible: Metric;
   webhookOldestMessageAge: Metric;

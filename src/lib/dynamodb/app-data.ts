@@ -164,6 +164,18 @@ export type MdiCaseStatusMirrorRecord = BaseRecord & {
   terminal: boolean;
 };
 
+export type MdiCaseStatusReconciliationIndexRecord = BaseRecord & {
+  recordType: "mdiCaseStatusReconciliationIndex";
+  cognitoSub: string;
+  mdiPatientId: string;
+  mdiCaseId: string;
+  caseStatus: MdiMirroredCaseStatus;
+  providerTimestamp: string;
+  webhookEventId: string;
+  statusRank: number;
+  terminal: boolean;
+};
+
 export type StripeLinkageRecord = BaseRecord & {
   recordType: "stripeLinkage";
   cognitoSub: string;
@@ -264,6 +276,8 @@ export type OperationalStatusRecord = BaseRecord & {
   lastHeartbeatAt?: string;
   lastScheduledAt?: string;
   lastRequestId?: string;
+  lastCursorPk?: string;
+  lastCursorSk?: string;
 };
 
 export type AppDataRecord =
@@ -273,6 +287,7 @@ export type AppDataRecord =
   | MdiPatientCreateAttemptRecord
   | MdiCaseCreateAttemptRecord
   | MdiCaseStatusMirrorRecord
+  | MdiCaseStatusReconciliationIndexRecord
   | StripeLinkageRecord
   | StripeReverseLookupRecord
   | ConsentEvidenceRecord
@@ -300,6 +315,13 @@ export type TransactWriteOperation =
   | { type: "put"; record: AppDataRecord; ifNotExists?: boolean }
   | { type: "update"; record: AppDataRecord; expected?: AppDataRecord }
   | { type: "delete"; key: AppDataKey; expected?: AppDataRecord };
+
+export type RecordCurrentMdiCaseStatusEvidenceInput =
+  Parameters<typeof createEvidenceEventRecord>[0] & {
+    caseStatus: MdiMirroredCaseStatus;
+    statusRank: number;
+    terminal: boolean;
+  };
 
 export type MdiMirroredCaseStatus =
   | "assigned"
@@ -346,6 +368,12 @@ export function mdiCaseReverseKey(mdiCaseId: string): AppDataKey {
 export function mdiCaseStatusMirrorKey(mdiCaseId: string): AppDataKey {
   return { pk: `MDI#CASE#${mdiCaseId}`, sk: "STATUS#CURRENT" };
 }
+
+export function mdiCaseStatusReconciliationIndexKey(mdiCaseId: string): AppDataKey {
+  return { pk: mdiCaseStatusReconciliationIndexPk, sk: `CASE#${mdiCaseId}` };
+}
+
+export const mdiCaseStatusReconciliationIndexPk = "MDI#CASE_STATUS_RECONCILIATION#ACTIVE";
 
 export function mdiPatientCreateAttemptKey(cognitoSub: string): AppDataKey {
   return { pk: `PATIENT#${cognitoSub}`, sk: "MDI#PATIENT_CREATE" };
@@ -570,10 +598,10 @@ export function createInMemoryAppDataRepository(
         if (operation.type === "delete") {
           const key = compoundKey(operation.key);
           const existing = stagedGet(operation.key);
-          if (!existing) {
+          if (!existing && operation.expected) {
             return err("not_found", `Record not found for ${key}`);
           }
-          if (operation.expected && !recordsEqual(existing, operation.expected)) {
+          if (existing && operation.expected && !recordsEqual(existing, operation.expected)) {
             return err("conditional_conflict", `Expected record did not match ${key}`);
           }
           staged.set(key, null);
@@ -1859,11 +1887,7 @@ export function recordEvidenceEvent(
 
 export function recordCurrentMdiCaseStatusEvidence(
   repository: AppDataRepository,
-  input: Parameters<typeof createEvidenceEventRecord>[0] & {
-    caseStatus: MdiMirroredCaseStatus;
-    statusRank: number;
-    terminal: boolean;
-  },
+  input: RecordCurrentMdiCaseStatusEvidenceInput,
 ): AppDataResult<{ applied: boolean; record: EvidenceEventRecord }> {
   const record = createEvidenceEventRecord(input);
   const writes = createEvidenceEventWriteOperations(record);
@@ -1909,11 +1933,29 @@ export function recordCurrentMdiCaseStatusEvidence(
       updatedAt: record.recordedAt,
       webhookEventId: record.webhookEventId,
     };
+    const reconciliationIndex: MdiCaseStatusReconciliationIndexRecord = {
+      ...mdiCaseStatusReconciliationIndexKey(record.mdiCaseId),
+      recordType: "mdiCaseStatusReconciliationIndex",
+      schemaVersion: 1,
+      caseStatus: input.caseStatus,
+      cognitoSub: record.cognitoSub,
+      createdAt: existing.value?.createdAt ?? record.recordedAt,
+      mdiCaseId: record.mdiCaseId,
+      mdiPatientId: record.mdiPatientId,
+      providerTimestamp: record.occurredAt,
+      statusRank: input.statusRank,
+      terminal: input.terminal,
+      updatedAt: record.recordedAt,
+      webhookEventId: record.webhookEventId,
+    };
 
     const written = repository.transactWrite([
       existing.value
         ? { type: "update", record: mirror, expected: existing.value }
         : { type: "put", record: mirror, ifNotExists: true },
+      input.terminal
+        ? { type: "delete", key: mdiCaseStatusReconciliationIndexKey(record.mdiCaseId) }
+        : { type: "put", record: reconciliationIndex },
       ...writes.value.operations,
     ]);
     if (written.ok) {
@@ -1925,6 +1967,42 @@ export function recordCurrentMdiCaseStatusEvidence(
   }
 
   return err("conditional_conflict", "MDI case status mirror update conflicted");
+}
+
+export function listMdiCaseStatusReconciliationItems(
+  repository: Pick<AppDataRepository, "queryByKeyPrefix">,
+  input: {
+    exclusiveStartKey?: AppDataKey;
+    includeTerminal?: boolean;
+    limit?: number;
+  } = {},
+): AppDataResult<{
+  items: MdiCaseStatusReconciliationIndexRecord[];
+  nextKey?: AppDataKey;
+}> {
+  const limit = input.limit ?? 100;
+  const queried = repository.queryByKeyPrefix({
+    pk: mdiCaseStatusReconciliationIndexPk,
+    skPrefix: "CASE#",
+    limit,
+    exclusiveStartKey: input.exclusiveStartKey,
+  });
+  if (!queried.ok) {
+    return queried;
+  }
+
+  const items: MdiCaseStatusReconciliationIndexRecord[] = [];
+  for (const record of queried.value.items) {
+    if (record.recordType !== "mdiCaseStatusReconciliationIndex") {
+      return err("validation_failed", "MDI case status reconciliation index contained another record type");
+    }
+    if (!input.includeTerminal && record.terminal) {
+      return err("validation_failed", "Terminal MDI case status record found in active reconciliation index");
+    }
+    items.push(record);
+  }
+
+  return ok({ items, nextKey: queried.value.nextKey });
 }
 
 function isIncomingMdiCaseStatusCurrent(
@@ -2173,6 +2251,21 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         keysMatch(record, mdiCaseStatusMirrorKey(record.mdiCaseId))
         ? ok(record)
         : err("validation_failed", "Invalid MDI case status mirror record");
+    case "mdiCaseStatusReconciliationIndex":
+      return typeof record.cognitoSub === "string" &&
+        isCognitoSub(record.cognitoSub) &&
+        isMdiPatientId(record.mdiPatientId) &&
+        isMdiCaseId(record.mdiCaseId) &&
+        isMdiMirroredCaseStatus(record.caseStatus) &&
+        isWebhookEventIdForProvider("mdi", record.webhookEventId) &&
+        optionalIsoDate(record.providerTimestamp) &&
+        typeof record.statusRank === "number" &&
+        Number.isInteger(record.statusRank) &&
+        record.statusRank >= 0 &&
+        typeof record.terminal === "boolean" &&
+        keysMatch(record, mdiCaseStatusReconciliationIndexKey(record.mdiCaseId))
+        ? ok(record)
+        : err("validation_failed", "Invalid MDI case status reconciliation index record");
     case "stripeLinkage":
       return typeof record.cognitoSub === "string" &&
         typeof record.stripeCustomerId === "string" &&
@@ -2228,6 +2321,8 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         optionalIsoDate(record.lastHeartbeatAt) &&
         optionalIsoDate(record.lastScheduledAt) &&
         optionalString(record.lastRequestId) &&
+        optionalString(record.lastCursorPk) &&
+        optionalString(record.lastCursorSk) &&
         keysMatch(record, operationalStatusKey(record.name))
         ? ok(record)
         : err("validation_failed", "Invalid operational status record");
@@ -3391,6 +3486,16 @@ const allowedFields: Record<string, Set<string>> = {
     "statusRank",
     "terminal",
   ),
+  mdiCaseStatusReconciliationIndex: allow(
+    "cognitoSub",
+    "mdiPatientId",
+    "mdiCaseId",
+    "caseStatus",
+    "providerTimestamp",
+    "webhookEventId",
+    "statusRank",
+    "terminal",
+  ),
   stripeLinkage: allow(
     "cognitoSub",
     "stripeCustomerId",
@@ -3466,6 +3571,8 @@ const allowedFields: Record<string, Set<string>> = {
     "lastHeartbeatAt",
     "lastScheduledAt",
     "lastRequestId",
+    "lastCursorPk",
+    "lastCursorSk",
   ),
 };
 

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createMdiCase,
   createMdiPatient,
+  getMdiCaseStatus,
   getMdiFileUploadWorkflowUrl,
   getMdiIntroVideoWorkflowUrl,
   getMdiMessagingWorkflowUrl,
@@ -239,6 +240,40 @@ describe("MDI HTTP client", () => {
         }),
         method: "POST",
       }),
+    );
+  });
+
+  it("retrieves only the minimal MDI case status snapshot from a PHI-heavy case payload", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        case_id: "mdi_case_001",
+        case_status: {
+          name: "Case Clinically Approved",
+          updated_at: "2026-06-20T15:30:00.000Z",
+        },
+        patient: {
+          first_name: "TRANSIENT_NAME_SENTINEL",
+          allergies: "TRANSIENT_ALLERGY_SENTINEL",
+        },
+        prescription: {
+          medication_name: "TRANSIENT_MEDICATION_SENTINEL",
+        },
+      }));
+
+    const result = await getMdiCaseStatus({ mdiCaseId: "mdi_case_001" }, clientOptions(fetchMock));
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        caseStatus: "billing_ready",
+        mdiCaseId: "mdi_case_001",
+        providerTimestamp: "2026-06-20T15:30:00.000Z",
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /TRANSIENT_NAME_SENTINEL|TRANSIENT_ALLERGY_SENTINEL|TRANSIENT_MEDICATION_SENTINEL/,
     );
   });
 

@@ -14,12 +14,14 @@ import {
   type BillingStatus,
   type ConsentEvidenceRecord,
   type EvidenceEventRecord,
+  type MdiCaseStatusReconciliationIndexRecord,
   type MdiCaseStatusMirrorRecord,
   type MdiLinkageRecord,
   type MdiMirroredCaseStatus,
   type MdiReverseLookupRecord,
   type OnboardingStatus,
   type PatientProfileRecord,
+  type RecordCurrentMdiCaseStatusEvidenceInput,
   type StripeLinkageRecord,
   type StripeReverseLookupRecord,
   type TransactWriteOperation,
@@ -33,6 +35,8 @@ import {
   createPatientProfileRecord,
   isIdempotentEvidenceReplay,
   mdiCaseReverseKey,
+  mdiCaseStatusReconciliationIndexPk,
+  mdiCaseStatusReconciliationIndexKey,
   mdiCaseStatusMirrorKey,
   mdiLinkageKey,
   mdiPatientReverseKey,
@@ -656,11 +660,7 @@ export async function recordEvidenceEventDynamoDb(
 
 export async function recordCurrentMdiCaseStatusEvidenceDynamoDb(
   repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
-  input: Parameters<typeof createEvidenceEventRecord>[0] & {
-    caseStatus: MdiMirroredCaseStatus;
-    statusRank: number;
-    terminal: boolean;
-  },
+  input: RecordCurrentMdiCaseStatusEvidenceInput,
 ): Promise<AppDataResult<{ applied: boolean; record: EvidenceEventRecord }>> {
   const record = createEvidenceEventRecord(input);
   const writes = createEvidenceEventWriteOperations(record);
@@ -706,11 +706,29 @@ export async function recordCurrentMdiCaseStatusEvidenceDynamoDb(
       updatedAt: record.recordedAt,
       webhookEventId: record.webhookEventId,
     };
+    const reconciliationIndex: MdiCaseStatusReconciliationIndexRecord = {
+      ...mdiCaseStatusReconciliationIndexKey(record.mdiCaseId),
+      recordType: "mdiCaseStatusReconciliationIndex",
+      schemaVersion: 1,
+      caseStatus: input.caseStatus,
+      cognitoSub: record.cognitoSub,
+      createdAt: existing.value?.createdAt ?? record.recordedAt,
+      mdiCaseId: record.mdiCaseId,
+      mdiPatientId: record.mdiPatientId,
+      providerTimestamp: record.occurredAt,
+      statusRank: input.statusRank,
+      terminal: input.terminal,
+      updatedAt: record.recordedAt,
+      webhookEventId: record.webhookEventId,
+    };
 
     const written = await repository.transactWrite([
       existing.value
         ? { type: "update", record: mirror, expected: existing.value }
         : { type: "put", record: mirror, ifNotExists: true },
+      input.terminal
+        ? { type: "delete", key: mdiCaseStatusReconciliationIndexKey(record.mdiCaseId) }
+        : { type: "put", record: reconciliationIndex },
       ...writes.value.operations,
     ]);
     if (written.ok) {
@@ -722,6 +740,45 @@ export async function recordCurrentMdiCaseStatusEvidenceDynamoDb(
   }
 
   return err("conditional_conflict", "MDI case status mirror update conflicted");
+}
+
+export async function listMdiCaseStatusReconciliationItemsDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "queryByKeyPrefix">,
+  input: {
+    exclusiveStartKey?: AppDataKey;
+    includeTerminal?: boolean;
+    limit?: number;
+  } = {},
+): Promise<AppDataResult<{
+  items: MdiCaseStatusReconciliationIndexRecord[];
+  nextKey?: AppDataKey;
+}>> {
+  const limit = input.limit ?? 100;
+  const queried = await repository.queryByKeyPrefix({
+    pk: mdiCaseStatusReconciliationIndexPk,
+    skPrefix: "CASE#",
+    limit,
+    exclusiveStartKey: input.exclusiveStartKey,
+  });
+  if (!queried.ok) {
+    return queried as AppDataResult<{
+      items: MdiCaseStatusReconciliationIndexRecord[];
+      nextKey?: AppDataKey;
+    }>;
+  }
+
+  const items: MdiCaseStatusReconciliationIndexRecord[] = [];
+  for (const record of queried.value.items) {
+    if (record.recordType !== "mdiCaseStatusReconciliationIndex") {
+      return err("validation_failed", "MDI case status reconciliation index contained another record type");
+    }
+    if (!input.includeTerminal && record.terminal) {
+      return err("validation_failed", "Terminal MDI case status record found in active reconciliation index");
+    }
+    items.push(record);
+  }
+
+  return ok({ items, nextKey: queried.value.nextKey });
 }
 
 export async function claimWebhookEventDynamoDb(

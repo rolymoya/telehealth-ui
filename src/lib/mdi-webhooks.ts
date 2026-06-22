@@ -36,6 +36,13 @@ import {
   canonicalMdiPatientId,
 } from "@/lib/mdi/ids";
 import {
+  caseStatusRank,
+  isMdiCaseStatus as isMdiWebhookCaseStatus,
+  isTerminalMdiCaseStatus as isTerminalCaseStatus,
+  onboardingTargetForMdiCaseStatus,
+  type MdiCaseStatus,
+} from "@/lib/mdi/case-status";
+import {
   evaluateBillingUnlock,
   type BillingState,
 } from "@/lib/payment-gating";
@@ -64,19 +71,7 @@ export type MdiWebhookEventContract = {
   caseStatus?: MdiWebhookCaseStatus;
 };
 
-export type MdiWebhookCaseStatus =
-  | "assigned"
-  | "approved"
-  | "billing_ready"
-  | "cancelled"
-  | "clinical_review"
-  | "completed"
-  | "created"
-  | "declined"
-  | "processing"
-  | "support"
-  | "tagged"
-  | "waiting";
+export type MdiWebhookCaseStatus = MdiCaseStatus;
 
 export const mdiWebhookEventContracts = [
   { type: "case_created", handling: "inline", caseStatus: "created" },
@@ -876,29 +871,6 @@ async function findPatientByMdiPointerDynamoDb(
     };
 }
 
-function onboardingTargetForMdiCaseStatus(
-  status: MdiWebhookCaseStatus | undefined,
-): OnboardingStatus | null {
-  switch (status) {
-    case "assigned":
-    case "approved":
-    case "clinical_review":
-    case "processing":
-    case "support":
-    case "tagged":
-    case "waiting":
-      return "clinical_review";
-    case "billing_ready":
-    case "completed":
-      return "billing_ready";
-    case "cancelled":
-    case "created":
-    case "declined":
-    case undefined:
-      return null;
-  }
-}
-
 function isCurrentCaseLifecycleEvent(input: {
   incoming: {
     occurredAt: string;
@@ -964,18 +936,6 @@ function latestCaseStatusEvidence(events: readonly EvidenceEventRecord[]) {
     }
   }
   return latest;
-}
-
-function isMdiWebhookCaseStatus(value: unknown): value is MdiWebhookCaseStatus {
-  return typeof value === "string" && mdiWebhookCaseStatuses.has(value as MdiWebhookCaseStatus);
-}
-
-function isTerminalCaseStatus(status: MdiWebhookCaseStatus) {
-  return status === "cancelled" || status === "declined";
-}
-
-function caseStatusRank(status: MdiWebhookCaseStatus) {
-  return caseStatusRanks[status];
 }
 
 function billingStateForStripeStatus(status: BillingStatus | undefined): BillingState {
@@ -1415,33 +1375,3 @@ const unsafeMdiChargeReferencePatterns = [
   /questionnaire/i,
   /treatment/i,
 ];
-
-const mdiWebhookCaseStatuses = new Set<MdiWebhookCaseStatus>([
-  "assigned",
-  "approved",
-  "billing_ready",
-  "cancelled",
-  "clinical_review",
-  "completed",
-  "created",
-  "declined",
-  "processing",
-  "support",
-  "tagged",
-  "waiting",
-]);
-
-const caseStatusRanks: Record<MdiWebhookCaseStatus, number> = {
-  assigned: 20,
-  approved: 25,
-  billing_ready: 30,
-  cancelled: 50,
-  clinical_review: 20,
-  completed: 40,
-  created: 10,
-  declined: 50,
-  processing: 20,
-  support: 20,
-  tagged: 20,
-  waiting: 20,
-};

@@ -13,6 +13,10 @@ import {
   canonicalMdiCaseId,
   canonicalMdiPatientId,
 } from "@/lib/mdi/ids";
+import {
+  normalizeMdiCaseStatusName,
+  type MdiCaseStatus,
+} from "@/lib/mdi/case-status";
 
 type FetchLike = (
   input: string,
@@ -82,6 +86,12 @@ export type MdiCreateCaseInput = {
 
 export type MdiCreatedCase = {
   mdiCaseId: string;
+};
+
+export type MdiCaseStatusSnapshot = {
+  mdiCaseId: string;
+  caseStatus: MdiCaseStatus;
+  providerTimestamp: string;
 };
 
 export type MdiQuestionOption = {
@@ -194,6 +204,20 @@ export async function createMdiCase(
       method: "POST",
       parse: parseCreatedCase,
       path: "/partner/cases",
+    },
+    options,
+  );
+}
+
+export async function getMdiCaseStatus(
+  input: { mdiCaseId: string },
+  options: MdiClientOptions = {},
+) {
+  return requestMdi<MdiCaseStatusSnapshot>(
+    {
+      method: "GET",
+      parse: parseCaseStatusSnapshot,
+      path: `/partner/cases/${encodeURIComponent(input.mdiCaseId)}`,
     },
     options,
   );
@@ -459,6 +483,35 @@ function parseCreatedCase(payload: unknown): MdiCreatedCase {
   }
 
   return { mdiCaseId: canonicalCaseId };
+}
+
+function parseCaseStatusSnapshot(payload: unknown): MdiCaseStatusSnapshot {
+  if (!isRecord(payload)) {
+    throw new Error("Invalid MDI case response");
+  }
+
+  const rawCaseId = payload.case_id ?? payload.caseId ?? payload.mdiCaseId;
+  const canonicalCaseId = typeof rawCaseId === "string"
+    ? canonicalMdiCaseId(rawCaseId)
+    : null;
+  const statusRecord = isRecord(payload.case_status) ? payload.case_status : null;
+  const caseStatus = normalizeMdiCaseStatusName(statusRecord?.name);
+  const providerTimestamp = statusRecord?.updated_at;
+
+  if (
+    !canonicalCaseId ||
+    !caseStatus ||
+    typeof providerTimestamp !== "string" ||
+    Number.isNaN(new Date(providerTimestamp).getTime())
+  ) {
+    throw new Error("Invalid MDI case status response fields");
+  }
+
+  return {
+    caseStatus,
+    mdiCaseId: canonicalCaseId,
+    providerTimestamp: new Date(providerTimestamp).toISOString(),
+  };
 }
 
 function parseWorkflowUrl(

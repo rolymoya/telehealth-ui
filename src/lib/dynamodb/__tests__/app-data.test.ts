@@ -23,11 +23,13 @@ import {
   getMdiLinkage,
   getPatientProfile,
   getStripeLinkage,
+  listMdiCaseStatusReconciliationItems,
   listEvidenceEventsForMdiCase,
   listEvidenceEventsForPatient,
   linkMdiPatientCase,
   linkStripeCustomer,
   markWebhookEventStatus,
+  mdiCaseStatusReconciliationIndexKey,
   mdiPatientReverseKey,
   mdiCaseStatusMirrorKey,
   operationalStatusKey,
@@ -1881,6 +1883,73 @@ describe("DynamoDB app-data helpers", () => {
         webhookEventId: "mdi_evt_case_cancelled_001",
       },
     });
+    expect(repository.get(mdiCaseStatusReconciliationIndexKey("mdi_case_001"))).toMatchObject({
+      ok: true,
+      value: null,
+    });
+    expect(listMdiCaseStatusReconciliationItems(repository)).toEqual({
+      ok: true,
+      value: {
+        items: [],
+        nextKey: undefined,
+      },
+    });
+    expect(
+      linkMdiPatientCase(repository, {
+        cognitoSub: "cognito-sub-002",
+        mdiPatientId: "mdi_patient_002",
+        mdiCaseId: "mdi_case_999",
+        now,
+      }).ok,
+    ).toBe(true);
+    expect(recordCurrentMdiCaseStatusEvidence(repository, {
+      actorType: "vendor",
+      caseStatus: "processing",
+      cognitoSub: "cognito-sub-002",
+      eventCategory: "webhook",
+      eventId: createWebhookEvidenceEventId(
+        "mdi",
+        "mdi_evt_case_processing_999",
+        "WEBHOOK_SIDE_EFFECT_APPLIED",
+        "mdi_status_update",
+      ),
+      eventType: "webhook_side_effect_applied",
+      occurredAt: "2026-06-04T18:11:00.000Z",
+      recordedAt: "2026-06-04T18:11:01.000Z",
+      mdiPatientId: "mdi_patient_002",
+      mdiCaseId: "mdi_case_999",
+      metadata: { side_effect: "mdi_status_update", case_status: "processing" },
+      source: "webhook",
+      status: "succeeded",
+      statusRank: 20,
+      summaryCode: "WEBHOOK_SIDE_EFFECT_APPLIED",
+      terminal: false,
+      webhookEventId: "mdi_evt_case_processing_999",
+      webhookProvider: "mdi",
+    })).toMatchObject({ ok: true, value: { applied: true } });
+    expect(listMdiCaseStatusReconciliationItems(repository, { limit: 1 })).toMatchObject({
+      ok: true,
+      value: {
+        items: [
+          expect.objectContaining({
+            caseStatus: "processing",
+            mdiCaseId: "mdi_case_999",
+          }),
+        ],
+      },
+    });
+    expect(listMdiCaseStatusReconciliationItems(repository, { includeTerminal: true }))
+      .toMatchObject({
+        ok: true,
+        value: {
+          items: [
+            expect.objectContaining({
+              caseStatus: "processing",
+              mdiCaseId: "mdi_case_999",
+            }),
+          ],
+        },
+      });
     expect(
       listEvidenceEventsForMdiCase(repository, {
         mdiCaseId: "mdi_case_001",
