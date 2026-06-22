@@ -142,7 +142,7 @@ describe("MDI webhook receiver service", () => {
     expect(duplicate).toMatchObject({ ok: true, status: 200, body: { action: "skipped" } });
   });
 
-  it("mirrors launch-safe case approval into minimal status and webhook evidence only", async () => {
+  it("mirrors ordinary case approval into non-unlocking status evidence only", async () => {
     const repository = seededMdiRepository("clinical_review", "payment_method_collected");
     const payload = mdiPayload({ event_type: "case_approved" });
 
@@ -159,7 +159,7 @@ describe("MDI webhook receiver service", () => {
     expect(result).toMatchObject({ ok: true, status: 200, body: { action: "processed" } });
     expect(getPatientProfile(repository, cognitoSub)).toMatchObject({
       ok: true,
-      value: { onboardingStatus: "billing_ready" },
+      value: { onboardingStatus: "clinical_review" },
     });
 
     const evidence = listEvidenceEventsForPatient(repository, { cognitoSub, limit: 250 });
@@ -172,10 +172,11 @@ describe("MDI webhook receiver service", () => {
       eventType: "webhook_side_effect_applied",
       mdiCaseId,
       mdiPatientId,
-      metadata: { case_status: "billing_ready", side_effect: "mdi_status_update" },
+      metadata: { case_status: "approved", side_effect: "mdi_status_update" },
       source: "webhook",
       webhookProvider: "mdi",
     });
+    expect(JSON.stringify(evidence)).not.toContain("activate_billing");
     expect(JSON.stringify(evidence)).not.toContain("metadata\":\"");
     expect(JSON.stringify(evidence)).not.toContain("clinical_note");
     expect(JSON.stringify(evidence)).not.toContain("questionnaire");

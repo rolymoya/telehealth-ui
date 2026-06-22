@@ -5,10 +5,13 @@ import {
   type AppDataRecord,
   type AppDataResult,
   createInMemoryAppDataRepository,
+  createPatientProfileRecord,
   claimWebhookEvent,
   getStripeLinkage,
+  linkMdiPatientCase,
   linkStripeCustomer,
   markWebhookEventStatus,
+  recordCurrentMdiCaseStatusEvidence,
   webhookIdempotencyKey,
 } from "@/lib/dynamodb/app-data";
 import { claimWebhookEventDynamoDb } from "@/lib/dynamodb/app-data-dynamodb";
@@ -223,6 +226,75 @@ describe("Stripe webhook receiver service", () => {
       value: {
         attempts: 1,
         status: "processed",
+      },
+    });
+  });
+
+  it("does not mirror active subscription billing before the MDI clinical unlock state", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedStripeCustomerLinkage(repository, "payment_method_collected");
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_preapproval_active_001",
+      type: "customer.subscription.updated",
+      object: {
+        id: "sub_opaque_001",
+        customer: "cus_opaque_001",
+        status: "active",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+  expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+    ok: true,
+    value: {
+      billingStatus: "payment_method_collected",
+      stripeSubscriptionId: undefined,
+    },
+  });
+});
+
+  it("does not mirror active subscription billing after ordinary case approval without clinical unlock", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedMdiCaseStatusContext(repository, "approved", 25);
+    seedStripeCustomerLinkage(repository, "payment_method_collected");
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_case_approved_active_001",
+      type: "customer.subscription.updated",
+      object: {
+        id: "sub_opaque_001",
+        customer: "cus_opaque_001",
+        status: "active",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+    expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+      ok: true,
+      value: {
+        billingStatus: "payment_method_collected",
+        stripeSubscriptionId: undefined,
       },
     });
   });
@@ -930,6 +1002,7 @@ function seedStripeLinkage(
   repository: ReturnType<typeof createInMemoryAppDataRepository>,
   billingStatus: Parameters<typeof linkStripeCustomer>[1]["billingStatus"] = "payment_method_pending",
 ) {
+  seedApprovedBillingContext(repository);
   const linked = linkStripeCustomer(repository, {
     billingStatus,
     cognitoSub: "cognito-sub-0123456789abcdef",
@@ -938,6 +1011,60 @@ function seedStripeLinkage(
     stripeSubscriptionId: "sub_opaque_001",
   });
   expect(linked.ok).toBe(true);
+}
+
+function seedApprovedBillingContext(
+  repository: ReturnType<typeof createInMemoryAppDataRepository>,
+) {
+  seedMdiCaseStatusContext(repository, "billing_ready", 30);
+}
+
+function seedMdiCaseStatusContext(
+  repository: ReturnType<typeof createInMemoryAppDataRepository>,
+  caseStatus: "approved" | "billing_ready",
+  statusRank: number,
+) {
+  const now = "2026-06-09T11:00:00.000Z";
+  const cognitoSub = "cognito-sub-0123456789abcdef";
+  const mdiPatientId = "mdi_patient_stripe_webhook_001";
+  const mdiCaseId = "mdi_case_stripe_webhook_001";
+  const profile = createPatientProfileRecord({
+    cognitoSub,
+    now,
+    onboardingStatus: caseStatus === "billing_ready" ? "billing_ready" : "clinical_review",
+    residencyState: "IL",
+  });
+  const existingProfile = repository.get(profile);
+  expect(existingProfile.ok).toBe(true);
+  if (existingProfile.ok && existingProfile.value === null) {
+    expect(repository.put(profile).ok).toBe(true);
+  }
+  expect(linkMdiPatientCase(repository, {
+    cognitoSub,
+    mdiCaseId,
+    mdiPatientId,
+    now,
+  }).ok).toBe(true);
+  expect(recordCurrentMdiCaseStatusEvidence(repository, {
+    actorType: "vendor",
+    caseStatus,
+    cognitoSub,
+    eventCategory: "webhook",
+    eventId: `webhook:mdi:mdi_evt_stripe_webhook_${caseStatus}:WEBHOOK_SIDE_EFFECT_APPLIED:mdi_status_update`,
+    eventType: "webhook_side_effect_applied",
+    mdiCaseId,
+    mdiPatientId,
+    metadata: { side_effect: "mdi_status_update", case_status: caseStatus },
+    occurredAt: now,
+    recordedAt: now,
+    source: "webhook",
+    status: "succeeded",
+    statusRank,
+    summaryCode: "WEBHOOK_SIDE_EFFECT_APPLIED",
+    terminal: false,
+    webhookEventId: `mdi_evt_stripe_webhook_${caseStatus}`,
+    webhookProvider: "mdi",
+  }).ok).toBe(true);
 }
 
 function seedStripeCustomerLinkage(

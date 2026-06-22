@@ -1013,6 +1013,7 @@ export async function linkStripeCustomerDynamoDb(
     cognitoSub: string;
     now: string;
     stripeCustomerId: string;
+    allowedCurrentBillingStatuses?: BillingStatus[];
     stripeBillingStatusObservedAt?: string;
     stripeSubscriptionId?: string;
   },
@@ -1020,6 +1021,13 @@ export async function linkStripeCustomerDynamoDb(
   const existing = await getStripeLinkageDynamoDb(repository, input.cognitoSub);
   if (!existing.ok) {
     return existing;
+  }
+  if (
+    existing.value &&
+    input.allowedCurrentBillingStatuses &&
+    !input.allowedCurrentBillingStatuses.includes(existing.value.billingStatus)
+  ) {
+    return err("stale_transition", "Stripe linkage billing status changed before update");
   }
 
   const linkage: StripeLinkageRecord = {

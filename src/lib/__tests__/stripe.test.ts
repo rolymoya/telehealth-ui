@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
 import {
   constructStripeWebhookEvent,
+  createPaymentMethodSetupCheckoutParams,
+  createPaymentMethodSetupIntentParams,
   createStripeClient,
   createStripeCustomerParams,
   createSubscriptionCheckoutParams,
@@ -87,6 +89,93 @@ describe("Stripe launch helpers", () => {
       },
     });
     expect(params.ok && "payment_method_types" in params.value).toBe(false);
+  });
+
+  it("creates SetupIntent params for deferred payment method collection", () => {
+    const metadata = {
+      app_patient_id: "app_patient_opaque_001",
+      apoth_stage: "staging",
+      mdi_case_id: "mdi_case_opaque_001",
+    };
+
+    const params = createPaymentMethodSetupIntentParams({
+      customerId: "cus_opaque_001",
+      metadata,
+    });
+
+    expect(params).toEqual({
+      ok: true,
+      value: {
+        automatic_payment_methods: { enabled: true },
+        customer: "cus_opaque_001",
+        metadata,
+        usage: "off_session",
+      },
+    });
+    expect(params.ok && "subscription_data" in params.value).toBe(false);
+    expect(params.ok && "line_items" in params.value).toBe(false);
+  });
+
+  it("creates Checkout setup params for hosted deferred payment method collection", () => {
+    const metadata = {
+      app_patient_id: "app_patient_opaque_001",
+      apoth_stage: "staging",
+      mdi_case_id: "mdi_case_opaque_001",
+    };
+
+    const params = createPaymentMethodSetupCheckoutParams({
+      cancelUrl: "https://apoth.example/billing",
+      customerId: "cus_opaque_001",
+      metadata,
+      successUrl: "https://apoth.example/dashboard",
+    });
+
+    expect(params).toEqual({
+      ok: true,
+      value: {
+        cancel_url: "https://apoth.example/billing",
+        customer: "cus_opaque_001",
+        metadata,
+        mode: "setup",
+        setup_intent_data: { metadata },
+        success_url: "https://apoth.example/dashboard",
+      },
+    });
+    expect(params.ok && "subscription_data" in params.value).toBe(false);
+    expect(params.ok && "line_items" in params.value).toBe(false);
+  });
+
+  it("rejects PHI-shaped metadata before creating SetupIntent params", () => {
+    expect(createPaymentMethodSetupIntentParams({
+      customerId: "cus_opaque_001",
+      metadata: {
+        app_patient_id: "patient mentioned semaglutide",
+      },
+    })).toEqual({
+      ok: false,
+      error: {
+        code: "phi_value",
+        message: "Stripe metadata failed validation at app_patient_id",
+      },
+    });
+  });
+
+  it("rejects non-opaque metadata shapes under otherwise allowed keys", () => {
+    const unsafeMetadataCases: Array<Record<string, string>> = [
+      { app_patient_id: "Jane Doe" },
+      { cognito_sub: "patient@example.com" },
+      { mdi_case_id: "case for patient support" },
+      { mdi_patient_id: "patient-id-without-prefix" },
+      { apoth_stage: "preview" },
+    ];
+
+    for (const metadata of unsafeMetadataCases) {
+      expect(validateStripeMetadata(metadata)).toEqual({
+        valid: false,
+        offendingKey: Object.keys(metadata)[0],
+        reason: "unsafe_value",
+      });
+    }
   });
 
   it("validates metadata before returning customer params", () => {

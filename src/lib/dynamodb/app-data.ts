@@ -303,6 +303,7 @@ export type TransactWriteOperation =
 
 export type MdiMirroredCaseStatus =
   | "assigned"
+  | "approved"
   | "billing_ready"
   | "cancelled"
   | "clinical_review"
@@ -1132,6 +1133,7 @@ export function linkStripeCustomer(
     stripeCustomerId: string;
     stripeSubscriptionId?: string;
     billingStatus: BillingStatus;
+    allowedCurrentBillingStatuses?: BillingStatus[];
     stripeBillingStatusObservedAt?: string;
     now: string;
   },
@@ -1142,6 +1144,13 @@ export function linkStripeCustomer(
   }
   if (existingLinkage.value && existingLinkage.value.recordType !== "stripeLinkage") {
     return err("validation_failed", "Stripe linkage key contains another record type");
+  }
+  if (
+    existingLinkage.value &&
+    input.allowedCurrentBillingStatuses &&
+    !input.allowedCurrentBillingStatuses.includes(existingLinkage.value.billingStatus)
+  ) {
+    return err("stale_transition", "Stripe linkage billing status changed before update");
   }
 
   const linkage: StripeLinkageRecord = {
@@ -1200,7 +1209,9 @@ export function linkStripeCustomer(
   }
 
   const transaction = repository.transactWrite([
-    { type: "put", record: linkage },
+    existingLinkage.value
+      ? { type: "update", record: linkage, expected: existingLinkage.value }
+      : { type: "put", record: linkage, ifNotExists: true },
     ...staleDeletes.value,
     ...reverseCheck.value.map((record) => ({
       type: "put" as const,
@@ -3149,6 +3160,7 @@ const mdiCaseCreateStatuses = new Set<MdiCaseCreateStatus>([
 
 const mdiMirroredCaseStatuses = new Set<MdiMirroredCaseStatus>([
   "assigned",
+  "approved",
   "billing_ready",
   "cancelled",
   "clinical_review",

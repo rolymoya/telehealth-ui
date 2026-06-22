@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BillingUnavailableState } from "@/components/product/ProviderUnavailableStates";
+import { BillingSetupClient } from "./BillingSetupClient";
 
 export const metadata: Metadata = {
   title: "Billing · Apoth",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function BillingPage() {
-  return <BillingUnavailableState />;
+  return <BillingSetupClient />;
 }

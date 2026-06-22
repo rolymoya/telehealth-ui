@@ -66,6 +66,7 @@ export type MdiWebhookEventContract = {
 
 export type MdiWebhookCaseStatus =
   | "assigned"
+  | "approved"
   | "billing_ready"
   | "cancelled"
   | "clinical_review"
@@ -85,7 +86,7 @@ export const mdiWebhookEventContracts = [
   { type: "case_assigned", handling: "inline", caseStatus: "assigned" },
   { type: "case_tag_added", handling: "inline", caseStatus: "tagged" },
   { type: "case_transferred_to_support", handling: "inline", caseStatus: "support" },
-  { type: "case_approved", handling: "inline", caseStatus: "billing_ready" },
+  { type: "case_approved", handling: "inline", caseStatus: "approved" },
   { type: "case_clinically_approved", handling: "inline", caseStatus: "billing_ready" },
   { type: "case_completed", handling: "inline", caseStatus: "completed" },
   { type: "case_cancelled", handling: "inline", caseStatus: "cancelled" },
@@ -880,6 +881,7 @@ function onboardingTargetForMdiCaseStatus(
 ): OnboardingStatus | null {
   switch (status) {
     case "assigned":
+    case "approved":
     case "clinical_review":
     case "processing":
     case "support":
@@ -1416,6 +1418,7 @@ const unsafeMdiChargeReferencePatterns = [
 
 const mdiWebhookCaseStatuses = new Set<MdiWebhookCaseStatus>([
   "assigned",
+  "approved",
   "billing_ready",
   "cancelled",
   "clinical_review",
@@ -1430,6 +1433,7 @@ const mdiWebhookCaseStatuses = new Set<MdiWebhookCaseStatus>([
 
 const caseStatusRanks: Record<MdiWebhookCaseStatus, number> = {
   assigned: 20,
+  approved: 25,
   billing_ready: 30,
   cancelled: 50,
   clinical_review: 20,

@@ -7,16 +7,21 @@ import {
   type AppDataRepository,
   type BillingStatus,
   type EvidenceEventRecord,
+  type MdiCaseStatusMirrorRecord,
+  type MdiLinkageRecord,
   type StripeLinkageRecord,
   createWebhookEvidenceEventId,
   findPatientByStripePointer,
+  getMdiLinkage,
   getStripeLinkage,
   linkStripeCustomer,
+  mdiCaseStatusMirrorKey,
   recordEvidenceEvent,
 } from "@/lib/dynamodb/app-data";
 import {
   type DynamoDbAppDataRepository,
   findPatientByStripePointerDynamoDb,
+  getMdiLinkageDynamoDb,
   getStripeLinkageDynamoDb,
   linkStripeCustomerDynamoDb,
   recordEvidenceEventDynamoDb,
@@ -79,6 +84,8 @@ export type HandleStripeWebhookInput = {
 
 export type StripeMirrorRepository = {
   findPatientByStripeCustomer(stripeCustomerId: string): Promise<AppDataResult<string | null>>;
+  getMdiCaseStatusMirror(mdiCaseId: string): Promise<AppDataResult<MdiCaseStatusMirrorRecord | null>>;
+  getMdiLinkage(cognitoSub: string): Promise<AppDataResult<MdiLinkageRecord | null>>;
   getStripeLinkage(cognitoSub: string): Promise<AppDataResult<StripeLinkageRecord | null>>;
   linkStripeCustomer(input: {
     billingStatus: BillingStatus;
@@ -103,6 +110,19 @@ export function createInMemoryStripeMirrorRepository(
         stripeCustomerId,
       });
     },
+    async getMdiCaseStatusMirror(mdiCaseId) {
+      const record = repository.get(mdiCaseStatusMirrorKey(mdiCaseId));
+      if (!record.ok || !record.value) {
+        return record as AppDataResult<MdiCaseStatusMirrorRecord | null>;
+      }
+      if (record.value.recordType !== "mdiCaseStatusMirror") {
+        return appDataValidationFailure("MDI case status mirror key contained another record type");
+      }
+      return { ok: true, value: record.value };
+    },
+    async getMdiLinkage(cognitoSub) {
+      return getMdiLinkage(repository, cognitoSub);
+    },
     async getStripeLinkage(cognitoSub) {
       return getStripeLinkage(repository, cognitoSub);
     },
@@ -124,6 +144,19 @@ export function createDynamoDbStripeMirrorRepository(
         pointerType: "customer",
         stripeCustomerId,
       });
+    },
+    async getMdiCaseStatusMirror(mdiCaseId) {
+      const record = await repository.get(mdiCaseStatusMirrorKey(mdiCaseId));
+      if (!record.ok || !record.value) {
+        return record as AppDataResult<MdiCaseStatusMirrorRecord | null>;
+      }
+      if (record.value.recordType !== "mdiCaseStatusMirror") {
+        return appDataValidationFailure("MDI case status mirror key contained another record type");
+      }
+      return { ok: true, value: record.value };
+    },
+    async getMdiLinkage(cognitoSub) {
+      return getMdiLinkageDynamoDb(repository, cognitoSub);
     },
     async getStripeLinkage(cognitoSub) {
       return getStripeLinkageDynamoDb(repository, cognitoSub);
@@ -253,6 +286,18 @@ async function applyInlineStripeMirror(
   }
   const previousStatus = existing.value?.billingStatus ?? "not_started";
   const eventObservedAt = stripeCreatedToIso(event.created);
+  const activationAllowed = await clinicalUnlockAllowsStripeBillingMirror(
+    repository,
+    patient.value,
+    billingStatus,
+  );
+  if (!activationAllowed.ok) {
+    return activationAllowed;
+  }
+  if (!activationAllowed.value) {
+    return { ok: true };
+  }
+
   if (!shouldApplyStripeBillingMirror({
     billingStatus,
     event,
@@ -542,6 +587,31 @@ function appDataFailure(error: AppDataError) {
 	};
 }
 
+async function clinicalUnlockAllowsStripeBillingMirror(
+  repository: StripeMirrorRepository,
+  cognitoSub: string,
+  billingStatus: BillingStatus,
+): Promise<{ ok: true; value: boolean } | { ok: false; retryable: boolean }> {
+  if (billingStatus !== "active" && billingStatus !== "past_due") {
+    return { ok: true, value: true };
+  }
+
+  const linkage = await repository.getMdiLinkage(cognitoSub);
+  if (!linkage.ok) {
+    return appDataFailure(linkage.error);
+  }
+  if (!linkage.value?.mdiCaseId) {
+    return { ok: true, value: false };
+  }
+
+  const mirror = await repository.getMdiCaseStatusMirror(linkage.value.mdiCaseId);
+  if (!mirror.ok) {
+    return appDataFailure(mirror.error);
+  }
+
+  return { ok: true, value: mirror.value?.caseStatus === "billing_ready" };
+}
+
 function okEvidence() {
   return {
     ok: true as const,
@@ -551,6 +621,13 @@ function okEvidence() {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function appDataValidationFailure(message: string): AppDataResult<never> {
+  return {
+    ok: false,
+    error: { kind: "validation_failed", message },
+  };
 }
 
 function webhookPayloadByteLength(payload: string | Buffer) {

@@ -56,6 +56,7 @@ export const evidenceEventSchema = {
     metadata: {
       status: [
         "assigned",
+        "approved",
         "billing_ready",
         "cancelled",
         "clinical_review",
@@ -250,6 +251,7 @@ export const evidenceEventSchema = {
     metadata: {
       case_status: [
         "assigned",
+        "approved",
         "billing_ready",
         "cancelled",
         "clinical_review",

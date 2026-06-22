@@ -224,6 +224,52 @@ describe("DynamoDB app-data repository", () => {
     expect(JSON.stringify(fetchMock.mock.calls)).not.toContain("clinicalNotes");
   });
 
+  it("blocks DynamoDB Stripe linkage downgrades outside allowed current statuses", async () => {
+    const existingStripeLinkage = {
+      billingStatus: { S: "active" },
+      cognitoSub: { S: "cognito-sub-0123456789abcdef" },
+      createdAt: { S: nowIso },
+      pk: { S: "PATIENT#cognito-sub-0123456789abcdef" },
+      recordType: { S: "stripeLinkage" },
+      schemaVersion: { N: "1" },
+      sk: { S: "STRIPE#LINKAGE" },
+      stripeBillingStatusObservedAt: { S: nowIso },
+      stripeCustomerId: { S: "cus_opaque_001" },
+      stripeSubscriptionId: { S: "sub_opaque_001" },
+      updatedAt: { S: nowIso },
+    };
+    const targets: string[] = [];
+    const fetchMock = vi.fn(async (_url: string, init: { body: string; headers: Record<string, string> }) => {
+      targets.push(init.headers["x-amz-target"]);
+      return {
+        async json() {
+          return { Item: existingStripeLinkage };
+        },
+        ok: true,
+        status: 200,
+      };
+    });
+    const repository = createRepository(fetchMock);
+
+    await expect(
+      linkStripeCustomerDynamoDb(repository, {
+        allowedCurrentBillingStatuses: ["not_started", "payment_method_pending"],
+        billingStatus: "payment_method_pending",
+        cognitoSub: "cognito-sub-0123456789abcdef",
+        now: "2026-06-09T16:05:00.000Z",
+        stripeCustomerId: "cus_opaque_001",
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: {
+        kind: "stale_transition",
+        message: "Stripe linkage billing status changed before update",
+      },
+    });
+
+    expect(targets).toEqual(["DynamoDB_20120810.GetItem"]);
+  });
+
   it("records current consent acceptance through an idempotent DynamoDB transaction", async () => {
     const targets: string[] = [];
     const bodies: unknown[] = [];
