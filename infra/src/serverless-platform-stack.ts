@@ -425,7 +425,10 @@ exports.handler = async () => ({
 
     new Alarm(this, "WebhookDlqMessagesAlarm", {
       alarmName: `apoth-${props.config.stage}-webhook-dlq-visible-messages`,
-      alarmDescription: "Active alarm: webhook DLQ contains messages that need triage before replay.",
+      alarmDescription: launchAlarmDescription(
+        "Active",
+        "Webhook DLQ contains messages that need triage before replay.",
+      ),
       metric: webhookDlqVisibleMetric,
       threshold: 0,
       evaluationPeriods: 1,
@@ -436,7 +439,10 @@ exports.handler = async () => ({
 
     new Alarm(this, "WebhookQueueOldestMessageAgeAlarm", {
       alarmName: `apoth-${props.config.stage}-webhook-oldest-message-age`,
-      alarmDescription: "Active alarm: webhook processing queue is falling behind.",
+      alarmDescription: launchAlarmDescription(
+        "Active",
+        "Webhook processing queue is falling behind.",
+      ),
       metric: webhookOldestMessageAgeMetric,
       threshold: Duration.minutes(15).toSeconds(),
       evaluationPeriods: 1,
@@ -447,7 +453,10 @@ exports.handler = async () => ({
 
     new Alarm(this, "ScheduledHeartbeatFailuresAlarm", {
       alarmName: `apoth-${props.config.stage}-scheduled-heartbeat-errors`,
-      alarmDescription: "Active alarm: scheduled heartbeat Lambda is failing.",
+      alarmDescription: launchAlarmDescription(
+        "Active",
+        "Scheduled heartbeat Lambda is failing.",
+      ),
       metric: scheduledHeartbeatErrorsMetric,
       threshold: 0,
       evaluationPeriods: 1,
@@ -458,7 +467,10 @@ exports.handler = async () => ({
 
     new Alarm(this, "MdiCaseReconciliationFailuresAlarm", {
       alarmName: `apoth-${props.config.stage}-mdi-case-reconciliation-errors`,
-      alarmDescription: "Active alarm: MDI case-status reconciliation Lambda is failing; follow the launch ops runbook.",
+      alarmDescription: launchAlarmDescription(
+        "Active",
+        "MDI case-status reconciliation Lambda is failing.",
+      ),
       metric: mdiCaseReconciliationErrorsMetric,
       threshold: 0,
       evaluationPeriods: 1,
@@ -469,7 +481,10 @@ exports.handler = async () => ({
 
     new Alarm(this, "MdiCaseReconciliationDriftAlarm", {
       alarmName: `apoth-${props.config.stage}-mdi-case-reconciliation-drift`,
-      alarmDescription: "Active alarm: MDI case-status reconciliation corrected local drift; follow the launch ops runbook.",
+      alarmDescription: launchAlarmDescription(
+        "Active",
+        "MDI case-status reconciliation corrected local drift.",
+      ),
       metric: mdiCaseReconciliationDriftMetric,
       threshold: 0,
       evaluationPeriods: 1,
@@ -480,7 +495,10 @@ exports.handler = async () => ({
 
     new Alarm(this, "StripeMdiBillingReconciliationFailuresAlarm", {
       alarmName: `apoth-${props.config.stage}-stripe-mdi-billing-reconciliation-errors`,
-      alarmDescription: "Active alarm: Stripe-MDI billing reconciliation Lambda is failing; follow the launch ops runbook.",
+      alarmDescription: launchAlarmDescription(
+        "Active",
+        "Stripe-MDI billing reconciliation Lambda is failing.",
+      ),
       metric: stripeMdiBillingReconciliationErrorsMetric,
       threshold: 0,
       evaluationPeriods: 1,
@@ -491,7 +509,10 @@ exports.handler = async () => ({
 
     new Alarm(this, "StripeMdiBillingReconciliationOpsReviewAlarm", {
       alarmName: `apoth-${props.config.stage}-stripe-mdi-billing-reconciliation-ops-review`,
-      alarmDescription: "Active alarm: Stripe-MDI billing reconciliation found billing/care-state drift for ops review.",
+      alarmDescription: launchAlarmDescription(
+        "Active",
+        "Stripe-MDI billing reconciliation found billing/care-state drift for ops review.",
+      ),
       metric: stripeMdiBillingReconciliationOpsReviewMetric,
       threshold: 0,
       evaluationPeriods: 1,
@@ -546,7 +567,10 @@ exports.handler = async () => ({
 
     new Alarm(this, "ApiServerErrorsAlarm", {
       alarmName: `apoth-${props.config.stage}-api-5xx-errors`,
-      alarmDescription: "Active alarm: API Gateway returned elevated 5xx responses.",
+      alarmDescription: launchAlarmDescription(
+        "Active",
+        "API Gateway returned elevated 5xx responses.",
+      ),
       metric: apiServerErrorMetric,
       threshold: 5,
       evaluationPeriods: 1,
@@ -557,7 +581,10 @@ exports.handler = async () => ({
 
     new Alarm(this, "ApiClientErrorsAlarm", {
       alarmName: `apoth-${props.config.stage}-api-4xx-errors`,
-      alarmDescription: "Active alarm: API Gateway returned elevated 4xx responses.",
+      alarmDescription: launchAlarmDescription(
+        "Active",
+        "API Gateway returned elevated 4xx responses.",
+      ),
       metric: apiClientErrorMetric,
       threshold: 50,
       evaluationPeriods: 1,
@@ -1087,7 +1114,7 @@ function handler(event) {
     for (const contract of customMetrics) {
       new Alarm(this, contract.id, {
         alarmName: contract.alarmName,
-        alarmDescription: `${contract.status} alarm: ${contract.description}`,
+        alarmDescription: launchAlarmDescription(contract.status, contract.description),
         metric: contract.metric,
         threshold: contract.threshold,
         evaluationPeriods: 1,
@@ -1187,6 +1214,21 @@ type ObservabilityMetricContract = {
   metric: Metric;
 };
 
+type LaunchAlarmStatus = "Active" | "Contract-only";
+
+const launchAlarmOwner = "launch-ops";
+const launchAlarmChannel = "CloudWatch manual watch until ops contact path is approved";
+const launchAlarmRunbook = "docs/runbooks/serverless-iac.md#alarm-map";
+
+function launchAlarmDescription(status: LaunchAlarmStatus, description: string) {
+  return [
+    `${status} alarm: ${description}`,
+    `Owner: ${launchAlarmOwner}.`,
+    `Channel: ${launchAlarmChannel}.`,
+    `Runbook: ${launchAlarmRunbook}.`,
+  ].join(" ");
+}
+
 type ActiveObservabilityMetrics = {
   apiClientError: Metric;
   apiServerError: Metric;
@@ -1264,7 +1306,7 @@ function createObservabilityMetricContracts(
       id: "MdiOutboundFailuresAlarm",
       metricName: "MdiOutboundFailures",
       alarmName: `apoth-${stage}-mdi-outbound-failures`,
-      description: "MDI outbound request failures or outage symptoms. Emitter owner: intake/dashboard MDI clients.",
+      description: "MDI outbound request failures or outage signals. Emitter owner: intake/dashboard MDI clients.",
       threshold: 2,
       comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       status: "Contract-only",

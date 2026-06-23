@@ -621,6 +621,16 @@ describe("ServerlessPlatformStack", () => {
       (resource) => resource.Type === "AWS::CloudWatch::Alarm",
     );
     for (const alarm of alarms) {
+      expect(alarm.Properties.AlarmDescription).toContain("Owner: launch-ops.");
+      expect(alarm.Properties.AlarmDescription).toContain(
+        "Channel: CloudWatch manual watch until ops contact path is approved.",
+      );
+      expect(alarm.Properties.AlarmDescription).toContain(
+        "Runbook: docs/runbooks/serverless-iac.md#alarm-map.",
+      );
+      for (const forbidden of phiUnsafeObservabilityPatterns) {
+        expect(alarm.Properties.AlarmDescription).not.toMatch(forbidden);
+      }
       expect(alarm.Properties.AlarmActions).toBeUndefined();
       expect(alarm.Properties.OKActions).toBeUndefined();
       expect(alarm.Properties.InsufficientDataActions).toBeUndefined();
@@ -699,6 +709,10 @@ describe("ServerlessPlatformStack", () => {
     expect(dashboard?.Properties.DashboardName).toBe(
       "apoth-staging-launch-observability",
     );
+    const renderedDashboardBody = renderDashboardBody(dashboard?.Properties.DashboardBody);
+    for (const forbidden of phiUnsafeObservabilityPatterns) {
+      expect(renderedDashboardBody).not.toMatch(forbidden);
+    }
     const parsedDashboard = parseDashboardBody(dashboard?.Properties.DashboardBody);
     const metricsByTitle = dashboardMetricsByTitle(parsedDashboard);
 
@@ -1489,6 +1503,20 @@ const accessLogForbiddenFragments = [
   "responseOverride",
   "source",
   "user",
+] as const;
+
+const phiUnsafeObservabilityPatterns = [
+  /questionnaire/i,
+  /\banswer\b/i,
+  /diagnosis/i,
+  /medication/i,
+  /symptom/i,
+  /workflow[_-]?url/i,
+  /\btoken\b/i,
+  /raw[_-]?payload/i,
+  /payment[_-]?instrument/i,
+  /clinician/i,
+  /provider free text/i,
 ] as const;
 
 const expectedStagingSecrets = [

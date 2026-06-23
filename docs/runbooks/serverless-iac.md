@@ -399,6 +399,12 @@ operators must watch CloudWatch during supervised testing, and any automated
 alerting target must be added only after the ops contact path and compliance
 review are approved.
 
+Every synthesized launch alarm description includes the same ownership
+metadata: owner `launch-ops`, channel `CloudWatch manual watch until ops
+contact path is approved`, and runbook
+`docs/runbooks/serverless-iac.md#alarm-map`. Treat that metadata as the
+operator handoff contract until a real on-call/contact channel is approved.
+
 ### Alarm Map
 
 | Alarm | Status | Symptom | Threshold | First check | Mitigation / escalation | Close criteria |
