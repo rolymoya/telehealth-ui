@@ -7,10 +7,13 @@
   "impact": "The broader baseline diff treats MDI completed as an onboarding billing-ready target, but the Stripe active/past_due mirror guard only allows active billing when the MDI mirror is exactly billing_ready. If a case advances to completed after clinical unlock, later legitimate Stripe active/past_due webhooks may be ignored, leaving local billing mirror state stale. Reviewer marked this as broader/out-of-scope for T-024.",
   "location": [],
   "phase": null,
-  "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "relatedTickets": [
+    "T-024",
+    "T-025"
+  ],
+  "resolution": "Resolved by the T-025 billing activation follow-up. Stripe subscription mirror updates now continue after MDI advances to completed post-unlock, with regression coverage for invoice.payment_failed updating the local billing mirror from a completed MDI case context.",
+  "resolvedDate": "2026-06-23",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[out-of-scope / post-unlock billing mirror correctness] The broader baseline diff treats MDI completed as an onboarding billing-ready ta"
 }

@@ -1,0 +1,17 @@
+{
+  "blockedBy": [
+    "T-046",
+    "T-054",
+    "T-058",
+    "T-064"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-06-23",
+  "description": "Wire the implemented MDI case-status reconciliation core into the scheduled launch runtime and capture the missing operational evidence.\n\n**Scope**\n- Add or verify the Lambda handler wrapper for `reconcileMdiCaseStatuses`, including bounded pagination, timeout behavior, PHI-safe structured logs, and deterministic idempotency behavior.\n- Connect the handler to the EventBridge schedule documented for `apoth-{stage}-mdi-case-reconciliation` with the launch retry bounds.\n- Emit or verify CloudWatch metrics/alarms for reconciliation errors, provider unavailable/418 outcomes, and corrected drift counts.\n- Document the runbook evidence that proves artificial stale status is corrected on the next run without storing raw MDI responses or clinical content.\n- Reconcile Story state for T-064 only after the scheduled handler, alarm evidence, and runbook checks are present.\n\n**Acceptance**\n- A scheduled invocation corrects an artificially stale MDI case-status mirror and writes only minimal opaque evidence.\n- MDI unavailable/418 responses do not delete, downgrade, or corrupt local status mirrors and surface through the configured alarm path.\n- CloudWatch dashboard/alarm names match the serverless runbook and contain no patient-specific dimensions or clinical terms.\n- Tests or synthesized infrastructure assertions cover handler wiring, retry bounds, and PHI-safe logging/metric dimensions.\n- T-064 can be marked complete with code, schedule, alarm, and runbook evidence.",
+  "id": "T-104",
+  "order": 131,
+  "phase": "mdi-integration",
+  "status": "open",
+  "title": "Scheduled MDI reconciler runtime evidence",
+  "type": "task"
+}
