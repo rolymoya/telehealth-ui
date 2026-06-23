@@ -221,6 +221,32 @@ export const evidenceEventSchema = {
     },
     linkage: "stripe_subscription",
   },
+  stripe_mdi_billing_reconciliation: {
+    category: "stripe_billing",
+    summaryCode: "STRIPE_MDI_BILLING_RECONCILIATION",
+    statuses: ["recorded", "succeeded", "skipped"],
+    metadata: {
+      outcome: [
+        "ok",
+        "mirror_corrected",
+        "ops_review_required",
+        "provider_unavailable",
+        "skipped",
+      ],
+      reason_code: [
+        "active_without_billing_ready",
+        "failed_payment_requires_review",
+        "local_mirror_stale",
+        "mdi_terminal_with_active_billing",
+        "missing_mdi_linkage",
+        "missing_stripe_linkage",
+        "stripe_already_canceled",
+        "stripe_cancel_pending",
+        "unpaired_stripe_subscription",
+      ],
+    },
+    linkage: "stripe_subscription",
+  },
   webhook_claimed: {
     category: "webhook",
     summaryCode: "WEBHOOK_CLAIMED",

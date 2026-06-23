@@ -189,6 +189,28 @@ export type StripeLinkageRecord = BaseRecord & {
   stripeCurrentPeriodEnd?: string;
 };
 
+export type StripeBillingReconciliationIndexRecord = BaseRecord & {
+  recordType: "stripeBillingReconciliationIndex";
+  cognitoSub: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  billingStatus: Extract<BillingStatus, "active" | "past_due" | "cancel_pending">;
+  stripeBillingStatusObservedAt?: string;
+};
+
+export type StripeBillingOpsReviewReasonCode = "unpaired_stripe_subscription";
+
+export type StripeBillingOpsReviewRecord = BaseRecord & {
+  recordType: "stripeBillingOpsReview";
+  reasonCode: StripeBillingOpsReviewReasonCode;
+  stage: "production" | "staging";
+  status: "open";
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  firstObservedAt: string;
+  lastObservedAt: string;
+};
+
 export type StripeReverseLookupRecord = BaseRecord &
   (
     | {
@@ -282,6 +304,7 @@ export type OperationalStatusRecord = BaseRecord & {
   lastRequestId?: string;
   lastCursorPk?: string;
   lastCursorSk?: string;
+  lastProviderCursor?: string;
 };
 
 export type AppDataRecord =
@@ -293,6 +316,8 @@ export type AppDataRecord =
   | MdiCaseStatusMirrorRecord
   | MdiCaseStatusReconciliationIndexRecord
   | StripeLinkageRecord
+  | StripeBillingReconciliationIndexRecord
+  | StripeBillingOpsReviewRecord
   | StripeReverseLookupRecord
   | ConsentEvidenceRecord
   | WebhookIdempotencyRecord
@@ -398,6 +423,18 @@ export function stripeCustomerReverseKey(stripeCustomerId: string): AppDataKey {
 export function stripeSubscriptionReverseKey(stripeSubscriptionId: string): AppDataKey {
   return { pk: `STRIPE#SUBSCRIPTION#${stripeSubscriptionId}`, sk: "PATIENT" };
 }
+
+export function stripeBillingReconciliationIndexKey(stripeSubscriptionId: string): AppDataKey {
+  return { pk: stripeBillingReconciliationIndexPk, sk: `SUBSCRIPTION#${stripeSubscriptionId}` };
+}
+
+export const stripeBillingReconciliationIndexPk = "STRIPE#BILLING_RECONCILIATION#ACTIVE";
+
+export function stripeBillingOpsReviewKey(stripeSubscriptionId: string): AppDataKey {
+  return { pk: stripeBillingOpsReviewPk, sk: `SUBSCRIPTION#${stripeSubscriptionId}` };
+}
+
+export const stripeBillingOpsReviewPk = "STRIPE#BILLING_OPS_REVIEW#OPEN";
 
 export function consentEvidenceKey(
   cognitoSub: string,
@@ -1246,6 +1283,16 @@ export function linkStripeCustomer(
     return staleDeletes;
   }
 
+  const indexOperations = collectStripeBillingReconciliationIndexOperations(
+    repository,
+    existingLinkage.value,
+    linkage,
+    input.now,
+  );
+  if (!indexOperations.ok) {
+    return indexOperations;
+  }
+
   const transaction = repository.transactWrite([
     existingLinkage.value
       ? { type: "update", record: linkage, expected: existingLinkage.value }
@@ -1256,9 +1303,40 @@ export function linkStripeCustomer(
       record,
       ifNotExists: true,
     })),
+    ...indexOperations.value,
   ]);
 
   return transaction.ok ? ok(linkage) : transaction;
+}
+
+export function listStripeBillingReconciliationItems(
+  repository: AppDataRepository,
+  input: {
+    exclusiveStartKey?: AppDataKey;
+    limit?: number;
+  } = {},
+): AppDataResult<{
+  items: StripeBillingReconciliationIndexRecord[];
+  nextKey?: AppDataKey;
+}> {
+  const records = repository.queryByKeyPrefix({
+    pk: stripeBillingReconciliationIndexPk,
+    skPrefix: "SUBSCRIPTION#",
+    exclusiveStartKey: input.exclusiveStartKey,
+    limit: input.limit,
+  });
+  if (!records.ok) {
+    return records;
+  }
+
+  const items: StripeBillingReconciliationIndexRecord[] = [];
+  for (const record of records.value.items) {
+    if (record.recordType !== "stripeBillingReconciliationIndex") {
+      return err("validation_failed", "Stripe billing reconciliation index contained another record type");
+    }
+    items.push(record);
+  }
+  return ok({ items, nextKey: records.value.nextKey });
 }
 
 export function findPatientByMdiPointer(
@@ -2288,6 +2366,26 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         keysMatch(record, stripeLinkageKey(record.cognitoSub))
         ? ok(record)
         : err("validation_failed", "Invalid Stripe linkage record");
+    case "stripeBillingReconciliationIndex":
+      return typeof record.cognitoSub === "string" &&
+        isStripeCustomerId(record.stripeCustomerId) &&
+        isStripeSubscriptionId(record.stripeSubscriptionId) &&
+        isActiveBillingReconciliationStatus(record.billingStatus) &&
+        optionalIsoDate(record.stripeBillingStatusObservedAt) &&
+        keysMatch(record, stripeBillingReconciliationIndexKey(record.stripeSubscriptionId))
+        ? ok(record)
+        : err("validation_failed", "Invalid Stripe billing reconciliation index record");
+    case "stripeBillingOpsReview":
+      return isStripeBillingOpsReviewReasonCode(record.reasonCode) &&
+        (record.stage === "production" || record.stage === "staging") &&
+        record.status === "open" &&
+        isStripeCustomerId(record.stripeCustomerId) &&
+        isStripeSubscriptionId(record.stripeSubscriptionId) &&
+        isIsoTimestamp(record.firstObservedAt) &&
+        isIsoTimestamp(record.lastObservedAt) &&
+        keysMatch(record, stripeBillingOpsReviewKey(record.stripeSubscriptionId))
+        ? ok(record)
+        : err("validation_failed", "Invalid Stripe billing ops review record");
     case "stripeReverseLookup":
       return validateStripeReverse(record);
     case "consentEvidence":
@@ -2336,6 +2434,7 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         optionalString(record.lastRequestId) &&
         optionalString(record.lastCursorPk) &&
         optionalString(record.lastCursorSk) &&
+        optionalString(record.lastProviderCursor) &&
         keysMatch(record, operationalStatusKey(record.name))
         ? ok(record)
         : err("validation_failed", "Invalid operational status record");
@@ -2685,6 +2784,96 @@ function collectStaleStripeReverseDeletes(
   return collectReverseDeletes(repository, keys, "stripeReverseLookup", next.cognitoSub);
 }
 
+function collectStripeBillingReconciliationIndexOperations(
+  repository: AppDataRepository,
+  existing: StripeLinkageRecord | null,
+  next: StripeLinkageRecord,
+  now: string,
+): AppDataResult<TransactWriteOperation[]> {
+  const operations: TransactWriteOperation[] = [];
+  const existingIndexKey = existing?.stripeSubscriptionId &&
+      isSubscribedBillingStatus(existing.billingStatus)
+    ? stripeBillingReconciliationIndexKey(existing.stripeSubscriptionId)
+    : null;
+  const nextIndex = next.stripeSubscriptionId && isSubscribedBillingStatus(next.billingStatus)
+    ? createStripeBillingReconciliationIndexRecord({
+      billingStatus: next.billingStatus,
+      cognitoSub: next.cognitoSub,
+      now,
+      stripeBillingStatusObservedAt: next.stripeBillingStatusObservedAt,
+      stripeCustomerId: next.stripeCustomerId,
+      stripeSubscriptionId: next.stripeSubscriptionId,
+    })
+    : null;
+
+  if (existingIndexKey) {
+    const existingIndex = repository.get(existingIndexKey);
+    if (!existingIndex.ok) {
+      return existingIndex;
+    }
+    if (existingIndex.value) {
+      if (
+        existingIndex.value.recordType !== "stripeBillingReconciliationIndex" ||
+        existingIndex.value.cognitoSub !== next.cognitoSub
+      ) {
+        return err("conditional_conflict", "Stripe billing reconciliation index belongs to another patient");
+      }
+      if (!nextIndex || existingIndexKey.sk !== nextIndex.sk) {
+        operations.push({ type: "delete", key: existingIndexKey, expected: existingIndex.value });
+      }
+    }
+  }
+
+  if (nextIndex) {
+    const existingNextIndex = repository.get(nextIndex);
+    if (!existingNextIndex.ok) {
+      return existingNextIndex;
+    }
+    if (existingNextIndex.value) {
+      if (
+        existingNextIndex.value.recordType !== "stripeBillingReconciliationIndex" ||
+        existingNextIndex.value.cognitoSub !== next.cognitoSub
+      ) {
+        return err("conditional_conflict", "Stripe billing reconciliation index belongs to another patient");
+      }
+      operations.push({
+        type: "update",
+        record: {
+          ...nextIndex,
+          createdAt: existingNextIndex.value.createdAt,
+        },
+        expected: existingNextIndex.value,
+      });
+    } else {
+      operations.push({ type: "put", record: nextIndex, ifNotExists: true });
+    }
+  }
+
+  return ok(operations);
+}
+
+function createStripeBillingReconciliationIndexRecord(input: {
+  billingStatus: Extract<BillingStatus, "active" | "past_due" | "cancel_pending">;
+  cognitoSub: string;
+  now: string;
+  stripeBillingStatusObservedAt?: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+}): StripeBillingReconciliationIndexRecord {
+  return {
+    ...stripeBillingReconciliationIndexKey(input.stripeSubscriptionId),
+    recordType: "stripeBillingReconciliationIndex",
+    schemaVersion: 1,
+    billingStatus: input.billingStatus,
+    cognitoSub: input.cognitoSub,
+    createdAt: input.now,
+    stripeBillingStatusObservedAt: input.stripeBillingStatusObservedAt,
+    stripeCustomerId: input.stripeCustomerId,
+    stripeSubscriptionId: input.stripeSubscriptionId,
+    updatedAt: input.now,
+  };
+}
+
 function collectReverseDeletes(
   repository: AppDataRepository,
   keys: AppDataKey[],
@@ -2842,6 +3031,12 @@ function isStripeSubscriptionId(value: string) {
   return isSafeIdentifier(value, /^sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
 }
 
+function isStripeBillingOpsReviewReasonCode(
+  value: unknown,
+): value is StripeBillingOpsReviewReasonCode {
+  return value === "unpaired_stripe_subscription";
+}
+
 function isWebhookEventId(value: string) {
   return value.length <= maxWebhookEventIdLength &&
     isSafeIdentifier(value, /^(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
@@ -2965,6 +3160,10 @@ function isEvidenceEventId(record: EvidenceEventRecord) {
       return record.stripeSubscriptionId !== undefined &&
         typeof record.metadata?.status === "string" &&
         record.eventId === `stripe:billing:${record.stripeSubscriptionId}:${record.metadata.status}`;
+    case "stripe_mdi_billing_reconciliation":
+      return record.stripeSubscriptionId !== undefined &&
+        typeof record.metadata?.reason_code === "string" &&
+        record.eventId === `stripe:billing_reconcile:${record.stripeSubscriptionId}:${record.metadata.reason_code}`;
     case "webhook_claimed":
     case "webhook_processed":
     case "webhook_failed":
@@ -3023,6 +3222,18 @@ function optionalUsStateCode(value: unknown): value is UsStateCode | undefined {
 
 function isBillingStatus(value: unknown): value is BillingStatus {
   return billingStatuses.has(value as BillingStatus);
+}
+
+function isSubscribedBillingStatus(
+  value: BillingStatus,
+): value is Extract<BillingStatus, "active" | "past_due" | "cancel_pending"> {
+  return value === "active" || value === "past_due" || value === "cancel_pending";
+}
+
+function isActiveBillingReconciliationStatus(
+  value: unknown,
+): value is Extract<BillingStatus, "active" | "past_due" | "cancel_pending"> {
+  return value === "active" || value === "past_due" || value === "cancel_pending";
 }
 
 function addSecondsIso(isoTimestamp: string, seconds: number) {
@@ -3367,6 +3578,7 @@ const evidenceEventIdPatterns = [
   /^mdi:workflow_url:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:file_upload|intro_video|messaging):req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:payment-method:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:collected$/,
   /^stripe:billing:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:payment_method_pending|payment_method_collected|active|past_due|cancel_pending|canceled)$/,
+  /^stripe:billing_reconcile:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:active_without_billing_ready|failed_payment_requires_review|local_mirror_stale|mdi_terminal_with_active_billing|missing_mdi_linkage|missing_stripe_linkage|stripe_already_canceled|stripe_cancel_pending|unpaired_stripe_subscription)$/,
   /^webhook:(?:stripe|mdi):(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:[A-Z][A-Z0-9_]{1,79}(?::[a-z][a-z0-9_]{0,39})?$/,
   /^support:case-review:\d{3,12}$/,
   /^admin:action:\d{3,12}$/,
@@ -3526,6 +3738,22 @@ const allowedFields: Record<string, Set<string>> = {
     "stripeCurrentPeriodStart",
     "stripeCurrentPeriodEnd",
   ),
+  stripeBillingReconciliationIndex: allow(
+    "cognitoSub",
+    "stripeCustomerId",
+    "stripeSubscriptionId",
+    "billingStatus",
+    "stripeBillingStatusObservedAt",
+  ),
+  stripeBillingOpsReview: allow(
+    "reasonCode",
+    "stage",
+    "status",
+    "stripeCustomerId",
+    "stripeSubscriptionId",
+    "firstObservedAt",
+    "lastObservedAt",
+  ),
   stripeReverseLookup: allow(
     "cognitoSub",
     "pointerType",
@@ -3596,6 +3824,7 @@ const allowedFields: Record<string, Set<string>> = {
     "lastRequestId",
     "lastCursorPk",
     "lastCursorSk",
+    "lastProviderCursor",
   ),
 };
 

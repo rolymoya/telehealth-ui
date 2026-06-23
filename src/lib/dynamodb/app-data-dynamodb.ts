@@ -22,6 +22,7 @@ import {
   type OnboardingStatus,
   type PatientProfileRecord,
   type RecordCurrentMdiCaseStatusEvidenceInput,
+  type StripeBillingReconciliationIndexRecord,
   type StripeLinkageRecord,
   type StripeReverseLookupRecord,
   type TransactWriteOperation,
@@ -42,6 +43,8 @@ import {
   mdiPatientReverseKey,
   patientProfileKey,
   stripeCustomerReverseKey,
+  stripeBillingReconciliationIndexKey,
+  stripeBillingReconciliationIndexPk,
   stripeLinkageKey,
   stripeSubscriptionReverseKey,
   validateAppDataRecord,
@@ -419,6 +422,36 @@ export async function getStripeLinkageDynamoDb(
     return err("validation_failed", "Stripe linkage key contains another record type");
   }
   return ok(record.value);
+}
+
+export async function listStripeBillingReconciliationItemsDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "queryByKeyPrefix">,
+  input: {
+    exclusiveStartKey?: AppDataKey;
+    limit?: number;
+  } = {},
+): Promise<AppDataResult<{
+  items: StripeBillingReconciliationIndexRecord[];
+  nextKey?: AppDataKey;
+}>> {
+  const records = await repository.queryByKeyPrefix({
+    pk: stripeBillingReconciliationIndexPk,
+    skPrefix: "SUBSCRIPTION#",
+    exclusiveStartKey: input.exclusiveStartKey,
+    limit: input.limit,
+  });
+  if (!records.ok) {
+    return records;
+  }
+
+  const items: StripeBillingReconciliationIndexRecord[] = [];
+  for (const record of records.value.items) {
+    if (record.recordType !== "stripeBillingReconciliationIndex") {
+      return err("validation_failed", "Stripe billing reconciliation index contained another record type");
+    }
+    items.push(record);
+  }
+  return ok({ items, nextKey: records.value.nextKey });
 }
 
 export async function listEvidenceEventsForMdiCaseDynamoDb(
@@ -1136,6 +1169,15 @@ export async function linkStripeCustomerDynamoDb(
   if (!staleDeletes.ok) {
     return staleDeletes;
   }
+  const indexOperations = await collectStripeBillingReconciliationIndexOperations(
+    repository,
+    existing.value,
+    linkage,
+    input.now,
+  );
+  if (!indexOperations.ok) {
+    return indexOperations;
+  }
 
   const transaction = await repository.transactWrite([
     existing.value
@@ -1147,6 +1189,7 @@ export async function linkStripeCustomerDynamoDb(
       record,
       ifNotExists: true,
     })),
+    ...indexOperations.value,
   ]);
   return transaction.ok ? ok(linkage) : transaction;
 }
@@ -1211,6 +1254,102 @@ async function collectStaleStripeDeletes(
       : null,
   ].filter((key): key is AppDataKey => Boolean(key));
   return collectOwnedReverseDeletes(repository, keys, next.cognitoSub);
+}
+
+async function collectStripeBillingReconciliationIndexOperations(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  existing: StripeLinkageRecord | null,
+  next: StripeLinkageRecord,
+  now: string,
+): Promise<AppDataResult<TransactWriteOperation[]>> {
+  const operations: TransactWriteOperation[] = [];
+  const existingIndexKey = existing?.stripeSubscriptionId &&
+      isSubscribedBillingStatus(existing.billingStatus)
+    ? stripeBillingReconciliationIndexKey(existing.stripeSubscriptionId)
+    : null;
+  const nextIndex = next.stripeSubscriptionId && isSubscribedBillingStatus(next.billingStatus)
+    ? createStripeBillingReconciliationIndexRecord({
+      billingStatus: next.billingStatus,
+      cognitoSub: next.cognitoSub,
+      now,
+      stripeBillingStatusObservedAt: next.stripeBillingStatusObservedAt,
+      stripeCustomerId: next.stripeCustomerId,
+      stripeSubscriptionId: next.stripeSubscriptionId,
+    })
+    : null;
+
+  if (existingIndexKey) {
+    const existingIndex = await repository.get(existingIndexKey);
+    if (!existingIndex.ok) {
+      return existingIndex;
+    }
+    if (existingIndex.value) {
+      if (
+        existingIndex.value.recordType !== "stripeBillingReconciliationIndex" ||
+        existingIndex.value.cognitoSub !== next.cognitoSub
+      ) {
+        return err("conditional_conflict", "Stripe billing reconciliation index belongs to another patient");
+      }
+      if (!nextIndex || existingIndexKey.sk !== nextIndex.sk) {
+        operations.push({ type: "delete", key: existingIndexKey, expected: existingIndex.value });
+      }
+    }
+  }
+
+  if (nextIndex) {
+    const existingNextIndex = await repository.get(nextIndex);
+    if (!existingNextIndex.ok) {
+      return existingNextIndex;
+    }
+    if (existingNextIndex.value) {
+      if (
+        existingNextIndex.value.recordType !== "stripeBillingReconciliationIndex" ||
+        existingNextIndex.value.cognitoSub !== next.cognitoSub
+      ) {
+        return err("conditional_conflict", "Stripe billing reconciliation index belongs to another patient");
+      }
+      operations.push({
+        type: "update",
+        record: {
+          ...nextIndex,
+          createdAt: existingNextIndex.value.createdAt,
+        },
+        expected: existingNextIndex.value,
+      });
+    } else {
+      operations.push({ type: "put", record: nextIndex, ifNotExists: true });
+    }
+  }
+
+  return ok(operations);
+}
+
+function createStripeBillingReconciliationIndexRecord(input: {
+  billingStatus: Extract<BillingStatus, "active" | "past_due" | "cancel_pending">;
+  cognitoSub: string;
+  now: string;
+  stripeBillingStatusObservedAt?: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+}): StripeBillingReconciliationIndexRecord {
+  return {
+    ...stripeBillingReconciliationIndexKey(input.stripeSubscriptionId),
+    recordType: "stripeBillingReconciliationIndex",
+    schemaVersion: 1,
+    billingStatus: input.billingStatus,
+    cognitoSub: input.cognitoSub,
+    createdAt: input.now,
+    stripeBillingStatusObservedAt: input.stripeBillingStatusObservedAt,
+    stripeCustomerId: input.stripeCustomerId,
+    stripeSubscriptionId: input.stripeSubscriptionId,
+    updatedAt: input.now,
+  };
+}
+
+function isSubscribedBillingStatus(
+  value: BillingStatus,
+): value is Extract<BillingStatus, "active" | "past_due" | "cancel_pending"> {
+  return value === "active" || value === "past_due" || value === "cancel_pending";
 }
 
 async function collectOwnedReverseDeletes(

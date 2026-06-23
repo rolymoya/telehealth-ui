@@ -5,13 +5,14 @@
     "T-046",
     "T-058"
   ],
-  "completedDate": null,
+  "claimedBySession": "23f22d90-d160-49c7-9e11-cacba0567f42",
+  "completedDate": "2026-06-23",
   "createdDate": "2026-05-19",
   "description": "Add a scheduled safety net that detects drift between Stripe billing state and MDI clinical/care workflow state.\n\n**Scope**\n- EventBridge schedule invokes a bounded Lambda that checks recent active cases/subscriptions against Stripe and MDI.\n- Detect unpaired IDs, stale local mirrors, active billing without approved MDI state, cancelled MDI workflow with active Stripe billing, and failed-payment states requiring care workflow action.\n- Correct safe drift automatically and route ambiguous cases to ops.\n- Emit CloudWatch metrics/alarms, not Datadog by default.\n\n**Acceptance**\n- Sandbox drift scenarios are detected and either corrected or routed to ops.\n- Reconciliation writes minimal evidence records with opaque IDs.\n- Job is idempotent and bounded for launch scale.",
   "id": "T-069",
   "order": 10,
   "phase": "hardening",
-  "status": "open",
+  "status": "complete",
   "title": "Stripe-MDI billing reconciliation Lambda",
   "type": "task"
 }

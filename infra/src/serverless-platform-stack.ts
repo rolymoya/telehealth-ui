@@ -286,6 +286,62 @@ exports.handler = async () => ({
       ],
     }));
 
+    const stripeMdiBillingReconciliationFunction = new NodejsFunction(
+      this,
+      "StripeMdiBillingReconciliationFunction",
+      {
+        functionName: `apoth-${props.config.stage}-stripe-mdi-billing-reconciliation`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "handler",
+        entry: path.join(__dirname, "lambda", "stripe-mdi-billing-reconciliation.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(60),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
+          APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
+          APOTH_STAGE: props.config.stage,
+          APOTH_STRIPE_MDI_BILLING_RECONCILIATION_LIMIT: "5",
+          JOB_NAME: "stripe-mdi-billing-reconciliation",
+        },
+        logGroup: new LogGroup(this, "StripeMdiBillingReconciliationFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-stripe-mdi-billing-reconciliation`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      stripeMdiBillingReconciliationFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:Query",
+      "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
+    );
+    stripeMdiBillingReconciliationFunction.addToRolePolicy(new PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        this.formatArn({
+          service: "secretsmanager",
+          resource: "secret",
+          resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
+        }),
+        this.formatArn({
+          service: "secretsmanager",
+          resource: "secret",
+          resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
+        }),
+      ],
+    }));
+
     new Rule(this, "ScheduledHeartbeatRule", {
       ruleName: `apoth-${props.config.stage}-scheduled-heartbeat`,
       schedule: Schedule.rate(Duration.minutes(15)),
@@ -308,6 +364,17 @@ exports.handler = async () => ({
       ],
     });
 
+    new Rule(this, "StripeMdiBillingReconciliationRule", {
+      ruleName: `apoth-${props.config.stage}-stripe-mdi-billing-reconciliation`,
+      schedule: Schedule.rate(Duration.hours(6)),
+      targets: [
+        new LambdaFunction(stripeMdiBillingReconciliationFunction, {
+          retryAttempts: 1,
+          maxEventAge: Duration.hours(1),
+        }),
+      ],
+    });
+
     const webhookDlqVisibleMetric = webhookDlq.metricApproximateNumberOfMessagesVisible({
       period: Duration.minutes(5),
     });
@@ -322,6 +389,11 @@ exports.handler = async () => ({
       period: Duration.minutes(5),
       statistic: "Sum",
     });
+    const stripeMdiBillingReconciliationErrorsMetric =
+      stripeMdiBillingReconciliationFunction.metricErrors({
+        period: Duration.minutes(5),
+        statistic: "Sum",
+      });
     const mdiCaseReconciliationDriftMetric = new Metric({
       namespace: "Apoth/ScheduledJobs",
       metricName: "MdiCaseReconciliationCorrections",
@@ -330,6 +402,20 @@ exports.handler = async () => ({
         Provider: "mdi",
         Outcome: "recorded",
         ReasonCode: "case_status_reconciliation",
+        RouteGroup: "scheduled",
+      },
+      period: Duration.minutes(5),
+      statistic: "Sum",
+      unit: Unit.COUNT,
+    });
+    const stripeMdiBillingReconciliationOpsReviewMetric = new Metric({
+      namespace: "Apoth/ScheduledJobs",
+      metricName: "StripeMdiBillingReconciliationOpsReview",
+      dimensionsMap: {
+        Stage: props.config.stage,
+        Provider: "stripe",
+        Outcome: "recorded",
+        ReasonCode: "billing_reconciliation",
         RouteGroup: "scheduled",
       },
       period: Duration.minutes(5),
@@ -385,6 +471,28 @@ exports.handler = async () => ({
       alarmName: `apoth-${props.config.stage}-mdi-case-reconciliation-drift`,
       alarmDescription: "Active alarm: MDI case-status reconciliation corrected local drift; follow the launch ops runbook.",
       metric: mdiCaseReconciliationDriftMetric,
+      threshold: 0,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    });
+
+    new Alarm(this, "StripeMdiBillingReconciliationFailuresAlarm", {
+      alarmName: `apoth-${props.config.stage}-stripe-mdi-billing-reconciliation-errors`,
+      alarmDescription: "Active alarm: Stripe-MDI billing reconciliation Lambda is failing; follow the launch ops runbook.",
+      metric: stripeMdiBillingReconciliationErrorsMetric,
+      threshold: 0,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    });
+
+    new Alarm(this, "StripeMdiBillingReconciliationOpsReviewAlarm", {
+      alarmName: `apoth-${props.config.stage}-stripe-mdi-billing-reconciliation-ops-review`,
+      alarmDescription: "Active alarm: Stripe-MDI billing reconciliation found billing/care-state drift for ops review.",
+      metric: stripeMdiBillingReconciliationOpsReviewMetric,
       threshold: 0,
       evaluationPeriods: 1,
       datapointsToAlarm: 1,
@@ -480,6 +588,8 @@ exports.handler = async () => ({
         scheduledHeartbeatErrors: scheduledHeartbeatErrorsMetric,
         mdiCaseReconciliationErrors: mdiCaseReconciliationErrorsMetric,
         mdiCaseReconciliationDrift: mdiCaseReconciliationDriftMetric,
+        stripeMdiBillingReconciliationErrors: stripeMdiBillingReconciliationErrorsMetric,
+        stripeMdiBillingReconciliationOpsReview: stripeMdiBillingReconciliationOpsReviewMetric,
         webhookDlqVisible: webhookDlqVisibleMetric,
         webhookOldestMessageAge: webhookOldestMessageAgeMetric,
       },
@@ -956,6 +1066,9 @@ function handler(event) {
     new CfnOutput(this, "ScheduledHeartbeatFunctionName", {
       value: scheduledHeartbeatFunction.functionName,
     });
+    new CfnOutput(this, "StripeMdiBillingReconciliationFunctionName", {
+      value: stripeMdiBillingReconciliationFunction.functionName,
+    });
     new CfnOutput(this, "MdiApiSecretArn", { value: secrets.mdiApi.attrId });
     new CfnOutput(this, "StripeSecretArn", { value: secrets.stripeApi.attrId });
     new CfnOutput(this, "AppSigningSecretArn", {
@@ -1005,6 +1118,8 @@ function handler(event) {
           activeMetrics.scheduledHeartbeatErrors,
           activeMetrics.mdiCaseReconciliationErrors,
           activeMetrics.mdiCaseReconciliationDrift,
+          activeMetrics.stripeMdiBillingReconciliationErrors,
+          activeMetrics.stripeMdiBillingReconciliationOpsReview,
         ],
       }),
       new GraphWidget({
@@ -1078,6 +1193,8 @@ type ActiveObservabilityMetrics = {
   mdiCaseReconciliationDrift: Metric;
   mdiCaseReconciliationErrors: Metric;
   scheduledHeartbeatErrors: Metric;
+  stripeMdiBillingReconciliationErrors: Metric;
+  stripeMdiBillingReconciliationOpsReview: Metric;
   webhookDlqVisible: Metric;
   webhookOldestMessageAge: Metric;
 };
