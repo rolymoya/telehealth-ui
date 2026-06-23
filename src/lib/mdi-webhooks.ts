@@ -44,6 +44,7 @@ import {
 } from "@/lib/mdi/case-status";
 import {
   evaluateBillingUnlock,
+  type BillingUnlockDecision,
   type BillingState,
 } from "@/lib/payment-gating";
 import type { MdiApiSecretPayload } from "@/lib/secrets/contracts";
@@ -146,6 +147,7 @@ export type MdiWebhookMirrorRepository = {
 
 export type HandleMdiWebhookInput = {
   authorization: string;
+  billingActivation?: MdiBillingActivation;
   mdiMirrorRepository: MdiWebhookMirrorRepository;
   payload: string | Buffer;
   receivedAt: string;
@@ -158,6 +160,21 @@ export type HandleMdiWebhookInput = {
   >;
   signature: string;
   webhookRepository: WebhookProcessingRepository;
+};
+
+export type MdiBillingActivation = {
+  activate(input: {
+    cognitoSub: string;
+    mdiCaseId: string;
+    now: string;
+    webhookEventId: string;
+  }): Promise<{ ok: true } | { ok: false; retryable: boolean }>;
+  cancel(input: {
+    cognitoSub: string;
+    mdiCaseId: string;
+    now: string;
+    webhookEventId: string;
+  }): Promise<{ ok: true } | { ok: false; retryable: boolean }>;
 };
 
 type NormalizedMdiWebhook = {
@@ -321,6 +338,7 @@ export async function handleMdiWebhook(input: HandleMdiWebhookInput): Promise<Md
       envelope,
       repository: input.webhookRepository,
       handler: async () => handleVerifiedMdiEvent({
+        billingActivation: input.billingActivation,
         mdiMirrorRepository: input.mdiMirrorRepository,
         now: input.receivedAt,
         webhook: normalized.value,
@@ -480,6 +498,7 @@ function opaquePreferredPharmacyRequestedWebhook(input: {
 }
 
 async function handleVerifiedMdiEvent(input: {
+  billingActivation?: MdiBillingActivation;
   mdiMirrorRepository: MdiWebhookMirrorRepository;
   now: string;
   webhook: NormalizedMdiWebhook;
@@ -605,6 +624,28 @@ async function handleVerifiedMdiEvent(input: {
     return billing.retryable
       ? { outcome: "failed" as const, retryable: true, durableRetry: false }
       : { outcome: "failed" as const, retryable: false, durableRetry: false };
+  }
+  if (input.billingActivation) {
+    const sideEffect = billing.decision.action === "activate_billing"
+      ? await input.billingActivation.activate({
+        cognitoSub: patient.value,
+        mdiCaseId: caseId,
+        now: input.now,
+        webhookEventId: input.webhook.eventId,
+      })
+      : billing.decision.action === "cancel_active_billing"
+        ? await input.billingActivation.cancel({
+          cognitoSub: patient.value,
+          mdiCaseId: caseId,
+          now: input.now,
+          webhookEventId: input.webhook.eventId,
+        })
+        : { ok: true as const };
+    if (!sideEffect.ok) {
+      return sideEffect.retryable
+        ? { outcome: "failed" as const, retryable: true, durableRetry: false }
+        : { outcome: "failed" as const, retryable: false, durableRetry: false };
+    }
   }
 
   return { outcome: "processed" as const };
@@ -769,7 +810,10 @@ async function recordBillingUnlockDecision(
     providerTimestamp: string;
     webhookEventId: string;
   },
-): Promise<{ ok: true } | { ok: false; retryable: boolean }> {
+): Promise<
+  | { ok: true; decision: BillingUnlockDecision }
+  | { ok: false; retryable: boolean }
+> {
   const stripe = await repository.getStripeLinkage(input.cognitoSub);
   if (!stripe.ok) {
     return { ok: false, retryable: stripe.error.kind !== "validation_failed" };
@@ -808,7 +852,7 @@ async function recordBillingUnlockDecision(
     summaryCode: "MDI_BILLING_UNLOCK_DECISION",
   });
   if (evidence.ok || evidence.error.kind === "conditional_conflict") {
-    return { ok: true };
+    return { ok: true, decision };
   }
   return {
     ok: false,
@@ -943,6 +987,9 @@ function billingStateForStripeStatus(status: BillingStatus | undefined): Billing
     return "payment_method_collected";
   }
   if (status === "active") {
+    return "subscription_active";
+  }
+  if (status === "past_due") {
     return "subscription_active";
   }
   return "payment_method_pending";

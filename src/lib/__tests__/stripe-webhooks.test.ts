@@ -834,6 +834,165 @@ describe("Stripe webhook receiver service", () => {
     });
   });
 
+  it("activates billing after late payment method collection when MDI is already billing_ready", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedMdiCaseStatusContext(repository, "billing_ready", 30);
+    seedStripeCustomerLinkage(repository, "payment_method_pending");
+    const billingActivation = billingActivationMock();
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_latepm_001",
+      type: "payment_method.attached",
+      object: {
+        customer: "cus_opaque_001",
+        id: "pm_opaque_001",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      billingActivation,
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+    expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+      ok: true,
+      value: { billingStatus: "payment_method_collected" },
+    });
+    expect(billingActivation.activate).toHaveBeenCalledTimes(1);
+    expect(billingActivation.activate).toHaveBeenCalledWith({
+      cognitoSub: "cognito-sub-0123456789abcdef",
+      mdiCaseId: "mdi_case_stripe_webhook_001",
+      now: "2026-06-09T12:00:00.000Z",
+      webhookEventId: "evt_latepm_001",
+    });
+  });
+
+  it("does not activate billing after payment method collection before MDI billing_ready", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedMdiCaseStatusContext(repository, "approved", 25);
+    seedStripeCustomerLinkage(repository, "payment_method_pending");
+    const billingActivation = billingActivationMock();
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_prepaypm_001",
+      type: "setup_intent.succeeded",
+      object: {
+        customer: "cus_opaque_001",
+        id: "seti_opaque_001",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      billingActivation,
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+    expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+      ok: true,
+      value: {
+        billingStatus: "payment_method_collected",
+        stripeSubscriptionId: undefined,
+      },
+    });
+    expect(billingActivation.activate).not.toHaveBeenCalled();
+  });
+
+  it("mirrors Stripe subscription current period timestamps without clinical metadata", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedStripeLinkage(repository, "active");
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_periodmirror_001",
+      type: "customer.subscription.updated",
+      object: {
+        current_period_end: 1784808000,
+        current_period_start: 1782216000,
+        id: "sub_opaque_001",
+        customer: "cus_opaque_001",
+        status: "active",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+    expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+      ok: true,
+      value: {
+        stripeCurrentPeriodEnd: "2026-07-23T12:00:00.000Z",
+        stripeCurrentPeriodStart: "2026-06-23T12:00:00.000Z",
+      },
+    });
+    const evidence = getStripeLinkage(repository, "cognito-sub-0123456789abcdef");
+    expect(JSON.stringify(evidence)).not.toMatch(/condition|diagnosis|medication|questionnaire|answer/i);
+  });
+
+  it("continues mirroring subscription state after MDI advances to completed post-unlock", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedMdiCaseStatusContext(repository, "completed", 40);
+    seedStripeCustomerLinkage(repository, "active", "sub_opaque_001");
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_completed_subscription_failed_001",
+      type: "invoice.payment_failed",
+      object: {
+        customer: "cus_opaque_001",
+        lines: {
+          data: [{
+            period: {
+              end: 1784808000,
+              start: 1782216000,
+            },
+          }],
+        },
+        subscription: "sub_opaque_001",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 200, body: { action: "queued" } });
+    expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+      ok: true,
+      value: {
+        billingStatus: "past_due",
+        stripeCurrentPeriodEnd: "2026-07-23T12:00:00.000Z",
+        stripeCurrentPeriodStart: "2026-06-23T12:00:00.000Z",
+        stripeSubscriptionId: "sub_opaque_001",
+      },
+    });
+  });
+
   it("does not mark subscription billing active for invoice success without a subscription", async () => {
     const repository = createInMemoryAppDataRepository();
     seedStripeCustomerLinkage(repository, "payment_method_collected");
@@ -1124,7 +1283,7 @@ function seedApprovedBillingContext(
 
 function seedMdiCaseStatusContext(
   repository: ReturnType<typeof createInMemoryAppDataRepository>,
-  caseStatus: "approved" | "billing_ready",
+  caseStatus: "approved" | "billing_ready" | "completed",
   statusRank: number,
 ) {
   const now = "2026-06-09T11:00:00.000Z";
@@ -1134,7 +1293,9 @@ function seedMdiCaseStatusContext(
   const profile = createPatientProfileRecord({
     cognitoSub,
     now,
-    onboardingStatus: caseStatus === "billing_ready" ? "billing_ready" : "clinical_review",
+    onboardingStatus: caseStatus === "billing_ready" || caseStatus === "completed"
+      ? "billing_ready"
+      : "clinical_review",
     residencyState: "IL",
   });
   const existingProfile = repository.get(profile);
@@ -1173,12 +1334,14 @@ function seedMdiCaseStatusContext(
 function seedStripeCustomerLinkage(
   repository: ReturnType<typeof createInMemoryAppDataRepository>,
   billingStatus: Parameters<typeof linkStripeCustomer>[1]["billingStatus"],
+  stripeSubscriptionId?: string,
 ) {
   const linked = linkStripeCustomer(repository, {
     billingStatus,
     cognitoSub: "cognito-sub-0123456789abcdef",
     now: "2026-06-09T11:00:00.000Z",
     stripeCustomerId: "cus_opaque_001",
+    stripeSubscriptionId,
   });
   expect(linked.ok).toBe(true);
 }
@@ -1193,6 +1356,12 @@ function stripeVerifier(constructEvent?: () => Stripe.Event) {
       constructEvent: constructEventMock,
     },
   } as unknown as Pick<Stripe, "webhooks">;
+}
+
+function billingActivationMock() {
+  return {
+    activate: vi.fn(async () => ({ ok: true as const })),
+  };
 }
 
 function stripeEvent(input: {

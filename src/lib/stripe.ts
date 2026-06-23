@@ -78,6 +78,27 @@ export function createSubscriptionCheckoutParams(input: {
   };
 }
 
+export function createStripeSubscriptionParams(input: {
+  customerId: string;
+  metadata: Record<string, string>;
+  priceId: string;
+}): StripeResult<Stripe.SubscriptionCreateParams> {
+  const metadata = validateStripeMetadata(input.metadata);
+  if (!metadata.valid) {
+    return validationErr(metadata);
+  }
+
+  return {
+    ok: true,
+    value: {
+      customer: input.customerId,
+      items: [{ price: input.priceId }],
+      metadata: input.metadata,
+      payment_behavior: "allow_incomplete",
+    },
+  };
+}
+
 export function createPaymentMethodSetupIntentParams(input: {
   customerId: string;
   metadata: Record<string, string>;

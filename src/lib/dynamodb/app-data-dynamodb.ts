@@ -1071,6 +1071,8 @@ export async function linkStripeCustomerDynamoDb(
     now: string;
     stripeCustomerId: string;
     allowedCurrentBillingStatuses?: BillingStatus[];
+    stripeCurrentPeriodEnd?: string;
+    stripeCurrentPeriodStart?: string;
     stripeBillingStatusObservedAt?: string;
     stripeSubscriptionId?: string;
   },
@@ -1096,6 +1098,8 @@ export async function linkStripeCustomerDynamoDb(
     schemaVersion: 1,
     stripeBillingStatusObservedAt: input.stripeBillingStatusObservedAt,
     stripeCustomerId: input.stripeCustomerId,
+    stripeCurrentPeriodEnd: input.stripeCurrentPeriodEnd,
+    stripeCurrentPeriodStart: input.stripeCurrentPeriodStart,
     stripeSubscriptionId: input.stripeSubscriptionId,
     updatedAt: input.now,
   };

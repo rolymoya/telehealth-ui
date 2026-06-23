@@ -69,6 +69,7 @@ export const stripeWebhookEventContracts = [
 ] as const satisfies StripeWebhookEventContract[];
 
 export type HandleStripeWebhookInput = {
+  billingActivation?: StripeBillingActivation;
   stripeMirrorRepository: StripeMirrorRepository;
   enqueue: (message: WebhookQueueMessage) => Promise<void>;
   payload: string | Buffer;
@@ -82,6 +83,15 @@ export type HandleStripeWebhookInput = {
   webhookRepository: WebhookProcessingRepository;
 };
 
+export type StripeBillingActivation = {
+  activate(input: {
+    cognitoSub: string;
+    mdiCaseId: string;
+    now: string;
+    webhookEventId: string;
+  }): Promise<{ ok: true } | { ok: false; retryable: boolean }>;
+};
+
 export type StripeMirrorRepository = {
   findPatientByStripeCustomer(stripeCustomerId: string): Promise<AppDataResult<string | null>>;
   getMdiCaseStatusMirror(mdiCaseId: string): Promise<AppDataResult<MdiCaseStatusMirrorRecord | null>>;
@@ -93,6 +103,8 @@ export type StripeMirrorRepository = {
     now: string;
     stripeCustomerId: string;
     stripeBillingStatusObservedAt?: string;
+    stripeCurrentPeriodEnd?: string;
+    stripeCurrentPeriodStart?: string;
     stripeSubscriptionId?: string;
   }): Promise<AppDataResult<StripeLinkageRecord>>;
   recordEvidenceEvent(
@@ -212,6 +224,7 @@ export async function handleStripeWebhook(
       envelope,
       repository: input.webhookRepository,
       handler: async () => handleVerifiedStripeEvent({
+        billingActivation: input.billingActivation,
         contract,
         event: verified.value,
         now: input.receivedAt,
@@ -228,6 +241,7 @@ export async function handleStripeWebhook(
 }
 
 async function handleVerifiedStripeEvent(input: {
+  billingActivation?: StripeBillingActivation;
   contract: StripeWebhookEventContract;
   event: Stripe.Event;
   now: string;
@@ -241,6 +255,7 @@ async function handleVerifiedStripeEvent(input: {
     input.stripeMirrorRepository,
     input.event,
     input.now,
+    input.billingActivation,
   );
   if (!inline.ok) {
     return {
@@ -261,6 +276,7 @@ async function applyInlineStripeMirror(
   repository: StripeMirrorRepository,
   event: Stripe.Event,
   now: string,
+  billingActivation?: StripeBillingActivation,
 ): Promise<
   | { ok: true }
   | { ok: false; retryable: boolean }
@@ -290,6 +306,7 @@ async function applyInlineStripeMirror(
     repository,
     patient.value,
     event,
+    existing.value,
   );
   if (!activationAllowed.ok) {
     return activationAllowed;
@@ -317,6 +334,16 @@ async function applyInlineStripeMirror(
     billingStatus,
     now,
     stripeBillingStatusObservedAt: eventObservedAt,
+    stripeCurrentPeriodEnd: stripeCurrentPeriodIsoForEvent(
+      event,
+      "end",
+      existing.value?.stripeCurrentPeriodEnd,
+    ),
+    stripeCurrentPeriodStart: stripeCurrentPeriodIsoForEvent(
+      event,
+      "start",
+      existing.value?.stripeCurrentPeriodStart,
+    ),
   });
   if (!linked.ok) {
     return appDataFailure(linked.error);
@@ -336,6 +363,38 @@ async function applyInlineStripeMirror(
       return { ok: true };
     }
     return appDataFailure(evidence.error);
+  }
+
+  if (
+    billingActivation &&
+    billingStatus === "payment_method_collected" &&
+    linked.value.stripeSubscriptionId === undefined
+  ) {
+    const mdi = await repository.getMdiLinkage(patient.value);
+    if (!mdi.ok) {
+      return appDataFailure(mdi.error);
+    }
+    if (mdi.value?.mdiCaseId) {
+      const mirror = await repository.getMdiCaseStatusMirror(mdi.value.mdiCaseId);
+      if (!mirror.ok) {
+        return appDataFailure(mirror.error);
+      }
+      if (mirror.value?.caseStatus !== "billing_ready") {
+        return { ok: true };
+      }
+      const activation = await billingActivation.activate({
+        cognitoSub: patient.value,
+        mdiCaseId: mdi.value.mdiCaseId,
+        now,
+        webhookEventId: event.id,
+      });
+      if (!activation.ok) {
+        return {
+          ok: false,
+          retryable: activation.retryable,
+        };
+      }
+    }
   }
 
   return { ok: true };
@@ -556,6 +615,39 @@ function objectString(object: Record<string, unknown>, key: string) {
   return null;
 }
 
+function stripeCurrentPeriodIsoForEvent(
+  event: Stripe.Event,
+  boundary: "start" | "end",
+  existing: string | undefined,
+) {
+  const object = stripeEventObject(event);
+  const key = boundary === "start" ? "current_period_start" : "current_period_end";
+  const direct = objectNumber(object, key);
+  if (direct !== null) {
+    return stripeCreatedToIso(direct);
+  }
+
+  const lines = object["lines"];
+  if (isRecord(lines) && Array.isArray(lines.data)) {
+    for (const line of lines.data) {
+      if (!isRecord(line) || !isRecord(line.period)) {
+        continue;
+      }
+      const periodValue = objectNumber(line.period, boundary);
+      if (periodValue !== null) {
+        return stripeCreatedToIso(periodValue);
+      }
+    }
+  }
+
+  return existing;
+}
+
+function objectNumber(object: Record<string, unknown>, key: string) {
+  const value = object[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 function stripeCreatedToIso(created: number) {
   return new Date(created * 1000).toISOString();
 }
@@ -591,8 +683,12 @@ async function clinicalUnlockAllowsStripeBillingMirror(
   repository: StripeMirrorRepository,
   cognitoSub: string,
   event: Stripe.Event,
+  existing: StripeLinkageRecord | null,
 ): Promise<{ ok: true; value: boolean } | { ok: false; retryable: boolean }> {
   if (isPreUnlockPaymentMethodCollectionEvent(event)) {
+    return { ok: true, value: true };
+  }
+  if (existing?.stripeSubscriptionId && isSubscribedOrClosedStatus(existing.billingStatus)) {
     return { ok: true, value: true };
   }
 
@@ -609,12 +705,21 @@ async function clinicalUnlockAllowsStripeBillingMirror(
     return appDataFailure(mirror.error);
   }
 
-  return { ok: true, value: mirror.value?.caseStatus === "billing_ready" };
+  return {
+    ok: true,
+    value: mirror.value?.caseStatus === "billing_ready",
+  };
 }
 
 function isPreUnlockPaymentMethodCollectionEvent(event: Stripe.Event) {
   return event.type === "setup_intent.succeeded" ||
     event.type === "payment_method.attached";
+}
+
+function isSubscribedOrClosedStatus(status: BillingStatus) {
+  return status === "active" ||
+    status === "past_due" ||
+    status === "canceled";
 }
 
 function okEvidence() {
