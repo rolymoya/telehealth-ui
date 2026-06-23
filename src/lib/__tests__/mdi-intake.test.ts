@@ -528,6 +528,105 @@ describe("MDI intake orchestration", () => {
     expect(JSON.stringify(result)).not.toContain("ANSWER_VALUE_SENTINEL");
     expect(JSON.stringify(result)).not.toContain("QUESTION_TEXT_SENTINEL");
   });
+
+  it("retries maintenance case creation with the same opaque idempotency key", async () => {
+    const repository = createInMemoryAppDataRepository([
+      createPatientProfileRecord({
+        cognitoSub,
+        now,
+        onboardingStatus: "intake_ready",
+      }),
+    ]);
+    linkMdiPatientCase(repository, {
+      cognitoSub,
+      mdiPatientId,
+      now,
+    });
+    const createCase = vi
+      .fn()
+      .mockResolvedValueOnce(mdiIntakeFailure(
+        "provider_unavailable",
+        "MDI maintenance",
+        { retryAfterSeconds: 300, retryable: true, status: 418 },
+      ))
+      .mockResolvedValueOnce({
+        ok: true as const,
+        value: {
+          linkage: {
+            mdiCaseId,
+            mdiPatientId,
+          },
+        },
+      });
+
+    await expect(submitMdiIntake(
+      {
+        casePayload,
+        cognitoSub,
+        questionnaireId: fixtureQuestionnaire.questionnaireId,
+        responses,
+      },
+      {
+        gateway: gatewayWithQuestionnaire({ createCase }),
+        now: () => new Date(now),
+        repository: createAppDataMdiIntakeRepository(repository),
+      },
+    )).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "provider_unavailable",
+        retryAfterSeconds: 300,
+        retryable: true,
+        status: 418,
+      },
+    });
+
+    expect(getMdiCaseCreateAttempt(repository, cognitoSub)).toMatchObject({
+      ok: true,
+      value: {
+        attempts: 1,
+        idempotencyKey: createMdiCaseIdempotencyKey(cognitoSub),
+        providerStatus: 418,
+        retryAfterSeconds: 300,
+        status: "case_provider_retryable_failure",
+      },
+    });
+
+    await expect(submitMdiIntake(
+      {
+        casePayload,
+        cognitoSub,
+        questionnaireId: fixtureQuestionnaire.questionnaireId,
+        responses,
+      },
+      {
+        gateway: gatewayWithQuestionnaire({ createCase }),
+        now: () => new Date("2026-06-20T22:20:00.000Z"),
+        repository: createAppDataMdiIntakeRepository(repository),
+      },
+    )).resolves.toMatchObject({
+      ok: true,
+      value: {
+        linkage: {
+          mdiCaseId,
+          mdiPatientId,
+        },
+      },
+    });
+
+    expect(createCase).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      idempotencyKey: createMdiCaseIdempotencyKey(cognitoSub),
+    }));
+    expect(createCase).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      idempotencyKey: createMdiCaseIdempotencyKey(cognitoSub),
+    }));
+    const stored = JSON.stringify(repository.queryByKeyPrefix({
+      pk: patientProfileKey(cognitoSub).pk,
+      skPrefix: "",
+    }));
+    expect(stored).not.toContain("ANSWER_VALUE_SENTINEL");
+    expect(stored).not.toContain("QUESTION_TEXT_SENTINEL");
+  });
 });
 
 function gatewayWithQuestionnaire(

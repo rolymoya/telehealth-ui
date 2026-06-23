@@ -66,6 +66,7 @@ export type BillingStatus =
   | "payment_method_collected"
   | "active"
   | "past_due"
+  | "cancel_pending"
   | "canceled";
 
 export type WebhookProcessingStatus = "processing" | "processed" | "failed";
@@ -146,6 +147,7 @@ export type MdiCaseCreateAttemptRecord = BaseRecord & {
   lastAttemptAt?: string;
   linkedAt?: string;
   submittedAt?: string;
+  retryAfterSeconds?: number;
   providerStatus?: number;
   mdiPatientId?: string;
   mdiCaseId?: string;
@@ -1134,6 +1136,7 @@ export function createMdiCaseCreateAttemptRecord(input: {
   mdiCaseId?: string;
   mdiSubmissionId?: string;
   providerStatus?: number;
+  retryAfterSeconds?: number;
 }): MdiCaseCreateAttemptRecord {
   return {
     ...mdiCaseCreateAttemptKey(input.cognitoSub),
@@ -1153,6 +1156,7 @@ export function createMdiCaseCreateAttemptRecord(input: {
     ...(input.mdiCaseId ? { mdiCaseId: input.mdiCaseId } : {}),
     ...(input.mdiSubmissionId ? { mdiSubmissionId: input.mdiSubmissionId } : {}),
     ...(input.providerStatus ? { providerStatus: input.providerStatus } : {}),
+    ...(input.retryAfterSeconds ? { retryAfterSeconds: input.retryAfterSeconds } : {}),
   };
 }
 
@@ -2235,6 +2239,7 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         optionalIsoDate(record.lastAttemptAt) &&
         optionalIsoDate(record.linkedAt) &&
         optionalIsoDate(record.submittedAt) &&
+        optionalPositiveInteger(record.retryAfterSeconds) &&
         optionalHttpStatus(record.providerStatus) &&
         optionalMdiPatientId(record.mdiPatientId) &&
         optionalMdiCaseId(record.mdiCaseId) &&
@@ -2951,6 +2956,11 @@ function isEvidenceEventId(record: EvidenceEventRecord) {
     case "stripe_billing_activated":
       return record.stripeSubscriptionId !== undefined &&
         record.eventId === `stripe:billing:${record.stripeSubscriptionId}:active`;
+    case "mdi_cancellation_review_requested":
+      return record.mdiCaseId !== undefined &&
+        record.mdiPatientId !== undefined &&
+        record.stripeSubscriptionId !== undefined &&
+        record.eventId === `mdi:cancellation_review:${record.mdiCaseId}:${record.stripeSubscriptionId}`;
     case "stripe_billing_status_changed":
       return record.stripeSubscriptionId !== undefined &&
         typeof record.metadata?.status === "string" &&
@@ -3236,6 +3246,7 @@ const billingStatuses = new Set<BillingStatus>([
   "payment_method_collected",
   "active",
   "past_due",
+  "cancel_pending",
   "canceled",
 ]);
 
@@ -3352,9 +3363,10 @@ const evidenceEventIdPatterns = [
   /^mdi:billing_unlock:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:await_clinical_review|await_payment_method|cancel_active_billing|cancel_pending_billing|do_not_charge|manual_review_required|no_op|provider_unavailable):mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^mdi:partner_charge:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:partner_additional_charge|vouched_amount_charge):mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^mdi:dashboard_cue:(?:case:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*|patient:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*):(?:benefit_status_pending|cue_noop|exam_action_needed|file_action_needed|files_unavailable|open_mdi_files|open_mdi_messages|ops_review_required):[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:mdi_evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
+  /^mdi:cancellation_review:mdi_case_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^mdi:workflow_url:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:file_upload|intro_video|messaging):req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:payment-method:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:collected$/,
-  /^stripe:billing:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:payment_method_pending|payment_method_collected|active|past_due|canceled)$/,
+  /^stripe:billing:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:payment_method_pending|payment_method_collected|active|past_due|cancel_pending|canceled)$/,
   /^webhook:(?:stripe|mdi):(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:[A-Z][A-Z0-9_]{1,79}(?::[a-z][a-z0-9_]{0,39})?$/,
   /^support:case-review:\d{3,12}$/,
   /^admin:action:\d{3,12}$/,
@@ -3479,6 +3491,7 @@ const allowedFields: Record<string, Set<string>> = {
     "lastAttemptAt",
     "linkedAt",
     "submittedAt",
+    "retryAfterSeconds",
     "providerStatus",
     "mdiPatientId",
     "mdiCaseId",

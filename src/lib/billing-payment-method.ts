@@ -192,7 +192,8 @@ export async function preparePaymentMethodCollection(input: {
   }
   if (
     stripeLinkage.value?.billingStatus === "active" ||
-    stripeLinkage.value?.billingStatus === "past_due"
+    stripeLinkage.value?.billingStatus === "past_due" ||
+    stripeLinkage.value?.billingStatus === "cancel_pending"
   ) {
     return { ok: false, code: "active_billing_exists" };
   }

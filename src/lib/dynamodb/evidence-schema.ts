@@ -171,6 +171,17 @@ export const evidenceEventSchema = {
     },
     linkage: "mdi_patient",
   },
+  mdi_cancellation_review_requested: {
+    category: "mdi_handoff",
+    summaryCode: "MDI_CANCELLATION_REVIEW_REQUESTED",
+    statuses: ["recorded"],
+    metadata: {
+      outcome: ["requested"],
+      reason_code: ["patient_self_service_cancel"],
+      side_effect: ["mdi_subscription_review"],
+    },
+    linkage: "mdi_case",
+  },
   stripe_payment_method_collected: {
     category: "stripe_billing",
     summaryCode: "STRIPE_PAYMENT_METHOD_COLLECTED",
@@ -195,6 +206,7 @@ export const evidenceEventSchema = {
         "payment_method_collected",
         "active",
         "past_due",
+        "cancel_pending",
         "canceled",
       ],
       previous_status: [
@@ -203,6 +215,7 @@ export const evidenceEventSchema = {
         "payment_method_collected",
         "active",
         "past_due",
+        "cancel_pending",
         "canceled",
       ],
     },

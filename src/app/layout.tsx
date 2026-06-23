@@ -21,13 +21,42 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Apoth · Real visits, named clinicians",
+  title: {
+    default: "Apoth Health",
+    template: "%s",
+  },
   description:
-    "Care for the things people quietly look up at night. ED, hair, weight, and physician-supervised peptides, prescribed by clinicians you can name.",
+    "Apoth Health is a telehealth technology platform for account, intake, billing, and MDI-backed care workflow access.",
   // TODO: replace with the real production domain before launch
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   ),
+  applicationName: "Apoth Health",
+  icons: {
+    icon: "/icon",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Apoth Health",
+    title: "Apoth Health",
+    description:
+      "Telehealth technology for patient intake, account, billing, and care-workflow access.",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Apoth Health",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Apoth Health",
+    description:
+      "Telehealth technology for patient intake, account, billing, and care-workflow access.",
+    images: ["/opengraph-image"],
+  },
 };
 
 export const viewport: Viewport = {

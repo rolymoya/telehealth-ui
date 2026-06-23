@@ -992,6 +992,9 @@ function billingStateForStripeStatus(status: BillingStatus | undefined): Billing
   if (status === "past_due") {
     return "subscription_active";
   }
+  if (status === "cancel_pending") {
+    return "subscription_active";
+  }
   return "payment_method_pending";
 }
 

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { PatientDashboard } from "@/components/product/PatientDashboard";
 import type { PatientDashboardViewModel } from "@/lib/patient-dashboard";
 
@@ -24,9 +25,50 @@ describe("PatientDashboard", () => {
     expect(text).not.toContain("secret_token");
     expect(text).not.toContain("https://mdi.example.test");
   });
+
+  it("shows patient-safe subscription cancellation confirmation for active billing", async () => {
+    const user = userEvent.setup();
+    const onBegin = vi.fn();
+    const onConfirm = vi.fn();
+    const onDismiss = vi.fn();
+    const activeDashboard = dashboard({
+      billing: {
+        canCancel: true,
+        code: "billing_active",
+        label: "Billing active",
+        summary: "Billing is active for this account.",
+      },
+    });
+
+    const { rerender } = render(
+      <PatientDashboard
+        cancellation={{ onBegin, onConfirm, onDismiss, state: "idle" }}
+        dashboard={activeDashboard}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^cancel subscription$/i }));
+    expect(onBegin).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <PatientDashboard
+        cancellation={{ onBegin, onConfirm, onDismiss, state: "confirming" }}
+        dashboard={activeDashboard}
+      />,
+    );
+    expect(screen.getByText(/end of the current billing cycle/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^confirm cancellation$/i }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+
+    const text = document.querySelector("main")?.textContent ?? "";
+    expect(text).not.toMatch(/condition|diagnosis|symptom|medication|questionnaire|answer/i);
+  });
 });
 
-function dashboard(): PatientDashboardViewModel {
+function dashboard(
+  overrides: Partial<PatientDashboardViewModel> = {},
+): PatientDashboardViewModel {
   return {
     account: {
       code: "manage_account",
@@ -45,6 +87,7 @@ function dashboard(): PatientDashboardViewModel {
       },
     ],
     billing: {
+      canCancel: false,
       code: "billing_pending_approval",
       label: "Pending clinical approval",
       summary: "Billing remains pending until the approved clinical unlock event.",
@@ -77,5 +120,6 @@ function dashboard(): PatientDashboardViewModel {
       label: "Contact support",
       summary: "For account or billing help, contact Apoth support. Medical questions stay in the care workflow.",
     },
+    ...overrides,
   };
 }

@@ -511,6 +511,7 @@ function billingStatusForEvent(event: Stripe.Event): BillingStatus | null {
     case "customer.subscription.updated":
       return billingStatusForStripeSubscriptionStatus(
         objectString(stripeEventObject(event), "status"),
+        objectBoolean(stripeEventObject(event), "cancel_at_period_end"),
       );
     case "customer.subscription.deleted":
       return "canceled";
@@ -523,7 +524,16 @@ function billingStatusForEvent(event: Stripe.Event): BillingStatus | null {
   }
 }
 
-function billingStatusForStripeSubscriptionStatus(status: string | null): BillingStatus | null {
+function billingStatusForStripeSubscriptionStatus(
+  status: string | null,
+  cancelAtPeriodEnd = false,
+): BillingStatus | null {
+  if (
+    cancelAtPeriodEnd &&
+    (status === "active" || status === "trialing" || status === "past_due" || status === "unpaid")
+  ) {
+    return "cancel_pending";
+  }
   switch (status) {
     case "active":
     case "trialing":
@@ -576,6 +586,9 @@ function shouldApplyStripeBillingMirror(input: {
       return false;
     }
     if (input.previousStatus === "canceled") {
+      return false;
+    }
+    if (input.previousStatus === "cancel_pending") {
       return false;
     }
     if (input.event.type === "invoice.payment_succeeded") {
@@ -648,6 +661,11 @@ function objectNumber(object: Record<string, unknown>, key: string) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function objectBoolean(object: Record<string, unknown>, key: string) {
+  const value = object[key];
+  return typeof value === "boolean" ? value : false;
+}
+
 function stripeCreatedToIso(created: number) {
   return new Date(created * 1000).toISOString();
 }
@@ -659,6 +677,8 @@ function isBefore(left: string, right: string) {
 function stripeBillingStatusPrecedence(status: BillingStatus) {
 	switch (status) {
 		case "canceled":
+			return 5;
+		case "cancel_pending":
 			return 4;
 		case "past_due":
 			return 3;
@@ -719,6 +739,7 @@ function isPreUnlockPaymentMethodCollectionEvent(event: Stripe.Event) {
 function isSubscribedOrClosedStatus(status: BillingStatus) {
   return status === "active" ||
     status === "past_due" ||
+    status === "cancel_pending" ||
     status === "canceled";
 }
 

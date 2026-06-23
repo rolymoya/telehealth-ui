@@ -1,6 +1,8 @@
 import {
   operationalStatusKey,
+  type AppDataRecord,
   type AppDataKey,
+  type AppDataResult,
   type OperationalStatusRecord,
 } from "../../../src/lib/dynamodb/app-data.js";
 import {
@@ -13,6 +15,7 @@ import {
 import {
   reconcileMdiCaseStatuses,
   type MdiCaseStatusReconciliationGateway,
+  type MdiCaseStatusReconciliationRepository,
 } from "../../../src/lib/mdi-case-reconciliation.js";
 import { getMdiCaseStatus } from "../../../src/lib/mdi/client.js";
 import {
@@ -30,22 +33,20 @@ type LambdaContext = {
 };
 
 let testGateway: MdiCaseStatusReconciliationGateway | null = null;
+let testRepository: MdiCaseStatusReconciliationRuntimeRepository | null = null;
 
 export function configureMdiCaseReconciliationLambdaForTests(input: {
   gateway?: MdiCaseStatusReconciliationGateway | null;
+  repository?: MdiCaseStatusReconciliationRuntimeRepository | null;
 }) {
   testGateway = input.gateway ?? null;
+  testRepository = input.repository ?? null;
 }
 
 export async function handler(event: ScheduledEvent, context: LambdaContext) {
   const stage = requiredEnv("APOTH_STAGE");
   const now = validIsoOrFallback(event.time, new Date().toISOString());
-  const config = resolveDynamoDbAppDataConfig(process.env);
-  if (!config.ok) {
-    throw new Error(config.error.message);
-  }
-
-  const repository = createDynamoDbAppDataRepository(config.value);
+  const repository = testRepository ?? createProductionRepository();
   const cursor = await loadCursor(repository);
   const result = await reconcileMdiCaseStatuses(
     {
@@ -55,17 +56,7 @@ export async function handler(event: ScheduledEvent, context: LambdaContext) {
     },
     {
       gateway: testGateway ?? productionGateway(stage),
-      repository: {
-        listCaseStatusReconciliationItems(input) {
-          return listMdiCaseStatusReconciliationItemsDynamoDb(repository, input);
-        },
-        recordCurrentCaseStatusEvidence(input) {
-          return recordCurrentMdiCaseStatusEvidenceDynamoDb(repository, input);
-        },
-        transitionOnboardingStatus(input) {
-          return transitionOnboardingStatusDynamoDb(repository, input);
-        },
-      },
+      repository,
     },
   );
 
@@ -109,6 +100,50 @@ export async function handler(event: ScheduledEvent, context: LambdaContext) {
   return {
     ok: true,
     stats: result.value.stats,
+  };
+}
+
+export type MdiCaseStatusReconciliationRuntimeRepository =
+  MdiCaseStatusReconciliationRepository & {
+    get(key: AppDataKey):
+      | AppDataResult<AppDataRecord | null>
+      | Promise<AppDataResult<AppDataRecord | null>>;
+    put(
+      record: OperationalStatusRecord,
+      options?: { ifNotExists?: boolean },
+    ): AppDataResult<OperationalStatusRecord> | Promise<AppDataResult<OperationalStatusRecord>>;
+    update(
+      record: OperationalStatusRecord,
+      options?: { expected?: AppDataRecord },
+    ): AppDataResult<OperationalStatusRecord> | Promise<AppDataResult<OperationalStatusRecord>>;
+  };
+
+function createProductionRepository(): MdiCaseStatusReconciliationRuntimeRepository {
+  const config = resolveDynamoDbAppDataConfig(process.env);
+  if (!config.ok) {
+    throw new Error(config.error.message);
+  }
+
+  const repository = createDynamoDbAppDataRepository(config.value);
+  return {
+    ...repository,
+    ...createProductionReconciliationRepository(repository),
+  };
+}
+
+function createProductionReconciliationRepository(
+  repository: ReturnType<typeof createDynamoDbAppDataRepository>,
+): MdiCaseStatusReconciliationRepository {
+  return {
+    listCaseStatusReconciliationItems(input) {
+      return listMdiCaseStatusReconciliationItemsDynamoDb(repository, input);
+    },
+    recordCurrentCaseStatusEvidence(input) {
+      return recordCurrentMdiCaseStatusEvidenceDynamoDb(repository, input);
+    },
+    transitionOnboardingStatus(input) {
+      return transitionOnboardingStatusDynamoDb(repository, input);
+    },
   };
 }
 
@@ -177,7 +212,7 @@ function boundedLimit(value: string | undefined) {
 }
 
 async function loadCursor(
-  repository: ReturnType<typeof createDynamoDbAppDataRepository>,
+  repository: Pick<MdiCaseStatusReconciliationRuntimeRepository, "get">,
 ): Promise<AppDataKey | undefined> {
   const record = await repository.get(operationalStatusKey("mdi-case-reconciliation"));
   if (
@@ -193,7 +228,7 @@ async function loadCursor(
 }
 
 async function saveCursor(
-  repository: ReturnType<typeof createDynamoDbAppDataRepository>,
+  repository: Pick<MdiCaseStatusReconciliationRuntimeRepository, "get" | "put" | "update">,
   input: {
     nextKey?: AppDataKey;
     now: string;

@@ -20,14 +20,26 @@ import { placeholderSecretPayload } from "@/lib/secrets/contracts";
 import type { StartupSecretSource } from "@/lib/secrets/startup";
 
 type FetchResponse = {
+  headers?: {
+    get(name: string): string | null;
+  };
   ok: boolean;
   status: number;
   json(): Promise<unknown>;
   text(): Promise<string>;
 };
 
-function jsonResponse(status: number, payload: unknown): FetchResponse {
+function jsonResponse(
+  status: number,
+  payload: unknown,
+  headers: Record<string, string> = {},
+): FetchResponse {
   return {
+    headers: {
+      get(name) {
+        return headers[name.toLowerCase()] ?? null;
+      },
+    },
     ok: status >= 200 && status < 300,
     status,
     async json() {
@@ -492,6 +504,24 @@ describe("MDI HTTP client", () => {
         code: "maintenance",
         message: "MDI is temporarily unavailable",
         retryAfterSeconds: 300,
+        retryable: true,
+        status: 418,
+      },
+    });
+
+    resetMdiTokenCacheForTests();
+    const maintenanceHeaderFetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(418, {}, { "retry-after": "120" }));
+
+    await expect(
+      requestMdi({ path: "/partner/cases/mdi_case_opaque" }, clientOptions(maintenanceHeaderFetch)),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "maintenance",
+        retryAfterSeconds: 120,
         retryable: true,
         status: 418,
       },

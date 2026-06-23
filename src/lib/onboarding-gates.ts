@@ -13,6 +13,7 @@ type GateBillingStatus =
   | "payment_method_collected"
   | "active"
   | "past_due"
+  | "cancel_pending"
   | "canceled";
 
 export type OnboardingGateSnapshot = {
@@ -181,7 +182,7 @@ function stepIndex(step: OnboardingStep) {
 }
 
 function isBillingComplete(status: GateBillingStatus | undefined) {
-  return status === "payment_method_collected" || status === "active";
+  return status === "payment_method_collected" || status === "active" || status === "cancel_pending";
 }
 
 function isAuthRoute(path: string) {

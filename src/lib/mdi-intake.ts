@@ -72,6 +72,7 @@ export type MdiIntakeRepository = {
     mdiPatientId: string;
     now: string;
     providerStatus?: number;
+    retryAfterSeconds?: number;
     status: Extract<
       MdiCaseCreateStatus,
       "case_provider_retryable_failure" | "case_provider_terminal_failure" | "case_storage_retryable_failure"
@@ -122,6 +123,7 @@ export type MdiIntakeErrorCode =
 export type MdiIntakeError = {
   code: MdiIntakeErrorCode;
   message: string;
+  retryAfterSeconds?: number;
   retryable: boolean;
   status: number;
 };
@@ -298,6 +300,7 @@ export async function submitMdiIntake(
       mdiPatientId: status.value.linkage.mdiPatientId,
       now,
       providerStatus: created.error.status,
+      retryAfterSeconds: created.error.retryAfterSeconds,
       status: created.error.retryable
         ? "case_provider_retryable_failure"
         : "case_provider_terminal_failure",
@@ -496,6 +499,7 @@ export function createAppDataMdiIntakeRepository(
           (input.status === "case_storage_retryable_failure" ? previous.mdiCaseId : undefined),
         mdiPatientId: input.mdiPatientId,
         providerStatus: input.providerStatus,
+        retryAfterSeconds: input.retryAfterSeconds,
         status: input.status,
         updatedAt: input.now,
       };
@@ -587,9 +591,10 @@ export function createMdiCaseIdempotencyKey(cognitoSub: string) {
 export function mdiIntakeFailure(
   code: MdiIntakeErrorCode,
   message: string,
-  options: { retryable?: boolean; status?: number } = {},
+  options: { retryable?: boolean; retryAfterSeconds?: number; status?: number } = {},
 ): MdiIntakeResult<never> {
   return fail(code, message, {
+    retryAfterSeconds: options.retryAfterSeconds,
     retryable: options.retryable ?? false,
     status: options.status ?? 400,
   });
@@ -678,13 +683,14 @@ function storageFailure(message: string): MdiIntakeResult<never> {
 function fail(
   code: MdiIntakeErrorCode,
   message: string,
-  options: { retryable: boolean; status: number },
+  options: { retryable: boolean; retryAfterSeconds?: number; status: number },
 ): MdiIntakeResult<never> {
   return {
     ok: false,
     error: {
       code,
       message,
+      ...(options.retryAfterSeconds ? { retryAfterSeconds: options.retryAfterSeconds } : {}),
       retryable: options.retryable,
       status: options.status,
     },

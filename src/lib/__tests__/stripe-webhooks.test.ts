@@ -564,6 +564,46 @@ describe("Stripe webhook receiver service", () => {
     });
   });
 
+  it("mirrors subscription period-end cancellation from Stripe without exposing reasons", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedStripeLinkage(repository, "active");
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_opaque_030",
+      type: "customer.subscription.updated",
+      object: {
+        cancel_at_period_end: true,
+        current_period_end: 1784808000,
+        id: "sub_opaque_001",
+        customer: "cus_opaque_001",
+        status: "active",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+    const linkage = getStripeLinkage(repository, "cognito-sub-0123456789abcdef");
+    expect(linkage).toMatchObject({
+      ok: true,
+      value: {
+        billingStatus: "cancel_pending",
+        stripeCurrentPeriodEnd: "2026-07-23T12:00:00.000Z",
+      },
+    });
+    expect(JSON.stringify(linkage)).not.toMatch(
+      /condition|diagnosis|symptom|medication|questionnaire|answer|reason/i,
+    );
+  });
+
 	it("does not let same-second active subscription events revive a canceled subscription", async () => {
 		const repository = createInMemoryAppDataRepository();
 		seedStripeLinkage(repository, "active");

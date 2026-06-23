@@ -27,6 +27,9 @@ type FetchLike = (
     signal?: AbortSignal;
   },
 ) => Promise<{
+  headers?: {
+    get(name: string): string | null;
+  };
   ok: boolean;
   status: number;
   json(): Promise<unknown>;
@@ -344,7 +347,11 @@ async function mapResponse<T>(
   if (response.status === 418) {
     return {
       ok: false,
-      error: maintenanceError(response.status, await safeJson(response)),
+      error: maintenanceError(
+        response.status,
+        await safeJson(response),
+        response.headers?.get("retry-after") ?? null,
+      ),
     };
   }
 
@@ -539,20 +546,41 @@ async function safeJson(response: Awaited<ReturnType<FetchLike>>) {
   }
 }
 
-function maintenanceError(status: number, payload: { ok: true; value: unknown } | { ok: false }) {
-  const retryAfterSeconds =
+function maintenanceError(
+  status: number,
+  payload: { ok: true; value: unknown } | { ok: false },
+  retryAfterHeader: string | null,
+) {
+  const payloadRetryAfter =
     payload.ok &&
     isRecord(payload.value) &&
     typeof payload.value.retryAfterSeconds === "number" &&
     Number.isFinite(payload.value.retryAfterSeconds)
       ? payload.value.retryAfterSeconds
       : undefined;
+  const retryAfterSeconds = parseRetryAfterSeconds(retryAfterHeader) ?? payloadRetryAfter;
 
   return clientErr("maintenance", "MDI is temporarily unavailable", {
     retryAfterSeconds,
     retryable: true,
     status,
   });
+}
+
+function parseRetryAfterSeconds(value: string | null) {
+  if (!value) {
+    return undefined;
+  }
+  const seconds = Number.parseInt(value, 10);
+  if (Number.isInteger(seconds) && seconds > 0) {
+    return seconds;
+  }
+  const dateMs = Date.parse(value);
+  if (!Number.isFinite(dateMs)) {
+    return undefined;
+  }
+  const deltaSeconds = Math.ceil((dateMs - Date.now()) / 1000);
+  return deltaSeconds > 0 ? deltaSeconds : undefined;
 }
 
 function logFailure(

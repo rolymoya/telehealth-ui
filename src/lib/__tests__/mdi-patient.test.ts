@@ -166,6 +166,78 @@ describe("MDI patient creation orchestration", () => {
     }))).not.toMatch(/PAYLOAD_NAME_SENTINEL|payload@example\.invalid|PAYLOAD_CITY_SENTINEL/);
   });
 
+  it("retries maintenance failures with the same opaque idempotency key", async () => {
+    const repository = createInMemoryAppDataRepository([
+      createPatientProfileRecord({
+        cognitoSub,
+        now,
+        onboardingStatus: "intake_ready",
+      }),
+    ]);
+    const createPatient = vi
+      .fn()
+      .mockResolvedValueOnce(mdiPatientFailure("provider_unavailable", "MDI maintenance", {
+        retryAfterSeconds: 300,
+        retryable: true,
+        status: 418,
+      }))
+      .mockResolvedValueOnce({
+        ok: true as const,
+        value: { mdiPatientId: "mdi_patient_after_maintenance" },
+      });
+
+    await expect(createMdiPatientLinkage(
+      { cognitoSub, patient: patientPayload },
+      {
+        gateway: gatewayWithCreate(createPatient),
+        now: () => new Date(now),
+        repository: createAppDataMdiPatientRepository(repository),
+      },
+    )).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "provider_unavailable",
+        retryAfterSeconds: 300,
+        retryable: true,
+        status: 418,
+      },
+    });
+
+    expect(getMdiPatientCreateAttempt(repository, cognitoSub)).toMatchObject({
+      ok: true,
+      value: {
+        attempts: 1,
+        idempotencyKey: createMdiPatientIdempotencyKey(cognitoSub),
+        providerStatus: 418,
+        retryAfterSeconds: 300,
+        status: "provider_retryable_failure",
+      },
+    });
+
+    await expect(createMdiPatientLinkage(
+      { cognitoSub, patient: patientPayload },
+      {
+        gateway: gatewayWithCreate(createPatient),
+        now: () => new Date("2026-06-20T20:05:00.000Z"),
+        repository: createAppDataMdiPatientRepository(repository),
+      },
+    )).resolves.toMatchObject({
+      ok: true,
+      value: {
+        mdiPatientId: "mdi_patient_after_maintenance",
+      },
+    });
+
+    expect(createPatient).toHaveBeenNthCalledWith(1, {
+      idempotencyKey: createMdiPatientIdempotencyKey(cognitoSub),
+      patient: patientPayload,
+    });
+    expect(createPatient).toHaveBeenNthCalledWith(2, {
+      idempotencyKey: createMdiPatientIdempotencyKey(cognitoSub),
+      patient: patientPayload,
+    });
+  });
+
   it("does not call MDI when another create claim is already in progress", async () => {
     const repository = createInMemoryAppDataRepository([
       createPatientProfileRecord({

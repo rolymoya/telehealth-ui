@@ -39,10 +39,17 @@ type StripeSubscriptionCancel = (
   options?: Stripe.RequestOptions,
 ) => Promise<Stripe.Subscription>;
 
+type StripeSubscriptionUpdate = (
+  id: string,
+  params?: Stripe.SubscriptionUpdateParams,
+  options?: Stripe.RequestOptions,
+) => Promise<Stripe.Subscription>;
+
 export type BillingActivationStripeClient = {
   subscriptions: {
     cancel: StripeSubscriptionCancel;
     create: StripeSubscriptionCreate;
+    update: StripeSubscriptionUpdate;
   };
 };
 
@@ -76,8 +83,16 @@ export type BillingActivationResult =
 
 export type BillingCancellationResult =
   | { ok: true; status: "not_active" }
+  | { ok: true; status: "already_cancel_pending"; stripeSubscriptionId: string }
   | { ok: true; status: "already_canceled"; stripeSubscriptionId: string }
   | { ok: true; status: "subscription_canceled"; stripeSubscriptionId: string }
+  | { ok: false; code: "storage_unavailable" | "stripe_unavailable" };
+
+export type PatientSubscriptionCancellationResult =
+  | { ok: true; status: "not_active" }
+  | { ok: true; status: "already_cancel_pending"; stripeSubscriptionId: string }
+  | { ok: true; status: "already_canceled"; stripeSubscriptionId: string }
+  | { ok: true; status: "subscription_cancel_pending"; stripeSubscriptionId: string }
   | { ok: false; code: "storage_unavailable" | "stripe_unavailable" };
 
 export function createInMemoryBillingActivationRepository(
@@ -284,7 +299,11 @@ export async function cancelActiveBillingAfterClinicalClosure(input: {
       stripeSubscriptionId: existing.stripeSubscriptionId,
     };
   }
-  if (existing.billingStatus !== "active" && existing.billingStatus !== "past_due") {
+  if (
+    existing.billingStatus !== "active" &&
+    existing.billingStatus !== "past_due" &&
+    existing.billingStatus !== "cancel_pending"
+  ) {
     return { ok: true, status: "not_active" };
   }
 
@@ -305,7 +324,7 @@ export async function cancelActiveBillingAfterClinicalClosure(input: {
   }
 
   const linked = await input.repository.linkStripeCustomer({
-    allowedCurrentBillingStatuses: ["active", "past_due"],
+    allowedCurrentBillingStatuses: ["active", "past_due", "cancel_pending"],
     billingStatus: "canceled",
     cognitoSub: input.cognitoSub,
     now: input.now,
@@ -335,6 +354,7 @@ export async function cancelActiveBillingAfterClinicalClosure(input: {
     cognitoSub: input.cognitoSub,
     mdiCaseId: input.mdiCaseId,
     now: input.now,
+    previousStatus: existing.billingStatus,
     status: "subscription_canceled",
     stripeCustomerId: existing.stripeCustomerId,
     stripeSubscriptionId: existing.stripeSubscriptionId,
@@ -346,6 +366,124 @@ export async function cancelActiveBillingAfterClinicalClosure(input: {
   return {
     ok: true,
     status: "subscription_canceled",
+    stripeSubscriptionId: existing.stripeSubscriptionId,
+  };
+}
+
+export async function cancelPatientSubscriptionAtPeriodEnd(input: {
+  cognitoSub: string;
+  now: string;
+  repository: BillingActivationRepository;
+  stage: BillingActivationStage;
+  stripe: BillingActivationStripeClient;
+}): Promise<PatientSubscriptionCancellationResult> {
+  const stripeLinkage = await input.repository.getStripeLinkage(input.cognitoSub);
+  if (!stripeLinkage.ok) {
+    return { ok: false, code: "storage_unavailable" };
+  }
+  const existing = stripeLinkage.value;
+  if (!existing?.stripeSubscriptionId) {
+    return { ok: true, status: "not_active" };
+  }
+  if (existing.billingStatus === "canceled") {
+    return {
+      ok: true,
+      status: "already_canceled",
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+    };
+  }
+  if (existing.billingStatus === "cancel_pending") {
+    return {
+      ok: true,
+      status: "already_cancel_pending",
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+    };
+  }
+  if (existing.billingStatus !== "active" && existing.billingStatus !== "past_due") {
+    return { ok: true, status: "not_active" };
+  }
+
+  const mdiLinkage = await input.repository.getMdiLinkage(input.cognitoSub);
+  if (!mdiLinkage.ok) {
+    return { ok: false, code: "storage_unavailable" };
+  }
+
+  let subscription: Stripe.Subscription;
+  try {
+    subscription = await input.stripe.subscriptions.update(
+      existing.stripeSubscriptionId,
+      { cancel_at_period_end: true },
+      {
+        idempotencyKey: idempotencyKey(
+          "subscription-cancel-period-end",
+          input.stage,
+          `${input.cognitoSub}:${existing.stripeSubscriptionId}`,
+        ),
+      },
+    );
+  } catch {
+    return { ok: false, code: "stripe_unavailable" };
+  }
+
+  const evidence = await recordBillingActivationEvidence(input.repository, {
+    cognitoSub: input.cognitoSub,
+    mdiCaseId: mdiLinkage.value?.mdiCaseId,
+    mdiPatientId: mdiLinkage.value?.mdiPatientId,
+    now: input.now,
+    previousStatus: existing.billingStatus,
+    status: "subscription_cancel_pending",
+    stripeCustomerId: existing.stripeCustomerId,
+    stripeSubscriptionId: existing.stripeSubscriptionId,
+  });
+  if (!evidence.ok) {
+    return { ok: false, code: "storage_unavailable" };
+  }
+
+  if (mdiLinkage.value?.mdiCaseId && mdiLinkage.value.mdiPatientId) {
+    const mdiReview = await recordMdiCancellationReviewEvidence(input.repository, {
+      cognitoSub: input.cognitoSub,
+      mdiCaseId: mdiLinkage.value.mdiCaseId,
+      mdiPatientId: mdiLinkage.value.mdiPatientId,
+      now: input.now,
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+    });
+    if (!mdiReview.ok) {
+      return { ok: false, code: "storage_unavailable" };
+    }
+  }
+
+  const linked = await input.repository.linkStripeCustomer({
+    allowedCurrentBillingStatuses: ["active", "past_due"],
+    billingStatus: "cancel_pending",
+    cognitoSub: input.cognitoSub,
+    now: input.now,
+    stripeBillingStatusObservedAt: input.now,
+    stripeCurrentPeriodEnd: stripePeriodIso(stripeObjectNumber(subscription, "current_period_end")) ??
+      existing.stripeCurrentPeriodEnd,
+    stripeCurrentPeriodStart: stripePeriodIso(stripeObjectNumber(subscription, "current_period_start")) ??
+      existing.stripeCurrentPeriodStart,
+    stripeCustomerId: existing.stripeCustomerId,
+    stripeSubscriptionId: existing.stripeSubscriptionId,
+  });
+  if (!linked.ok) {
+    const reread = await input.repository.getStripeLinkage(input.cognitoSub);
+    if (
+      reread.ok &&
+      reread.value?.stripeSubscriptionId === existing.stripeSubscriptionId &&
+      reread.value.billingStatus === "cancel_pending"
+    ) {
+      return {
+        ok: true,
+        status: "already_cancel_pending",
+        stripeSubscriptionId: existing.stripeSubscriptionId,
+      };
+    }
+    return { ok: false, code: "storage_unavailable" };
+  }
+
+  return {
+    ok: true,
+    status: "subscription_cancel_pending",
     stripeSubscriptionId: existing.stripeSubscriptionId,
   };
 }
@@ -437,7 +575,7 @@ function billingStatusForStripeSubscription(status: string | null): BillingStatu
 }
 
 function isSubscribedStatus(status: BillingStatus) {
-  return status === "active" || status === "past_due";
+  return status === "active" || status === "past_due" || status === "cancel_pending";
 }
 
 function stripeMetadataForPatient(input: {
@@ -479,10 +617,11 @@ async function recordBillingActivationEvidence(
   repository: BillingActivationRepository,
   input: {
     cognitoSub: string;
-    mdiCaseId: string;
+    mdiCaseId?: string;
     mdiPatientId?: string;
     now: string;
-    status: "subscription_created" | "subscription_canceled";
+    previousStatus?: BillingStatus;
+    status: "subscription_created" | "subscription_cancel_pending" | "subscription_canceled";
     stripeCustomerId: string;
     stripeSubscriptionId: string;
   },
@@ -493,7 +632,9 @@ async function recordBillingActivationEvidence(
     eventCategory: "stripe_billing",
     eventId: input.status === "subscription_created"
       ? `stripe:billing:${input.stripeSubscriptionId}:active`
-      : `stripe:billing:${input.stripeSubscriptionId}:canceled`,
+      : input.status === "subscription_cancel_pending"
+        ? `stripe:billing:${input.stripeSubscriptionId}:cancel_pending`
+        : `stripe:billing:${input.stripeSubscriptionId}:canceled`,
     eventType: input.status === "subscription_created"
       ? "stripe_billing_activated"
       : "stripe_billing_status_changed",
@@ -503,7 +644,9 @@ async function recordBillingActivationEvidence(
     mdiPatientId: input.mdiPatientId,
     metadata: input.status === "subscription_created"
       ? { status: "active" }
-      : { status: "canceled", previous_status: "active" },
+      : input.status === "subscription_cancel_pending"
+        ? { status: "cancel_pending", previous_status: input.previousStatus ?? "active" }
+        : { status: "canceled", previous_status: input.previousStatus ?? "active" },
     source: "stripe",
     status: input.status === "subscription_created" ? "succeeded" : "recorded",
     stripeCustomerId: input.stripeCustomerId,
@@ -511,6 +654,41 @@ async function recordBillingActivationEvidence(
     summaryCode: input.status === "subscription_created"
       ? "STRIPE_BILLING_ACTIVATED"
       : "STRIPE_BILLING_STATUS_CHANGED",
+  });
+  return event.ok || event.error.kind === "conditional_conflict"
+    ? { ok: true as const }
+    : { ok: false as const };
+}
+
+async function recordMdiCancellationReviewEvidence(
+  repository: BillingActivationRepository,
+  input: {
+    cognitoSub: string;
+    mdiCaseId: string;
+    mdiPatientId: string;
+    now: string;
+    stripeSubscriptionId: string;
+  },
+) {
+  const event = await repository.recordEvidenceEvent({
+    actorType: "system",
+    cognitoSub: input.cognitoSub,
+    eventCategory: "mdi_handoff",
+    eventId: `mdi:cancellation_review:${input.mdiCaseId}:${input.stripeSubscriptionId}`,
+    eventType: "mdi_cancellation_review_requested",
+    occurredAt: input.now,
+    recordedAt: input.now,
+    mdiCaseId: input.mdiCaseId,
+    mdiPatientId: input.mdiPatientId,
+    metadata: {
+      outcome: "requested",
+      reason_code: "patient_self_service_cancel",
+      side_effect: "mdi_subscription_review",
+    },
+    source: "app",
+    status: "recorded",
+    stripeSubscriptionId: input.stripeSubscriptionId,
+    summaryCode: "MDI_CANCELLATION_REVIEW_REQUESTED",
   });
   return event.ok || event.error.kind === "conditional_conflict"
     ? { ok: true as const }

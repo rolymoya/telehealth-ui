@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   activateBillingAfterClinicalUnlock,
   cancelActiveBillingAfterClinicalClosure,
+  cancelPatientSubscriptionAtPeriodEnd,
   createInMemoryBillingActivationRepository,
   type BillingActivationStripeClient,
 } from "@/lib/billing-activation";
@@ -368,10 +369,140 @@ describe("billing activation after MDI clinical unlock", () => {
     });
     expect(stripe.subscriptions.cancel).toHaveBeenCalledTimes(1);
   });
+
+  it("lets patients schedule subscription cancellation at period end with bounded evidence", async () => {
+    const repository = seededRepository({ caseStatus: "billing_ready", billingStatus: "active" });
+    const stripe = stripeMock();
+
+    const result = await cancelPatientSubscriptionAtPeriodEnd({
+      cognitoSub,
+      now,
+      repository: createInMemoryBillingActivationRepository(repository),
+      stage: "staging",
+      stripe,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      status: "subscription_cancel_pending",
+      stripeSubscriptionId: "sub_existing_001",
+    });
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith(
+      "sub_existing_001",
+      { cancel_at_period_end: true },
+      expect.objectContaining({
+        idempotencyKey: expect.stringMatching(/^apoth:staging:subscription-cancel-period-end:/),
+      }),
+    );
+    expect(JSON.stringify(stripe.subscriptions.update.mock.calls[0])).not.toMatch(
+      /condition|diagnosis|symptom|medication|questionnaire|answer|reason/i,
+    );
+    expect(getStripeLinkage(repository, cognitoSub)).toMatchObject({
+      ok: true,
+      value: {
+        billingStatus: "cancel_pending",
+        stripeCurrentPeriodEnd: "2026-07-23T12:00:00.000Z",
+        stripeSubscriptionId: "sub_existing_001",
+      },
+    });
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub, limit: 50 });
+    const events = evidence.ok ? evidence.value.items : [];
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventId: "stripe:billing:sub_existing_001:cancel_pending",
+          eventType: "stripe_billing_status_changed",
+          metadata: { status: "cancel_pending", previous_status: "active" },
+          stripeSubscriptionId: "sub_existing_001",
+        }),
+        expect.objectContaining({
+          eventId: "mdi:cancellation_review:mdi_case_billingactivation_001:sub_existing_001",
+          eventType: "mdi_cancellation_review_requested",
+          metadata: {
+            outcome: "requested",
+            reason_code: "patient_self_service_cancel",
+            side_effect: "mdi_subscription_review",
+          },
+        }),
+      ]),
+    );
+    expect(JSON.stringify(events)).not.toMatch(
+      /condition|diagnosis|symptom|medication|questionnaire|answer|free.?text/i,
+    );
+  });
+
+  it("does not duplicate patient cancellation work after the local mirror is cancel_pending", async () => {
+    const repository = seededRepository({ caseStatus: "billing_ready", billingStatus: "active" });
+    const stripe = stripeMock();
+    const billingRepository = createInMemoryBillingActivationRepository(repository);
+
+    const first = await cancelPatientSubscriptionAtPeriodEnd({
+      cognitoSub,
+      now,
+      repository: billingRepository,
+      stage: "staging",
+      stripe,
+    });
+    const second = await cancelPatientSubscriptionAtPeriodEnd({
+      cognitoSub,
+      now: "2026-06-23T12:00:01.000Z",
+      repository: billingRepository,
+      stage: "staging",
+      stripe,
+    });
+
+    expect(first).toMatchObject({ ok: true, status: "subscription_cancel_pending" });
+    expect(second).toEqual({
+      ok: true,
+      status: "already_cancel_pending",
+      stripeSubscriptionId: "sub_existing_001",
+    });
+    expect(stripe.subscriptions.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats already canceled patient subscription cancellation as idempotent success", async () => {
+    const repository = seededRepository({ caseStatus: "billing_ready", billingStatus: "canceled" });
+    const stripe = stripeMock();
+
+    const result = await cancelPatientSubscriptionAtPeriodEnd({
+      cognitoSub,
+      now,
+      repository: createInMemoryBillingActivationRepository(repository),
+      stage: "staging",
+      stripe,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      status: "already_canceled",
+      stripeSubscriptionId: "sub_existing_001",
+    });
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it("returns stripe_unavailable without changing the local mirror when patient cancellation fails", async () => {
+    const repository = seededRepository({ caseStatus: "billing_ready", billingStatus: "active" });
+    const stripe = stripeMock();
+    stripe.subscriptions.update.mockRejectedValueOnce(new Error("stripe unavailable"));
+
+    const result = await cancelPatientSubscriptionAtPeriodEnd({
+      cognitoSub,
+      now,
+      repository: createInMemoryBillingActivationRepository(repository),
+      stage: "staging",
+      stripe,
+    });
+
+    expect(result).toEqual({ ok: false, code: "stripe_unavailable" });
+    expect(getStripeLinkage(repository, cognitoSub)).toMatchObject({
+      ok: true,
+      value: { billingStatus: "active" },
+    });
+  });
 });
 
 function seededRepository(input: {
-  billingStatus?: "payment_method_pending" | "payment_method_collected" | "active" | "past_due";
+  billingStatus?: "payment_method_pending" | "payment_method_collected" | "active" | "past_due" | "cancel_pending" | "canceled";
   caseStatus?: "approved" | "billing_ready" | "declined";
 }) {
   const repository = createInMemoryAppDataRepository([
@@ -417,7 +548,16 @@ function seededRepository(input: {
       now,
       stripeBillingStatusObservedAt: now,
       stripeCustomerId: "cus_opaque_001",
-      stripeSubscriptionId: input.billingStatus === "active" || input.billingStatus === "past_due"
+      stripeCurrentPeriodEnd: input.billingStatus === "active" ||
+        input.billingStatus === "past_due" ||
+        input.billingStatus === "cancel_pending" ||
+        input.billingStatus === "canceled"
+        ? "2026-07-23T12:00:00.000Z"
+        : undefined,
+      stripeSubscriptionId: input.billingStatus === "active" ||
+        input.billingStatus === "past_due" ||
+        input.billingStatus === "cancel_pending" ||
+        input.billingStatus === "canceled"
         ? "sub_existing_001"
         : undefined,
     }).ok).toBe(true);
@@ -463,6 +603,13 @@ function stripeMock() {
         id: "sub_opaque_001",
         status: "active",
       })),
+      update: vi.fn(async () => ({
+        cancel_at_period_end: true,
+        current_period_end: 1784808000,
+        current_period_start: 1782216000,
+        id: "sub_existing_001",
+        status: "active",
+      })),
     },
   } as unknown as BillingActivationStripeClient & {
     charges: { create: ReturnType<typeof vi.fn> };
@@ -470,6 +617,7 @@ function stripeMock() {
     subscriptions: {
       cancel: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
     };
   };
 }

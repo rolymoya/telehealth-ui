@@ -226,6 +226,62 @@ describe("patient dashboard view model", () => {
       });
   });
 
+  it("shows period-end cancellation state without exposing clinical or Stripe identifiers", async () => {
+    const repository = seededRepository({ onboardingStatus: "billing_ready" });
+    expect(recordCurrentMdiCaseStatusEvidence(repository, {
+      actorType: "vendor",
+      caseStatus: "billing_ready",
+      cognitoSub,
+      eventCategory: "webhook",
+      eventId: createWebhookEvidenceEventId(
+        "mdi",
+        "mdi_evt_dashboard_status_cancel_pending",
+        "WEBHOOK_SIDE_EFFECT_APPLIED",
+        "mdi_status_update",
+      ),
+      eventType: "webhook_side_effect_applied",
+      mdiCaseId,
+      mdiPatientId,
+      metadata: { side_effect: "mdi_status_update", case_status: "billing_ready" },
+      occurredAt: "2026-06-21T17:05:00.000Z",
+      recordedAt: "2026-06-21T17:05:10.000Z",
+      source: "webhook",
+      status: "succeeded",
+      statusRank: 40,
+      summaryCode: "WEBHOOK_SIDE_EFFECT_APPLIED",
+      terminal: false,
+      webhookEventId: "mdi_evt_dashboard_status_cancel_pending",
+      webhookProvider: "mdi",
+    }).ok).toBe(true);
+    expect(linkStripeCustomer(repository, {
+      billingStatus: "cancel_pending",
+      cognitoSub,
+      now,
+      stripeCurrentPeriodEnd: "2026-07-23T12:00:00.000Z",
+      stripeCustomerId: "cus_dashboard_004",
+      stripeSubscriptionId: "sub_dashboard_004",
+    }).ok).toBe(true);
+
+    const dashboard = await loadPatientDashboard(repository, { cognitoSub, now });
+
+    expect(dashboard).toMatchObject({
+      ok: true,
+      value: {
+        billing: {
+          canCancel: false,
+          code: "billing_cancel_pending",
+          label: "Cancellation scheduled",
+          summary: "Your subscription is set to end at the close of the current billing cycle on July 23, 2026.",
+        },
+      },
+    });
+    expect(JSON.stringify(dashboard)).not.toContain("cus_dashboard_004");
+    expect(JSON.stringify(dashboard)).not.toContain("sub_dashboard_004");
+    expect(JSON.stringify(dashboard)).not.toMatch(
+      /condition|diagnosis|symptom|medication|questionnaire|answer/i,
+    );
+  });
+
   it("uses a safe unavailable state without workflow URLs or tokens", () => {
     const dashboard = createUnavailablePatientDashboard({ now });
 

@@ -138,8 +138,7 @@ export function MdiIntakeClient({
     const responses = buildResponses(state.questionnaire.questions, answers);
     const response = await fetchImpl("/api/onboarding/mdi/submit", {
       body: JSON.stringify({
-        caseId: state.questionnaire.caseId,
-        patientId: state.questionnaire.patientId,
+        casePayload: buildCasePayload(state.questionnaire.questions, responses),
         questionnaireId: state.questionnaire.questionnaireId,
         responses,
       }),
@@ -383,6 +382,32 @@ function buildResponses(
     .filter((response) => hasAnswer(response.value));
 }
 
+function buildCasePayload(
+  questions: MdiIntakeQuestion[],
+  responses: MdiIntakeResponse[],
+) {
+  const questionsById = new Map(questions.map((question) => [question.questionId, question]));
+  return {
+    case_questions: responses.map((response) => {
+      const question = questionsById.get(response.questionId);
+      const answer = answerForQuestion(question, response.value);
+      return {
+        answer,
+        question: question?.text ?? response.questionId,
+        type: question?.controlType ?? "free_text",
+      };
+    }),
+  };
+}
+
+function answerForQuestion(question: MdiIntakeQuestion | undefined, value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const option = question?.options?.find((candidate) => candidate.optionId === value);
+  return option?.label ?? value;
+}
+
 function hasAnswer(value: string | undefined) {
   return typeof value === "string" && value.trim() !== "";
 }
@@ -393,7 +418,7 @@ function isQuestionnaire(value: unknown): value is MdiIntakeQuestionnaire {
   }
   return typeof value.questionnaireId === "string" &&
     typeof value.patientId === "string" &&
-    typeof value.caseId === "string" &&
+    (value.caseId === undefined || typeof value.caseId === "string") &&
     Array.isArray(value.questions);
 }
 
@@ -415,7 +440,7 @@ async function safeJson(response: Response): Promise<unknown> {
 function messageForCode(code: string) {
   switch (code) {
     case "provider_unavailable":
-      return "The MDI workflow is temporarily unavailable. Please try again in a moment.";
+      return "The MDI workflow is temporarily unavailable. Please try again in a moment. No questionnaire answers were saved by this page.";
     case "invalid_csrf":
     case "invalid_origin":
       return "We could not verify this secure request. Please refresh and try again.";

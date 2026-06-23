@@ -1,16 +1,12 @@
 {
-  "blockedBy": [
-    "T-046",
-    "T-054",
-    "T-058"
-  ],
-  "completedDate": null,
+  "blockedBy": [],
+  "completedDate": "2026-06-23",
   "createdDate": "2026-05-19",
   "description": "Add a scheduled reconciliation job for MDI case status drift.\n\n**Scope**\n- EventBridge schedule invokes a bounded Lambda that checks recent active cases against MDI.\n- Correct stale local status mirrors and write minimal evidence events.\n- Alarm on repeated errors or unexpected drift spikes.\n- Keep the job bounded for launch scale; no always-on worker service.\n\n**Acceptance**\n- Artificially stale status is corrected on the next run.\n- Reconciler handles MDI unavailable/418 without deleting or corrupting local status.\n- Drift alarms route to the launch ops channel/runbook.",
   "id": "T-064",
   "order": 130,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI case-status reconciliation Lambda",
   "type": "task"
 }

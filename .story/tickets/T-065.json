@@ -1,16 +1,12 @@
 {
-  "blockedBy": [
-    "T-045",
-    "T-054",
-    "T-063"
-  ],
-  "completedDate": null,
+  "blockedBy": [],
+  "completedDate": "2026-06-23",
   "createdDate": "2026-05-19",
   "description": "Handle MDI 418/maintenance and transient outages gracefully across onboarding and dashboard flows.\n\n**Scope**\n- MDI client maps 418 and outage responses to typed errors.\n- Onboarding shows a calm pending/retry state if MDI submission or URL creation is unavailable.\n- Retryable operations can be queued via SQS/DLQ where needed.\n- Dashboard shows a patient-safe banner/status without implying clinical data loss.\n\n**Acceptance**\n- Simulated 418 produces the intended UI state and no duplicate MDI case/patient creation.\n- Queued retry eventually succeeds exactly once when MDI recovers.\n- Logs and alarms identify provider outage without logging clinical payloads.",
   "id": "T-065",
   "order": 140,
   "phase": "mdi-integration",
-  "status": "open",
+  "status": "complete",
   "title": "MDI maintenance/unavailable handling",
   "type": "task"
 }

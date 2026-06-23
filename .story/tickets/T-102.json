@@ -3,13 +3,13 @@
     "T-025",
     "T-026"
   ],
-  "completedDate": null,
+  "completedDate": "2026-06-23",
   "createdDate": "2026-06-23",
   "description": "Build patient self-service subscription cancellation that matches the Terms promise and keeps Stripe, MDI, and the local mirror aligned.\n\n**Scope**\n- Add an authenticated account or dashboard cancellation entry point for active subscriptions with patient-safe copy and confirmation states.\n- Define whether launch cancellation is immediate or period-end, and encode the selected behavior in Stripe calls, local mirror updates, and evidence records.\n- Trigger any required MDI-side cancellation/pause action exactly once when the care workflow requires it.\n- Handle duplicate clicks, already-canceled subscriptions, Stripe failures, stale local mirrors, and missing subscription linkage without creating PHI-heavy support notes.\n- Keep cancellation reasons bounded or omit free text for launch; do not place clinical content, questionnaire answers, medication names, or MDI workflow URLs/tokens in Stripe metadata or logs.\n\n**Acceptance**\n- A signed-in patient with an active subscription can cancel from the account/dashboard surface without calling support.\n- Cancellation updates Stripe and the local billing mirror idempotently, with minimal evidence written once.\n- MDI-side cancellation/pause side effects run exactly once when required, and ambiguous failures route to support/ops review.\n- Dashboard billing state reflects canceled or pending-cancel status with patient-safe messaging.\n- Tests cover duplicate requests, already-canceled state, Stripe failure, MDI side-effect failure, and no-PHI metadata/logging.",
   "id": "T-102",
   "order": 52,
   "phase": "payments",
-  "status": "open",
+  "status": "complete",
   "title": "Patient self-service subscription cancellation",
   "type": "feature"
 }
