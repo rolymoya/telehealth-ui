@@ -1,0 +1,26 @@
+{
+  "components": [
+    "intake",
+    "onboarding",
+    "MDI",
+    "thin-PHI",
+    "E2E"
+  ],
+  "discoveredDate": "2026-06-23",
+  "id": "ISS-030",
+  "impact": "T-088 can verify the browser workflow with local route mocks, but it cannot validate the real Apoth API boundary for `/api/onboarding/start`, `/api/onboarding/consent`, `/api/intake/bootstrap`, `/api/intake/precheck`, `/api/onboarding/mdi/bootstrap`, or `/api/onboarding/mdi/submit` because those route handlers are not present. A future implementation could leak questionnaire answers or mishandle billing/Stripe metadata without this browser-level mock suite catching the route-layer behavior.",
+  "location": [
+    "src/app/api",
+    "tests/e2e/intake-onboarding.spec.ts",
+    "tests/e2e/support/onboarding.ts"
+  ],
+  "phase": "playwright-e2e",
+  "relatedTickets": [
+    "T-088"
+  ],
+  "resolution": null,
+  "resolvedDate": null,
+  "severity": "high",
+  "status": "open",
+  "title": "Real intake/onboarding API route handlers are missing behind mocked E2E flow"
+}
