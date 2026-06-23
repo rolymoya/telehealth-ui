@@ -289,7 +289,7 @@ async function applyInlineStripeMirror(
   const activationAllowed = await clinicalUnlockAllowsStripeBillingMirror(
     repository,
     patient.value,
-    billingStatus,
+    event,
   );
   if (!activationAllowed.ok) {
     return activationAllowed;
@@ -590,9 +590,9 @@ function appDataFailure(error: AppDataError) {
 async function clinicalUnlockAllowsStripeBillingMirror(
   repository: StripeMirrorRepository,
   cognitoSub: string,
-  billingStatus: BillingStatus,
+  event: Stripe.Event,
 ): Promise<{ ok: true; value: boolean } | { ok: false; retryable: boolean }> {
-  if (billingStatus !== "active" && billingStatus !== "past_due") {
+  if (isPreUnlockPaymentMethodCollectionEvent(event)) {
     return { ok: true, value: true };
   }
 
@@ -610,6 +610,11 @@ async function clinicalUnlockAllowsStripeBillingMirror(
   }
 
   return { ok: true, value: mirror.value?.caseStatus === "billing_ready" };
+}
+
+function isPreUnlockPaymentMethodCollectionEvent(event: Stripe.Event) {
+  return event.type === "setup_intent.succeeded" ||
+    event.type === "payment_method.attached";
 }
 
 function okEvidence() {

@@ -299,6 +299,109 @@ describe("Stripe webhook receiver service", () => {
     });
   });
 
+  it("does not mirror incomplete subscription state before the MDI clinical unlock state", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedMdiCaseStatusContext(repository, "approved", 25);
+    seedStripeCustomerLinkage(repository, "payment_method_collected");
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_preapproval_incomplete_subscription_001",
+      type: "customer.subscription.created",
+      object: {
+        id: "sub_opaque_preapproval_001",
+        customer: "cus_opaque_001",
+        status: "incomplete",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+    expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+      ok: true,
+      value: {
+        billingStatus: "payment_method_collected",
+        stripeSubscriptionId: undefined,
+      },
+    });
+  });
+
+  it("does not mirror deleted subscription state before the MDI clinical unlock state", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedMdiCaseStatusContext(repository, "approved", 25);
+    seedStripeCustomerLinkage(repository, "payment_method_collected");
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_preapproval_deleted_subscription_001",
+      type: "customer.subscription.deleted",
+      object: {
+        id: "sub_opaque_preapproval_001",
+        customer: "cus_opaque_001",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+    expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+      ok: true,
+      value: {
+        billingStatus: "payment_method_collected",
+        stripeSubscriptionId: undefined,
+      },
+    });
+  });
+
+  it("does not mirror payment intent failure state before the MDI clinical unlock state", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedMdiCaseStatusContext(repository, "approved", 25);
+    seedStripeCustomerLinkage(repository, "payment_method_collected");
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_preapproval_payment_intent_failed_001",
+      type: "payment_intent.payment_failed",
+      object: {
+        customer: "cus_opaque_001",
+        id: "pi_opaque_preapproval_001",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "queued" } });
+    expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+      ok: true,
+      value: {
+        billingStatus: "payment_method_collected",
+        stripeSubscriptionId: undefined,
+      },
+    });
+  });
+
   it("does not fail when a different Stripe event repeats an already-recorded billing status", async () => {
     const repository = createInMemoryAppDataRepository();
     seedStripeLinkage(repository);
