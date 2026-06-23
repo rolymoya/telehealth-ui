@@ -17,6 +17,10 @@ import { resolveRuntimeStage, resolveStartupSecretSource, validateServerStartupS
 import { createStripeClient } from "@/lib/stripe";
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginMutation(request)) {
+    return noStoreJson({ error: "invalid_origin" }, 403);
+  }
+
   const session = await readBillingCancellationSession(request);
   if (!session.ok) {
     return noStoreJson({ error: session.error }, session.status);
@@ -96,6 +100,32 @@ async function resolveStripeSecret(env: Record<string, string | undefined>) {
 
 function resolveBillingCancellationStage(env: Record<string, string | undefined>): BillingActivationStage {
   return env.APOTH_STAGE === "production" ? "production" : "staging";
+}
+
+function isSameOriginMutation(request: NextRequest) {
+  const requestOrigin = originFromUrl(request.nextUrl.origin);
+  if (!requestOrigin) {
+    return false;
+  }
+
+  const origin = originFromUrl(request.headers.get("origin"));
+  if (origin) {
+    return origin === requestOrigin;
+  }
+
+  const referer = originFromUrl(request.headers.get("referer"));
+  return referer === requestOrigin;
+}
+
+function originFromUrl(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
 }
 
 function noStoreJson(body: Record<string, unknown>, status = 200) {

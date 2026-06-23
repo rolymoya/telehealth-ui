@@ -31,9 +31,10 @@ export function Footer() {
           <div className="col-span-2 md:col-span-5">
             <Wordmark className="text-ink" />
             <p className="mt-5 max-w-prose text-pretty text-ink/75">
-              Real visits, named clinicians, in all 50 states. We see adults
-              for sexual health, hair, weight, and physician-supervised
-              peptide protocols.
+              Real visits and named clinicians, where licensure, clinical
+              eligibility, and pharmacy shipping rules support care. We see
+              adults for sexual health, hair, weight, and
+              physician-supervised peptide protocols.
             </p>
             <p className="mt-6 text-sm text-ash">
               hello@apoth.example · 1-800-555-0144
@@ -92,13 +93,13 @@ export function Footer() {
         <div className="mt-16 grid grid-cols-1 gap-y-6 border-t border-ash-line pt-8 text-xs text-ash md:grid-cols-12 md:gap-x-10">
           <div className="md:col-span-9 space-y-3 text-pretty">
             <p>
-              Apoth Health LLC is a technology and patient-management platform.
-              It is not a medical provider and does not practice medicine.
+              Apoth Health LLC is a technology platform. It operates the
+              account, intake, billing, support, and minimal linkage layer; it
+              is not a medical provider and does not practice medicine.
               Clinical decisions are made solely by independent licensed
-              clinicians of MD Integrations and affiliates, who provide care
-              through Apoth&apos;s platform. Medications are dispensed by
-              licensed pharmacy partners that are separate legal entities from
-              Apoth Health LLC.
+              clinicians of MD Integrations and affiliates. Medications are
+              dispensed by licensed pharmacy partners that are separate legal
+              entities from Apoth Health LLC.
             </p>
             <p>
               Compounded medications referenced on this site — including

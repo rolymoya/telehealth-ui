@@ -46,8 +46,8 @@ export function Hero() {
             </div>
 
             <p className="mt-10 max-w-prose text-sm text-cream/80">
-              Cash-pay only. Available in all 50 states through our licensed
-              clinician network.
+              Cash-pay only. Availability depends on clinician licensure,
+              clinical eligibility, and pharmacy shipping rules in your state.
             </p>
           </div>
 

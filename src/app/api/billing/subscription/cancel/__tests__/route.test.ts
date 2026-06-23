@@ -79,6 +79,33 @@ describe("billing subscription cancellation route", () => {
     });
   });
 
+  it("rejects cross-site cancellation requests before auth or billing side effects", async () => {
+    const { POST } = await import("../route");
+
+    const response = await POST(request("https://apoth.test/api/billing/subscription/cancel", {
+      origin: "https://evil.example",
+    }));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: "invalid_origin" });
+    expect(mocks.getServerSession).not.toHaveBeenCalled();
+    expect(mocks.cancelPatientSubscriptionAtPeriodEnd).not.toHaveBeenCalled();
+  });
+
+  it("allows same-origin referer when the Origin header is absent", async () => {
+    const { POST } = await import("../route");
+
+    const response = await POST(request("https://apoth.test/api/billing/subscription/cancel", {
+      origin: null,
+      referer: "https://apoth.test/account",
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      status: "subscription_cancel_pending",
+    });
+  });
+
   it("requires an authenticated patient before resolving billing resources", async () => {
     mocks.getServerSession.mockResolvedValueOnce({
       ok: false,
@@ -154,9 +181,19 @@ describe("billing subscription cancellation route", () => {
   });
 });
 
-function request(url = "https://apoth.test/api/billing/subscription/cancel") {
+function request(
+  url = "https://apoth.test/api/billing/subscription/cancel",
+  options: { origin?: string | null; referer?: string } = {},
+) {
+  const headers = new Headers({ cookie: "apoth_patient_access=token" });
+  if (options.origin !== null) {
+    headers.set("origin", options.origin ?? new URL(url).origin);
+  }
+  if (options.referer) {
+    headers.set("referer", options.referer);
+  }
   return new NextRequest(url, {
-    headers: { cookie: "apoth_patient_access=token" },
+    headers,
     method: "POST",
   });
 }
