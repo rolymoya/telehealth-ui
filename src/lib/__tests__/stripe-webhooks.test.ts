@@ -402,6 +402,40 @@ describe("Stripe webhook receiver service", () => {
     });
   });
 
+  it("does not mark active subscription billing past_due from an unrelated payment intent failure", async () => {
+    const repository = createInMemoryAppDataRepository();
+    seedMdiCaseStatusContext(repository, "billing_ready", 30);
+    seedStripeCustomerLinkage(repository, "active", "sub_opaque_001");
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_unrelated_payment_intent_failed_001",
+      type: "payment_intent.payment_failed",
+      object: {
+        customer: "cus_opaque_001",
+        id: "pi_opaque_unrelated_001",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "queued" } });
+    expect(getStripeLinkage(repository, "cognito-sub-0123456789abcdef")).toMatchObject({
+      ok: true,
+      value: {
+        billingStatus: "active",
+        stripeSubscriptionId: "sub_opaque_001",
+      },
+    });
+  });
+
   it("does not fail when a different Stripe event repeats an already-recorded billing status", async () => {
     const repository = createInMemoryAppDataRepository();
     seedStripeLinkage(repository);

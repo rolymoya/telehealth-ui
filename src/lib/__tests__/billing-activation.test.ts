@@ -460,6 +460,77 @@ describe("billing activation after MDI clinical unlock", () => {
     expect(stripe.subscriptions.update).toHaveBeenCalledTimes(1);
   });
 
+  it("invokes the MDI cancellation action exactly once across duplicate patient cancellations", async () => {
+    const repository = seededRepository({ caseStatus: "billing_ready", billingStatus: "active" });
+    const stripe = stripeMock();
+    const mdiCancellationAction = {
+      requestCancellationReview: vi.fn(async () => ({
+        ok: true as const,
+        outcome: "requested" as const,
+      })),
+    };
+    const billingRepository = createInMemoryBillingActivationRepository(repository);
+
+    const first = await cancelPatientSubscriptionAtPeriodEnd({
+      cognitoSub,
+      mdiCancellationAction,
+      now,
+      repository: billingRepository,
+      stage: "staging",
+      stripe,
+    });
+    const second = await cancelPatientSubscriptionAtPeriodEnd({
+      cognitoSub,
+      mdiCancellationAction,
+      now: "2026-06-23T12:00:01.000Z",
+      repository: billingRepository,
+      stage: "staging",
+      stripe,
+    });
+
+    expect(first).toMatchObject({ ok: true, status: "subscription_cancel_pending" });
+    expect(second).toMatchObject({ ok: true, status: "already_cancel_pending" });
+    expect(mdiCancellationAction.requestCancellationReview).toHaveBeenCalledTimes(1);
+    expect(mdiCancellationAction.requestCancellationReview).toHaveBeenCalledWith({
+      cognitoSub,
+      idempotencyKey: expect.stringMatching(/^apoth:staging:mdi-cancellation-review:/),
+      mdiCaseId,
+      mdiPatientId,
+      now,
+      stripeSubscriptionId: "sub_existing_001",
+    });
+    expect(JSON.stringify(mdiCancellationAction.requestCancellationReview.mock.calls)).not.toMatch(
+      /condition|diagnosis|symptom|medication|questionnaire|answer|free.?text|clinical/i,
+    );
+  });
+
+  it("returns mdi_unavailable without touching Stripe or the local mirror when MDI cancellation action fails", async () => {
+    const repository = seededRepository({ caseStatus: "billing_ready", billingStatus: "active" });
+    const stripe = stripeMock();
+    const mdiCancellationAction = {
+      requestCancellationReview: vi.fn(async () => ({
+        ok: false as const,
+        retryable: true,
+      })),
+    };
+
+    const result = await cancelPatientSubscriptionAtPeriodEnd({
+      cognitoSub,
+      mdiCancellationAction,
+      now,
+      repository: createInMemoryBillingActivationRepository(repository),
+      stage: "staging",
+      stripe,
+    });
+
+    expect(result).toEqual({ ok: false, code: "mdi_unavailable" });
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+    expect(getStripeLinkage(repository, cognitoSub)).toMatchObject({
+      ok: true,
+      value: { billingStatus: "active" },
+    });
+  });
+
   it("treats already canceled patient subscription cancellation as idempotent success", async () => {
     const repository = seededRepository({ caseStatus: "billing_ready", billingStatus: "canceled" });
     const stripe = stripeMock();

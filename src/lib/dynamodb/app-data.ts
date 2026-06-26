@@ -3160,6 +3160,13 @@ function isEvidenceEventId(record: EvidenceEventRecord) {
       return record.stripeSubscriptionId !== undefined &&
         typeof record.metadata?.status === "string" &&
         record.eventId === `stripe:billing:${record.stripeSubscriptionId}:${record.metadata.status}`;
+    case "stripe_refund_status_changed":
+      return record.stripeSubscriptionId !== undefined &&
+        typeof record.metadata?.stripe_event_family === "string" &&
+        new RegExp(
+          `^stripe:refund:${record.stripeSubscriptionId}:${record.metadata.stripe_event_family}:[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$`,
+        ).test(record.eventId) &&
+        !unsafeEvidenceValuePatterns.some((pattern) => pattern.test(record.eventId));
     case "stripe_mdi_billing_reconciliation":
       return record.stripeSubscriptionId !== undefined &&
         typeof record.metadata?.reason_code === "string" &&
@@ -3578,6 +3585,7 @@ const evidenceEventIdPatterns = [
   /^mdi:workflow_url:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:file_upload|intro_video|messaging):req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:payment-method:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:collected$/,
   /^stripe:billing:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:payment_method_pending|payment_method_collected|active|past_due|cancel_pending|canceled)$/,
+  /^stripe:refund:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:charge_refunded|dispute|refund):[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:billing_reconcile:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:active_without_billing_ready|failed_payment_requires_review|local_mirror_stale|mdi_terminal_with_active_billing|missing_mdi_linkage|missing_stripe_linkage|stripe_already_canceled|stripe_cancel_pending|unpaired_stripe_subscription)$/,
   /^webhook:(?:stripe|mdi):(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:[A-Z][A-Z0-9_]{1,79}(?::[a-z][a-z0-9_]{0,39})?$/,
   /^support:case-review:\d{3,12}$/,

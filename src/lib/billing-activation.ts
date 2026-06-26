@@ -93,7 +93,29 @@ export type PatientSubscriptionCancellationResult =
   | { ok: true; status: "already_cancel_pending"; stripeSubscriptionId: string }
   | { ok: true; status: "already_canceled"; stripeSubscriptionId: string }
   | { ok: true; status: "subscription_cancel_pending"; stripeSubscriptionId: string }
-  | { ok: false; code: "storage_unavailable" | "stripe_unavailable" };
+  | { ok: false; code: "mdi_unavailable" | "storage_unavailable" | "stripe_unavailable" };
+
+export type MdiCancellationActionClient = {
+  requestCancellationReview(input: {
+    cognitoSub: string;
+    idempotencyKey: string;
+    mdiCaseId: string;
+    mdiPatientId: string;
+    now: string;
+    stripeSubscriptionId: string;
+  }): Promise<
+    | { ok: true; outcome: "requested" | "skipped" | "unsupported" }
+    | { ok: false; retryable: boolean }
+  >;
+};
+
+export function createUnsupportedMdiCancellationAction(): MdiCancellationActionClient {
+  return {
+    async requestCancellationReview() {
+      return { ok: true, outcome: "unsupported" };
+    },
+  };
+}
 
 export function createInMemoryBillingActivationRepository(
   repository: AppDataRepository,
@@ -372,6 +394,7 @@ export async function cancelActiveBillingAfterClinicalClosure(input: {
 
 export async function cancelPatientSubscriptionAtPeriodEnd(input: {
   cognitoSub: string;
+  mdiCancellationAction?: MdiCancellationActionClient;
   now: string;
   repository: BillingActivationRepository;
   stage: BillingActivationStage;
@@ -408,6 +431,26 @@ export async function cancelPatientSubscriptionAtPeriodEnd(input: {
     return { ok: false, code: "storage_unavailable" };
   }
 
+  if (mdiLinkage.value?.mdiCaseId && mdiLinkage.value.mdiPatientId) {
+    const action = await (
+      input.mdiCancellationAction ?? createUnsupportedMdiCancellationAction()
+    ).requestCancellationReview({
+      cognitoSub: input.cognitoSub,
+      idempotencyKey: idempotencyKey(
+        "mdi-cancellation-review",
+        input.stage,
+        `${input.cognitoSub}:${mdiLinkage.value.mdiCaseId}:${existing.stripeSubscriptionId}`,
+      ),
+      mdiCaseId: mdiLinkage.value.mdiCaseId,
+      mdiPatientId: mdiLinkage.value.mdiPatientId,
+      now: input.now,
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+    });
+    if (!action.ok) {
+      return { ok: false, code: "mdi_unavailable" };
+    }
+  }
+
   let subscription: Stripe.Subscription;
   try {
     subscription = await input.stripe.subscriptions.update(
@@ -423,33 +466,6 @@ export async function cancelPatientSubscriptionAtPeriodEnd(input: {
     );
   } catch {
     return { ok: false, code: "stripe_unavailable" };
-  }
-
-  const evidence = await recordBillingActivationEvidence(input.repository, {
-    cognitoSub: input.cognitoSub,
-    mdiCaseId: mdiLinkage.value?.mdiCaseId,
-    mdiPatientId: mdiLinkage.value?.mdiPatientId,
-    now: input.now,
-    previousStatus: existing.billingStatus,
-    status: "subscription_cancel_pending",
-    stripeCustomerId: existing.stripeCustomerId,
-    stripeSubscriptionId: existing.stripeSubscriptionId,
-  });
-  if (!evidence.ok) {
-    return { ok: false, code: "storage_unavailable" };
-  }
-
-  if (mdiLinkage.value?.mdiCaseId && mdiLinkage.value.mdiPatientId) {
-    const mdiReview = await recordMdiCancellationReviewEvidence(input.repository, {
-      cognitoSub: input.cognitoSub,
-      mdiCaseId: mdiLinkage.value.mdiCaseId,
-      mdiPatientId: mdiLinkage.value.mdiPatientId,
-      now: input.now,
-      stripeSubscriptionId: existing.stripeSubscriptionId,
-    });
-    if (!mdiReview.ok) {
-      return { ok: false, code: "storage_unavailable" };
-    }
   }
 
   const linked = await input.repository.linkStripeCustomer({
@@ -479,6 +495,33 @@ export async function cancelPatientSubscriptionAtPeriodEnd(input: {
       };
     }
     return { ok: false, code: "storage_unavailable" };
+  }
+
+  const evidence = await recordBillingActivationEvidence(input.repository, {
+    cognitoSub: input.cognitoSub,
+    mdiCaseId: mdiLinkage.value?.mdiCaseId,
+    mdiPatientId: mdiLinkage.value?.mdiPatientId,
+    now: input.now,
+    previousStatus: existing.billingStatus,
+    status: "subscription_cancel_pending",
+    stripeCustomerId: existing.stripeCustomerId,
+    stripeSubscriptionId: existing.stripeSubscriptionId,
+  });
+  if (!evidence.ok) {
+    return { ok: false, code: "storage_unavailable" };
+  }
+
+  if (mdiLinkage.value?.mdiCaseId && mdiLinkage.value.mdiPatientId) {
+    const mdiReview = await recordMdiCancellationReviewEvidence(input.repository, {
+      cognitoSub: input.cognitoSub,
+      mdiCaseId: mdiLinkage.value.mdiCaseId,
+      mdiPatientId: mdiLinkage.value.mdiPatientId,
+      now: input.now,
+      stripeSubscriptionId: existing.stripeSubscriptionId,
+    });
+    if (!mdiReview.ok) {
+      return { ok: false, code: "storage_unavailable" };
+    }
   }
 
   return {

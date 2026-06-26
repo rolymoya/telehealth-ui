@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   cancelPatientSubscriptionAtPeriodEnd: vi.fn(),
   createDynamoDbAppDataRepository: vi.fn(() => ({ kind: "dynamodb-repo" })),
   createDynamoDbBillingActivationRepository: vi.fn(() => ({ kind: "billing-repo" })),
+  createUnsupportedMdiCancellationAction: vi.fn(() => ({ kind: "mdi-cancellation-action" })),
   createStripeClient: vi.fn(() => ({ kind: "stripe-client" })),
   getServerSession: vi.fn(),
   resolveCognitoAuthConfig: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock("@/lib/auth/session-cookie", () => ({
 vi.mock("@/lib/billing-activation", () => ({
   cancelPatientSubscriptionAtPeriodEnd: mocks.cancelPatientSubscriptionAtPeriodEnd,
   createDynamoDbBillingActivationRepository: mocks.createDynamoDbBillingActivationRepository,
+  createUnsupportedMdiCancellationAction: mocks.createUnsupportedMdiCancellationAction,
 }));
 
 vi.mock("@/lib/dynamodb/app-data-dynamodb", () => ({

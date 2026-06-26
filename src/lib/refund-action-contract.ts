@@ -1,6 +1,7 @@
 export type RefundScenarioCode =
   | "before_clinician_review"
   | "case_not_accepted"
+  | "external_refund_event"
   | "after_visit_before_pharmacy_shipment"
   | "after_pharmacy_shipment"
   | "damaged_or_lost_shipment"
@@ -103,6 +104,23 @@ export const refundActionContracts = {
     scenario: "case_not_accepted",
     supportCopy:
       "Billing is closed and any eligible pre-service payment is reversed.",
+  },
+  external_refund_event: {
+    allowedStripeActions: ["manual_review", "no_op", "full_refund", "partial_refund"],
+    automation: "fail_closed_manual_review",
+    defaultStripeAction: "manual_review",
+    evidence: evidence(
+      "REFUND_MANUAL_REVIEW_REQUIRED",
+      "external_refund_event",
+      "manual_review",
+      "refund_pending_review",
+      "support_approval",
+    ),
+    patientStatus: "refund_pending_review",
+    requiresAuthoritativeState: ["support_approval"],
+    scenario: "external_refund_event",
+    supportCopy:
+      "Support is reviewing a billing processor update against the account policy.",
   },
   after_visit_before_pharmacy_shipment: {
     allowedStripeActions: ["manual_review", "partial_refund", "credit"],

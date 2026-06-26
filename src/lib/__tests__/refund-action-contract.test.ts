@@ -57,6 +57,7 @@ describe("refund action contract", () => {
     "after_pharmacy_shipment",
     "damaged_or_lost_shipment",
     "post_start_care_change",
+    "external_refund_event",
   ] as const)(
     "fails closed to manual review for %s until source-system state is available",
     (scenario) => {
@@ -109,6 +110,7 @@ describe("refund action contract", () => {
     const expected: RefundScenarioCode[] = [
       "before_clinician_review",
       "case_not_accepted",
+      "external_refund_event",
       "after_visit_before_pharmacy_shipment",
       "after_pharmacy_shipment",
       "damaged_or_lost_shipment",

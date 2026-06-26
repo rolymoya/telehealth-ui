@@ -7,6 +7,7 @@ import { patientAccessCookieName } from "@/lib/auth/session-cookie";
 import {
   cancelPatientSubscriptionAtPeriodEnd,
   createDynamoDbBillingActivationRepository,
+  createUnsupportedMdiCancellationAction,
   type BillingActivationStage,
 } from "@/lib/billing-activation";
 import {
@@ -34,6 +35,7 @@ export async function POST(request: NextRequest) {
 
   const result = await cancelPatientSubscriptionAtPeriodEnd({
     cognitoSub: session.value.user.cognitoSub,
+    mdiCancellationAction: createUnsupportedMdiCancellationAction(),
     now: new Date().toISOString(),
     repository: createDynamoDbBillingActivationRepository(repository.value),
     stage: resolveBillingCancellationStage(process.env),

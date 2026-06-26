@@ -5,13 +5,14 @@
     "T-025",
     "T-026"
   ],
-  "completedDate": null,
+  "claimedBySession": "cb307064-6a21-406a-8ea8-e806b7bd8a6b",
+  "completedDate": "2026-06-26",
   "createdDate": "2026-05-18",
   "description": "Implement billing edge cases in a way that matches the Terms and keeps MDI/Stripe mirrors aligned.\n\n**Scope**\n- Define refund/cancellation handling for pre-approval, clinical denial, prescription approval, renewal, and patient cancellation cases.\n- Sync relevant cancellation/pause state with MDI where the care workflow requires it.\n- Handle failed payments with patient-safe dunning copy and dashboard state.\n- Keep all Stripe metadata and customer-facing descriptors free of PHI.\n\n**Acceptance**\n- Refund matrix tests map Terms scenarios to Stripe actions.\n- Cancelling billing updates local mirror state and triggers required MDI-side action exactly once.\n- Failed-payment state appears in the dashboard without exposing clinical details.",
   "id": "T-027",
   "order": 50,
   "phase": "payments",
-  "status": "open",
+  "status": "complete",
   "title": "Refunds, cancellation, and dunning sync",
   "type": "task"
 }
