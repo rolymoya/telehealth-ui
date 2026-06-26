@@ -4,13 +4,13 @@
     "T-026",
     "T-077"
   ],
-  "completedDate": null,
+  "completedDate": "2026-06-26",
   "createdDate": "2026-06-23",
   "description": "Turn the Terms refund scenarios into an explicit Stripe action matrix and local evidence contract before implementing broad refund handling.\n\n**Scope**\n- Map launch refund scenarios from the Terms to concrete outcomes: before clinician review, clinical denial, after visit but before pharmacy shipment, after shipment, damaged/lost shipment, and clinical discontinuation.\n- Decide which scenarios are automated, which require support/ops approval, and which require MDI/pharmacy status confirmation.\n- Define allowed Stripe actions for each scenario: no-op, full refund, partial refund, credit, cancel-only, or manual review.\n- Specify the local evidence records and dashboard/support messaging for refund pending, approved, denied, completed, or failed states.\n- Keep Stripe metadata, evidence metadata, logs, and support-facing records free of PHI, clinical reasons, medication names, questionnaire answers, clinician notes, and free-text health context.\n\n**Acceptance**\n- Refund matrix tests map each Terms scenario to an allowed Stripe action and patient-safe status.\n- Scenarios that depend on pharmacy shipment or clinical judgment fail closed to manual review until authoritative MDI/pharmacy state is available.\n- Stripe refund/dispute webhooks update only bounded local mirror/evidence state and do not overwrite billing linkage unexpectedly.\n- Dashboard/support copy communicates refund state without exposing clinical detail.\n- The matrix is reviewed against T-077 legal copy before launch automation is enabled.",
   "id": "T-103",
   "order": 53,
   "phase": "payments",
-  "status": "open",
+  "status": "complete",
   "title": "Refund matrix and Stripe action contract",
   "type": "task"
 }

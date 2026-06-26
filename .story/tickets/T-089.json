@@ -9,13 +9,13 @@
     "T-085",
     "T-087"
   ],
-  "completedDate": null,
+  "completedDate": "2026-06-26",
   "createdDate": "2026-06-09",
   "description": "Cover authenticated dashboard states that depend on MDI mirrors, fresh MDI reads, or embedded workflow URLs.\n\n**Scope**\n- Create deterministic MDI fixture states for pending, approved, declined, action-needed, billing issue, unavailable/maintenance, and workflow-link cases.\n- Verify dashboard status, billing cue placement, support pathways, and embedded/link-out workflow affordances selected by T-079.\n- Ensure clinical messages, files, and workflow detail remain in MDI-owned surfaces or mocked embedded URLs unless a future decision expands Apoth storage.\n- Include browser assertions for retry/refresh behavior when MDI is unavailable.\n\n**Acceptance**\n- Dashboard E2E specs cover all launch status states named in T-063.\n- MDI embedded workflow links use safe test URLs and do not leak clinical detail into local app state.\n- Maintenance/unavailable behavior is visible, recoverable, and does not expose raw vendor errors to patients.\n- Specs run against mocked MDI responses locally and can be narrowed for staging smoke.",
   "id": "T-089",
   "order": 50,
   "phase": "playwright-e2e",
-  "status": "open",
+  "status": "complete",
   "title": "MDI-backed dashboard and care-workflow E2E specs",
   "type": "task"
 }
