@@ -24,6 +24,7 @@ export type NetworkCapture = {
 };
 
 export type OnboardingNetworkGuard = {
+  allowedExternalRequests: string[];
   captures: NetworkCapture[];
   consoleErrors: string[];
   expectNoForbiddenFragments: (fragments: readonly string[]) => Promise<void>;
@@ -34,6 +35,7 @@ export type OnboardingNetworkGuard = {
 
 export type OnboardingNetworkGuardOptions = {
   allowedMdiBootstrapResponseFragments?: readonly string[];
+  allowedExternalOrigins?: readonly string[];
 };
 
 export function collectOnboardingConsoleErrors(page: Page) {
@@ -66,6 +68,7 @@ export async function installOnboardingNetworkGuard(
   options: OnboardingNetworkGuardOptions = {},
 ): Promise<OnboardingNetworkGuard> {
   const captures: NetworkCapture[] = [];
+  const allowedExternalRequests: string[] = [];
   const requestUrls: string[] = [];
   const violations: string[] = [];
   const consoleErrors = collectOnboardingConsoleErrors(page);
@@ -81,6 +84,11 @@ export async function installOnboardingNetworkGuard(
     requestUrls.push(request.url());
 
     if (!isLocalAppHost(url)) {
+      if (options.allowedExternalOrigins?.includes(url.origin)) {
+        allowedExternalRequests.push(request.url());
+        await route.abort("blockedbyclient");
+        return;
+      }
       violations.push(`Blocked external network request to ${url.origin}${url.pathname}`);
       await route.abort("blockedbyclient");
       return;
@@ -115,6 +123,7 @@ export async function installOnboardingNetworkGuard(
   });
 
   return {
+    allowedExternalRequests,
     captures,
     consoleErrors,
     expectNoForbiddenFragments: async (fragments) => {

@@ -8,13 +8,14 @@
     "T-087",
     "T-088"
   ],
-  "completedDate": null,
+  "claimedBySession": "cb307064-6a21-406a-8ea8-e806b7bd8a6b",
+  "completedDate": "2026-06-26",
   "createdDate": "2026-06-09",
   "description": "Add Playwright coverage around the patient billing path and the launch invariant that Stripe cannot charge before clinical approval.\n\n**Scope**\n- Test payment-method or checkout entry points before and after the selected MDI billing unlock event.\n- Assert no charge, active subscription, or billing activation path is reachable before clinical approval/unlock.\n- Cover approved, declined, abandoned, cancellation, dunning, and refund-support branches at the browser level with mocked Stripe and webhook state.\n- Assert Stripe-facing request/metadata fixtures contain only opaque non-PHI identifiers and no condition, medication, diagnosis, symptom, questionnaire answer, clinician note, or health context.\n\n**Acceptance**\n- Browser tests fail if payment UI or API calls can create a charge/subscription before the clinical unlock event.\n- Clinically declined and abandoned flows leave billing inactive and route users to safe support/refund messaging.\n- Metadata assertions enforce the project Stripe data policy with synthetic fixture payloads.\n- Local E2E uses mocked Stripe seams; any staging smoke path uses Stripe test mode only.",
   "id": "T-090",
   "order": 60,
   "phase": "playwright-e2e",
-  "status": "open",
+  "status": "complete",
   "title": "Stripe billing timing and no-PHI metadata E2E specs",
   "type": "task"
 }
