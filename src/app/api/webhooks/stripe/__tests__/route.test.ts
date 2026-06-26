@@ -48,6 +48,8 @@ vi.mock("stripe", () => ({
 describe("Stripe webhook route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
+    vi.stubEnv("STRIPE_RECURRING_PRICE_ID", "price_launch_opaque_001");
     mocks.resolveStartupSecretSource.mockReturnValue({
       ok: true,
       value: {

@@ -74,6 +74,7 @@ export type MdiPatientErrorCode =
 export type MdiPatientError = {
   code: MdiPatientErrorCode;
   message: string;
+  retryAfterSeconds?: number;
   retryable: boolean;
   status: number;
 };
@@ -170,6 +171,7 @@ export async function createMdiPatientLinkage(
       idempotencyKey: claim.value.idempotencyKey,
       now,
       providerStatus: created.error.status,
+      retryAfterSeconds: created.error.retryAfterSeconds,
       status: created.error.retryable
         ? "provider_retryable_failure"
         : "provider_terminal_failure",
@@ -452,6 +454,7 @@ export function mapMdiPatientClientError(error: MdiClientError): MdiPatientError
   return {
     code: "provider_unavailable",
     message: "MDI patient creation failed",
+    retryAfterSeconds: error.retryAfterSeconds,
     retryable: error.retryable,
     status: error.status && error.status >= 400 && error.status <= 599 ? error.status : 502,
   };
@@ -460,7 +463,7 @@ export function mapMdiPatientClientError(error: MdiClientError): MdiPatientError
 export function mdiPatientFailure(
   code: MdiPatientErrorCode,
   message: string,
-  options: { retryable: boolean; status: number },
+  options: { retryable: boolean; retryAfterSeconds?: number; status: number },
 ): MdiPatientResult<never> {
   return fail(code, message, options);
 }
@@ -483,13 +486,14 @@ function isClaimExpired(attempt: MdiPatientCreateAttemptRecord, now: string) {
 function fail(
   code: MdiPatientErrorCode,
   message: string,
-  options: { retryable: boolean; status: number },
+  options: { retryable: boolean; retryAfterSeconds?: number; status: number },
 ): MdiPatientResult<never> {
   return {
     ok: false,
     error: {
       code,
       message,
+      ...(options.retryAfterSeconds ? { retryAfterSeconds: options.retryAfterSeconds } : {}),
       retryable: options.retryable,
       status: options.status,
     },

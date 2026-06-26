@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createMdiCase,
   createMdiPatient,
+  getMdiCaseStatus,
   getMdiFileUploadWorkflowUrl,
   getMdiIntroVideoWorkflowUrl,
   getMdiMessagingWorkflowUrl,
@@ -19,14 +20,26 @@ import { placeholderSecretPayload } from "@/lib/secrets/contracts";
 import type { StartupSecretSource } from "@/lib/secrets/startup";
 
 type FetchResponse = {
+  headers?: {
+    get(name: string): string | null;
+  };
   ok: boolean;
   status: number;
   json(): Promise<unknown>;
   text(): Promise<string>;
 };
 
-function jsonResponse(status: number, payload: unknown): FetchResponse {
+function jsonResponse(
+  status: number,
+  payload: unknown,
+  headers: Record<string, string> = {},
+): FetchResponse {
   return {
+    headers: {
+      get(name) {
+        return headers[name.toLowerCase()] ?? null;
+      },
+    },
     ok: status >= 200 && status < 300,
     status,
     async json() {
@@ -239,6 +252,40 @@ describe("MDI HTTP client", () => {
         }),
         method: "POST",
       }),
+    );
+  });
+
+  it("retrieves only the minimal MDI case status snapshot from a PHI-heavy case payload", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(200, {
+        case_id: "mdi_case_001",
+        case_status: {
+          name: "Case Clinically Approved",
+          updated_at: "2026-06-20T15:30:00.000Z",
+        },
+        patient: {
+          first_name: "TRANSIENT_NAME_SENTINEL",
+          allergies: "TRANSIENT_ALLERGY_SENTINEL",
+        },
+        prescription: {
+          medication_name: "TRANSIENT_MEDICATION_SENTINEL",
+        },
+      }));
+
+    const result = await getMdiCaseStatus({ mdiCaseId: "mdi_case_001" }, clientOptions(fetchMock));
+
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        caseStatus: "billing_ready",
+        mdiCaseId: "mdi_case_001",
+        providerTimestamp: "2026-06-20T15:30:00.000Z",
+      },
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /TRANSIENT_NAME_SENTINEL|TRANSIENT_ALLERGY_SENTINEL|TRANSIENT_MEDICATION_SENTINEL/,
     );
   });
 
@@ -457,6 +504,24 @@ describe("MDI HTTP client", () => {
         code: "maintenance",
         message: "MDI is temporarily unavailable",
         retryAfterSeconds: 300,
+        retryable: true,
+        status: 418,
+      },
+    });
+
+    resetMdiTokenCacheForTests();
+    const maintenanceHeaderFetch = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(200, tokenPayload("mdi_access_token_001")))
+      .mockResolvedValueOnce(jsonResponse(418, {}, { "retry-after": "120" }));
+
+    await expect(
+      requestMdi({ path: "/partner/cases/mdi_case_opaque" }, clientOptions(maintenanceHeaderFetch)),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: {
+        code: "maintenance",
+        retryAfterSeconds: 120,
         retryable: true,
         status: 418,
       },

@@ -14,12 +14,15 @@ import {
   type BillingStatus,
   type ConsentEvidenceRecord,
   type EvidenceEventRecord,
+  type MdiCaseStatusReconciliationIndexRecord,
   type MdiCaseStatusMirrorRecord,
   type MdiLinkageRecord,
   type MdiMirroredCaseStatus,
   type MdiReverseLookupRecord,
   type OnboardingStatus,
   type PatientProfileRecord,
+  type RecordCurrentMdiCaseStatusEvidenceInput,
+  type StripeBillingReconciliationIndexRecord,
   type StripeLinkageRecord,
   type StripeReverseLookupRecord,
   type TransactWriteOperation,
@@ -33,11 +36,15 @@ import {
   createPatientProfileRecord,
   isIdempotentEvidenceReplay,
   mdiCaseReverseKey,
+  mdiCaseStatusReconciliationIndexPk,
+  mdiCaseStatusReconciliationIndexKey,
   mdiCaseStatusMirrorKey,
   mdiLinkageKey,
   mdiPatientReverseKey,
   patientProfileKey,
   stripeCustomerReverseKey,
+  stripeBillingReconciliationIndexKey,
+  stripeBillingReconciliationIndexPk,
   stripeLinkageKey,
   stripeSubscriptionReverseKey,
   validateAppDataRecord,
@@ -417,6 +424,36 @@ export async function getStripeLinkageDynamoDb(
   return ok(record.value);
 }
 
+export async function listStripeBillingReconciliationItemsDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "queryByKeyPrefix">,
+  input: {
+    exclusiveStartKey?: AppDataKey;
+    limit?: number;
+  } = {},
+): Promise<AppDataResult<{
+  items: StripeBillingReconciliationIndexRecord[];
+  nextKey?: AppDataKey;
+}>> {
+  const records = await repository.queryByKeyPrefix({
+    pk: stripeBillingReconciliationIndexPk,
+    skPrefix: "SUBSCRIPTION#",
+    exclusiveStartKey: input.exclusiveStartKey,
+    limit: input.limit,
+  });
+  if (!records.ok) {
+    return records;
+  }
+
+  const items: StripeBillingReconciliationIndexRecord[] = [];
+  for (const record of records.value.items) {
+    if (record.recordType !== "stripeBillingReconciliationIndex") {
+      return err("validation_failed", "Stripe billing reconciliation index contained another record type");
+    }
+    items.push(record);
+  }
+  return ok({ items, nextKey: records.value.nextKey });
+}
+
 export async function listEvidenceEventsForMdiCaseDynamoDb(
   repository: Pick<DynamoDbAppDataRepository, "get" | "queryByKeyPrefix">,
   input: {
@@ -656,11 +693,7 @@ export async function recordEvidenceEventDynamoDb(
 
 export async function recordCurrentMdiCaseStatusEvidenceDynamoDb(
   repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
-  input: Parameters<typeof createEvidenceEventRecord>[0] & {
-    caseStatus: MdiMirroredCaseStatus;
-    statusRank: number;
-    terminal: boolean;
-  },
+  input: RecordCurrentMdiCaseStatusEvidenceInput,
 ): Promise<AppDataResult<{ applied: boolean; record: EvidenceEventRecord }>> {
   const record = createEvidenceEventRecord(input);
   const writes = createEvidenceEventWriteOperations(record);
@@ -706,11 +739,29 @@ export async function recordCurrentMdiCaseStatusEvidenceDynamoDb(
       updatedAt: record.recordedAt,
       webhookEventId: record.webhookEventId,
     };
+    const reconciliationIndex: MdiCaseStatusReconciliationIndexRecord = {
+      ...mdiCaseStatusReconciliationIndexKey(record.mdiCaseId),
+      recordType: "mdiCaseStatusReconciliationIndex",
+      schemaVersion: 1,
+      caseStatus: input.caseStatus,
+      cognitoSub: record.cognitoSub,
+      createdAt: existing.value?.createdAt ?? record.recordedAt,
+      mdiCaseId: record.mdiCaseId,
+      mdiPatientId: record.mdiPatientId,
+      providerTimestamp: record.occurredAt,
+      statusRank: input.statusRank,
+      terminal: input.terminal,
+      updatedAt: record.recordedAt,
+      webhookEventId: record.webhookEventId,
+    };
 
     const written = await repository.transactWrite([
       existing.value
         ? { type: "update", record: mirror, expected: existing.value }
         : { type: "put", record: mirror, ifNotExists: true },
+      input.terminal
+        ? { type: "delete", key: mdiCaseStatusReconciliationIndexKey(record.mdiCaseId) }
+        : { type: "put", record: reconciliationIndex },
       ...writes.value.operations,
     ]);
     if (written.ok) {
@@ -722,6 +773,45 @@ export async function recordCurrentMdiCaseStatusEvidenceDynamoDb(
   }
 
   return err("conditional_conflict", "MDI case status mirror update conflicted");
+}
+
+export async function listMdiCaseStatusReconciliationItemsDynamoDb(
+  repository: Pick<DynamoDbAppDataRepository, "queryByKeyPrefix">,
+  input: {
+    exclusiveStartKey?: AppDataKey;
+    includeTerminal?: boolean;
+    limit?: number;
+  } = {},
+): Promise<AppDataResult<{
+  items: MdiCaseStatusReconciliationIndexRecord[];
+  nextKey?: AppDataKey;
+}>> {
+  const limit = input.limit ?? 100;
+  const queried = await repository.queryByKeyPrefix({
+    pk: mdiCaseStatusReconciliationIndexPk,
+    skPrefix: "CASE#",
+    limit,
+    exclusiveStartKey: input.exclusiveStartKey,
+  });
+  if (!queried.ok) {
+    return queried as AppDataResult<{
+      items: MdiCaseStatusReconciliationIndexRecord[];
+      nextKey?: AppDataKey;
+    }>;
+  }
+
+  const items: MdiCaseStatusReconciliationIndexRecord[] = [];
+  for (const record of queried.value.items) {
+    if (record.recordType !== "mdiCaseStatusReconciliationIndex") {
+      return err("validation_failed", "MDI case status reconciliation index contained another record type");
+    }
+    if (!input.includeTerminal && record.terminal) {
+      return err("validation_failed", "Terminal MDI case status record found in active reconciliation index");
+    }
+    items.push(record);
+  }
+
+  return ok({ items, nextKey: queried.value.nextKey });
 }
 
 export async function claimWebhookEventDynamoDb(
@@ -1013,6 +1103,9 @@ export async function linkStripeCustomerDynamoDb(
     cognitoSub: string;
     now: string;
     stripeCustomerId: string;
+    allowedCurrentBillingStatuses?: BillingStatus[];
+    stripeCurrentPeriodEnd?: string;
+    stripeCurrentPeriodStart?: string;
     stripeBillingStatusObservedAt?: string;
     stripeSubscriptionId?: string;
   },
@@ -1020,6 +1113,13 @@ export async function linkStripeCustomerDynamoDb(
   const existing = await getStripeLinkageDynamoDb(repository, input.cognitoSub);
   if (!existing.ok) {
     return existing;
+  }
+  if (
+    existing.value &&
+    input.allowedCurrentBillingStatuses &&
+    !input.allowedCurrentBillingStatuses.includes(existing.value.billingStatus)
+  ) {
+    return err("stale_transition", "Stripe linkage billing status changed before update");
   }
 
   const linkage: StripeLinkageRecord = {
@@ -1031,6 +1131,8 @@ export async function linkStripeCustomerDynamoDb(
     schemaVersion: 1,
     stripeBillingStatusObservedAt: input.stripeBillingStatusObservedAt,
     stripeCustomerId: input.stripeCustomerId,
+    stripeCurrentPeriodEnd: input.stripeCurrentPeriodEnd,
+    stripeCurrentPeriodStart: input.stripeCurrentPeriodStart,
     stripeSubscriptionId: input.stripeSubscriptionId,
     updatedAt: input.now,
   };
@@ -1067,6 +1169,15 @@ export async function linkStripeCustomerDynamoDb(
   if (!staleDeletes.ok) {
     return staleDeletes;
   }
+  const indexOperations = await collectStripeBillingReconciliationIndexOperations(
+    repository,
+    existing.value,
+    linkage,
+    input.now,
+  );
+  if (!indexOperations.ok) {
+    return indexOperations;
+  }
 
   const transaction = await repository.transactWrite([
     existing.value
@@ -1078,6 +1189,7 @@ export async function linkStripeCustomerDynamoDb(
       record,
       ifNotExists: true,
     })),
+    ...indexOperations.value,
   ]);
   return transaction.ok ? ok(linkage) : transaction;
 }
@@ -1142,6 +1254,102 @@ async function collectStaleStripeDeletes(
       : null,
   ].filter((key): key is AppDataKey => Boolean(key));
   return collectOwnedReverseDeletes(repository, keys, next.cognitoSub);
+}
+
+async function collectStripeBillingReconciliationIndexOperations(
+  repository: Pick<DynamoDbAppDataRepository, "get">,
+  existing: StripeLinkageRecord | null,
+  next: StripeLinkageRecord,
+  now: string,
+): Promise<AppDataResult<TransactWriteOperation[]>> {
+  const operations: TransactWriteOperation[] = [];
+  const existingIndexKey = existing?.stripeSubscriptionId &&
+      isSubscribedBillingStatus(existing.billingStatus)
+    ? stripeBillingReconciliationIndexKey(existing.stripeSubscriptionId)
+    : null;
+  const nextIndex = next.stripeSubscriptionId && isSubscribedBillingStatus(next.billingStatus)
+    ? createStripeBillingReconciliationIndexRecord({
+      billingStatus: next.billingStatus,
+      cognitoSub: next.cognitoSub,
+      now,
+      stripeBillingStatusObservedAt: next.stripeBillingStatusObservedAt,
+      stripeCustomerId: next.stripeCustomerId,
+      stripeSubscriptionId: next.stripeSubscriptionId,
+    })
+    : null;
+
+  if (existingIndexKey) {
+    const existingIndex = await repository.get(existingIndexKey);
+    if (!existingIndex.ok) {
+      return existingIndex;
+    }
+    if (existingIndex.value) {
+      if (
+        existingIndex.value.recordType !== "stripeBillingReconciliationIndex" ||
+        existingIndex.value.cognitoSub !== next.cognitoSub
+      ) {
+        return err("conditional_conflict", "Stripe billing reconciliation index belongs to another patient");
+      }
+      if (!nextIndex || existingIndexKey.sk !== nextIndex.sk) {
+        operations.push({ type: "delete", key: existingIndexKey, expected: existingIndex.value });
+      }
+    }
+  }
+
+  if (nextIndex) {
+    const existingNextIndex = await repository.get(nextIndex);
+    if (!existingNextIndex.ok) {
+      return existingNextIndex;
+    }
+    if (existingNextIndex.value) {
+      if (
+        existingNextIndex.value.recordType !== "stripeBillingReconciliationIndex" ||
+        existingNextIndex.value.cognitoSub !== next.cognitoSub
+      ) {
+        return err("conditional_conflict", "Stripe billing reconciliation index belongs to another patient");
+      }
+      operations.push({
+        type: "update",
+        record: {
+          ...nextIndex,
+          createdAt: existingNextIndex.value.createdAt,
+        },
+        expected: existingNextIndex.value,
+      });
+    } else {
+      operations.push({ type: "put", record: nextIndex, ifNotExists: true });
+    }
+  }
+
+  return ok(operations);
+}
+
+function createStripeBillingReconciliationIndexRecord(input: {
+  billingStatus: Extract<BillingStatus, "active" | "past_due" | "cancel_pending">;
+  cognitoSub: string;
+  now: string;
+  stripeBillingStatusObservedAt?: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+}): StripeBillingReconciliationIndexRecord {
+  return {
+    ...stripeBillingReconciliationIndexKey(input.stripeSubscriptionId),
+    recordType: "stripeBillingReconciliationIndex",
+    schemaVersion: 1,
+    billingStatus: input.billingStatus,
+    cognitoSub: input.cognitoSub,
+    createdAt: input.now,
+    stripeBillingStatusObservedAt: input.stripeBillingStatusObservedAt,
+    stripeCustomerId: input.stripeCustomerId,
+    stripeSubscriptionId: input.stripeSubscriptionId,
+    updatedAt: input.now,
+  };
+}
+
+function isSubscribedBillingStatus(
+  value: BillingStatus,
+): value is Extract<BillingStatus, "active" | "past_due" | "cancel_pending"> {
+  return value === "active" || value === "past_due" || value === "cancel_pending";
 }
 
 async function collectOwnedReverseDeletes(

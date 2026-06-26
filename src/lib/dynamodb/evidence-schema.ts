@@ -56,6 +56,7 @@ export const evidenceEventSchema = {
     metadata: {
       status: [
         "assigned",
+        "approved",
         "billing_ready",
         "cancelled",
         "clinical_review",
@@ -170,6 +171,17 @@ export const evidenceEventSchema = {
     },
     linkage: "mdi_patient",
   },
+  mdi_cancellation_review_requested: {
+    category: "mdi_handoff",
+    summaryCode: "MDI_CANCELLATION_REVIEW_REQUESTED",
+    statuses: ["recorded"],
+    metadata: {
+      outcome: ["requested"],
+      reason_code: ["patient_self_service_cancel"],
+      side_effect: ["mdi_subscription_review"],
+    },
+    linkage: "mdi_case",
+  },
   stripe_payment_method_collected: {
     category: "stripe_billing",
     summaryCode: "STRIPE_PAYMENT_METHOD_COLLECTED",
@@ -194,6 +206,7 @@ export const evidenceEventSchema = {
         "payment_method_collected",
         "active",
         "past_due",
+        "cancel_pending",
         "canceled",
       ],
       previous_status: [
@@ -202,7 +215,34 @@ export const evidenceEventSchema = {
         "payment_method_collected",
         "active",
         "past_due",
+        "cancel_pending",
         "canceled",
+      ],
+    },
+    linkage: "stripe_subscription",
+  },
+  stripe_mdi_billing_reconciliation: {
+    category: "stripe_billing",
+    summaryCode: "STRIPE_MDI_BILLING_RECONCILIATION",
+    statuses: ["recorded", "succeeded", "skipped"],
+    metadata: {
+      outcome: [
+        "ok",
+        "mirror_corrected",
+        "ops_review_required",
+        "provider_unavailable",
+        "skipped",
+      ],
+      reason_code: [
+        "active_without_billing_ready",
+        "failed_payment_requires_review",
+        "local_mirror_stale",
+        "mdi_terminal_with_active_billing",
+        "missing_mdi_linkage",
+        "missing_stripe_linkage",
+        "stripe_already_canceled",
+        "stripe_cancel_pending",
+        "unpaired_stripe_subscription",
       ],
     },
     linkage: "stripe_subscription",
@@ -250,6 +290,7 @@ export const evidenceEventSchema = {
     metadata: {
       case_status: [
         "assigned",
+        "approved",
         "billing_ready",
         "cancelled",
         "clinical_review",

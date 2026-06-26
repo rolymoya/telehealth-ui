@@ -1,0 +1,26 @@
+{
+  "components": [
+    "intake",
+    "onboarding",
+    "MDI",
+    "thin-PHI",
+    "E2E"
+  ],
+  "discoveredDate": "2026-06-23",
+  "id": "ISS-030",
+  "impact": "T-088 can verify the browser workflow with local route mocks, but it cannot validate the real Apoth API boundary for `/api/onboarding/start`, `/api/onboarding/consent`, `/api/intake/bootstrap`, `/api/intake/precheck`, `/api/onboarding/mdi/bootstrap`, or `/api/onboarding/mdi/submit` because those route handlers are not present. A future implementation could leak questionnaire answers or mishandle billing/Stripe metadata without this browser-level mock suite catching the route-layer behavior.",
+  "location": [
+    "src/app/api",
+    "tests/e2e/intake-onboarding.spec.ts",
+    "tests/e2e/support/onboarding.ts"
+  ],
+  "phase": "playwright-e2e",
+  "relatedTickets": [
+    "T-088"
+  ],
+  "resolution": "Implemented real Next.js route handlers for /api/onboarding/start, /api/onboarding/consent, /api/intake/bootstrap, /api/intake/precheck, /api/onboarding/mdi/bootstrap, and /api/onboarding/mdi/submit. Added shared auth/origin/CSRF/no-store helpers, DynamoDB-backed intake profile and MDI intake adapters, and an MDI HTTP intake gateway with typed provider-unavailable mapping. Added focused route-boundary tests proving authenticated gating, same-origin/CSRF enforcement, minimal residency-only precheck persistence, patient-safe MDI outage responses, and no questionnaire-answer fragments in submit responses. Verification passed: npm test -- src/app/api/onboarding/__tests__/route-boundary.test.ts, npm run typecheck, npm test.",
+  "resolvedDate": "2026-06-23",
+  "severity": "high",
+  "status": "resolved",
+  "title": "Real intake/onboarding API route handlers are missing behind mocked E2E flow"
+}

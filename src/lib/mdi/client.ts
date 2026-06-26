@@ -13,6 +13,10 @@ import {
   canonicalMdiCaseId,
   canonicalMdiPatientId,
 } from "@/lib/mdi/ids";
+import {
+  normalizeMdiCaseStatusName,
+  type MdiCaseStatus,
+} from "@/lib/mdi/case-status";
 
 type FetchLike = (
   input: string,
@@ -23,6 +27,9 @@ type FetchLike = (
     signal?: AbortSignal;
   },
 ) => Promise<{
+  headers?: {
+    get(name: string): string | null;
+  };
   ok: boolean;
   status: number;
   json(): Promise<unknown>;
@@ -82,6 +89,12 @@ export type MdiCreateCaseInput = {
 
 export type MdiCreatedCase = {
   mdiCaseId: string;
+};
+
+export type MdiCaseStatusSnapshot = {
+  mdiCaseId: string;
+  caseStatus: MdiCaseStatus;
+  providerTimestamp: string;
 };
 
 export type MdiQuestionOption = {
@@ -194,6 +207,20 @@ export async function createMdiCase(
       method: "POST",
       parse: parseCreatedCase,
       path: "/partner/cases",
+    },
+    options,
+  );
+}
+
+export async function getMdiCaseStatus(
+  input: { mdiCaseId: string },
+  options: MdiClientOptions = {},
+) {
+  return requestMdi<MdiCaseStatusSnapshot>(
+    {
+      method: "GET",
+      parse: parseCaseStatusSnapshot,
+      path: `/partner/cases/${encodeURIComponent(input.mdiCaseId)}`,
     },
     options,
   );
@@ -320,7 +347,11 @@ async function mapResponse<T>(
   if (response.status === 418) {
     return {
       ok: false,
-      error: maintenanceError(response.status, await safeJson(response)),
+      error: maintenanceError(
+        response.status,
+        await safeJson(response),
+        response.headers?.get("retry-after") ?? null,
+      ),
     };
   }
 
@@ -461,6 +492,35 @@ function parseCreatedCase(payload: unknown): MdiCreatedCase {
   return { mdiCaseId: canonicalCaseId };
 }
 
+function parseCaseStatusSnapshot(payload: unknown): MdiCaseStatusSnapshot {
+  if (!isRecord(payload)) {
+    throw new Error("Invalid MDI case response");
+  }
+
+  const rawCaseId = payload.case_id ?? payload.caseId ?? payload.mdiCaseId;
+  const canonicalCaseId = typeof rawCaseId === "string"
+    ? canonicalMdiCaseId(rawCaseId)
+    : null;
+  const statusRecord = isRecord(payload.case_status) ? payload.case_status : null;
+  const caseStatus = normalizeMdiCaseStatusName(statusRecord?.name);
+  const providerTimestamp = statusRecord?.updated_at;
+
+  if (
+    !canonicalCaseId ||
+    !caseStatus ||
+    typeof providerTimestamp !== "string" ||
+    Number.isNaN(new Date(providerTimestamp).getTime())
+  ) {
+    throw new Error("Invalid MDI case status response fields");
+  }
+
+  return {
+    caseStatus,
+    mdiCaseId: canonicalCaseId,
+    providerTimestamp: new Date(providerTimestamp).toISOString(),
+  };
+}
+
 function parseWorkflowUrl(
   payload: unknown,
   urlField: "auth_link" | "file_url" | "intro_video_url",
@@ -486,20 +546,41 @@ async function safeJson(response: Awaited<ReturnType<FetchLike>>) {
   }
 }
 
-function maintenanceError(status: number, payload: { ok: true; value: unknown } | { ok: false }) {
-  const retryAfterSeconds =
+function maintenanceError(
+  status: number,
+  payload: { ok: true; value: unknown } | { ok: false },
+  retryAfterHeader: string | null,
+) {
+  const payloadRetryAfter =
     payload.ok &&
     isRecord(payload.value) &&
     typeof payload.value.retryAfterSeconds === "number" &&
     Number.isFinite(payload.value.retryAfterSeconds)
       ? payload.value.retryAfterSeconds
       : undefined;
+  const retryAfterSeconds = parseRetryAfterSeconds(retryAfterHeader) ?? payloadRetryAfter;
 
   return clientErr("maintenance", "MDI is temporarily unavailable", {
     retryAfterSeconds,
     retryable: true,
     status,
   });
+}
+
+function parseRetryAfterSeconds(value: string | null) {
+  if (!value) {
+    return undefined;
+  }
+  const seconds = Number.parseInt(value, 10);
+  if (Number.isInteger(seconds) && seconds > 0) {
+    return seconds;
+  }
+  const dateMs = Date.parse(value);
+  if (!Number.isFinite(dateMs)) {
+    return undefined;
+  }
+  const deltaSeconds = Math.ceil((dateMs - Date.now()) / 1000);
+  return deltaSeconds > 0 ? deltaSeconds : undefined;
 }
 
 function logFailure(

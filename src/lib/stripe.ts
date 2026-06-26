@@ -78,6 +78,73 @@ export function createSubscriptionCheckoutParams(input: {
   };
 }
 
+export function createStripeSubscriptionParams(input: {
+  customerId: string;
+  metadata: Record<string, string>;
+  priceId: string;
+}): StripeResult<Stripe.SubscriptionCreateParams> {
+  const metadata = validateStripeMetadata(input.metadata);
+  if (!metadata.valid) {
+    return validationErr(metadata);
+  }
+
+  return {
+    ok: true,
+    value: {
+      customer: input.customerId,
+      items: [{ price: input.priceId }],
+      metadata: input.metadata,
+      payment_behavior: "allow_incomplete",
+    },
+  };
+}
+
+export function createPaymentMethodSetupIntentParams(input: {
+  customerId: string;
+  metadata: Record<string, string>;
+}): StripeResult<Stripe.SetupIntentCreateParams> {
+  const metadata = validateStripeMetadata(input.metadata);
+  if (!metadata.valid) {
+    return validationErr(metadata);
+  }
+
+  return {
+    ok: true,
+    value: {
+      automatic_payment_methods: { enabled: true },
+      customer: input.customerId,
+      metadata: input.metadata,
+      usage: "off_session",
+    },
+  };
+}
+
+export function createPaymentMethodSetupCheckoutParams(input: {
+  cancelUrl: string;
+  customerId: string;
+  metadata: Record<string, string>;
+  successUrl: string;
+}): StripeResult<Stripe.Checkout.SessionCreateParams> {
+  const metadata = validateStripeMetadata(input.metadata);
+  if (!metadata.valid) {
+    return validationErr(metadata);
+  }
+
+  return {
+    ok: true,
+    value: {
+      cancel_url: input.cancelUrl,
+      customer: input.customerId,
+      metadata: input.metadata,
+      mode: "setup",
+      setup_intent_data: {
+        metadata: input.metadata,
+      },
+      success_url: input.successUrl,
+    },
+  };
+}
+
 export function constructStripeWebhookEvent(input: {
   payload: string | Buffer;
   signature: string;

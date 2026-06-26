@@ -32,9 +32,17 @@ vi.mock("@/lib/webhook-processing-repository", () => ({
   createDynamoDbWebhookProcessingRepository: mocks.createDynamoDbWebhookProcessingRepository,
 }));
 
+vi.mock("stripe", () => ({
+  default: class Stripe {
+    constructor(readonly secretKey: string) {}
+  },
+}));
+
 describe("MDI webhook route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
+    vi.stubEnv("STRIPE_RECURRING_PRICE_ID", "price_launch_opaque_001");
     mocks.resolveStartupSecretSource.mockReturnValue({
       ok: true,
       value: {
@@ -42,18 +50,32 @@ describe("MDI webhook route", () => {
         source: { kind: "source" },
       },
     });
-    mocks.validateServerStartupSecrets.mockResolvedValue({
-      ok: true,
-      value: [{
-        apiBaseUrl: "https://mdi.example.test",
-        apothStage: "staging",
-        clientId: "mdi_client_opaque",
-        clientSecret: "mdi_client_secret_opaque",
-        schemaVersion: 1,
-        secretKind: "mdiApi",
-        webhookAuthorizationSecret: "mdi_authorization_opaque",
-        webhookSigningSecret: "mdi_signing_opaque",
-      }],
+    mocks.validateServerStartupSecrets.mockImplementation(async (input) => {
+      if (input.requiredSecrets.includes("stripeApi")) {
+        return {
+          ok: true,
+          value: [{
+            apothStage: "staging",
+            schemaVersion: 1,
+            secretKind: "stripeApi",
+            secretKey: "sk_test_opaque",
+            webhookSigningSecret: "whsec_opaque",
+          }],
+        };
+      }
+      return {
+        ok: true,
+        value: [{
+          apiBaseUrl: "https://mdi.example.test",
+          apothStage: "staging",
+          clientId: "mdi_client_opaque",
+          clientSecret: "mdi_client_secret_opaque",
+          schemaVersion: 1,
+          secretKind: "mdiApi",
+          webhookAuthorizationSecret: "mdi_authorization_opaque",
+          webhookSigningSecret: "mdi_signing_opaque",
+        }],
+      };
     });
     mocks.resolveDynamoDbAppDataConfig.mockReturnValue({
       ok: true,

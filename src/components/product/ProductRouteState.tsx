@@ -17,6 +17,7 @@ type ProductRouteStateAction =
       variant?: "primary" | "secondary";
     }
   | {
+      disabled?: boolean;
       label: string;
       onClick: () => void;
       variant?: "primary" | "secondary";
@@ -28,6 +29,7 @@ type ProductRouteStateProps = {
   eyebrow: string;
   status?: string;
   title: string;
+  live?: boolean;
   tone?: ProductStateTone;
 };
 
@@ -44,6 +46,7 @@ export function ProductRouteState({
   actions = [],
   body,
   eyebrow,
+  live = false,
   status,
   title,
   tone = "maintenance",
@@ -60,7 +63,11 @@ export function ProductRouteState({
                 {status ?? toneLabels[tone]}
               </p>
             </div>
-            <div className="max-w-measure">
+            <div
+              aria-live={live ? "polite" : undefined}
+              className="max-w-measure"
+              role={live ? "status" : undefined}
+            >
               <h1 className="display-serif text-display-md font-light text-balance">
                 {title}
               </h1>
@@ -99,15 +106,22 @@ function ProductStateAction({
   }
 
   return (
-    <button className={className} onClick={action.onClick} type="button">
+    <button
+      aria-disabled={action.disabled ? true : undefined}
+      className={className}
+      disabled={action.disabled}
+      onClick={action.onClick}
+      type="button"
+    >
       {action.label}
     </button>
   );
 }
 
 function actionClassName(variant: ProductRouteStateAction["variant"]) {
+  const disabledState = "disabled:cursor-not-allowed disabled:opacity-60";
   if (variant === "secondary") {
-    return "inline-flex min-h-11 items-center rounded-full border border-ash-line px-5 py-2.5 text-[0.95rem] font-medium text-ink transition-colors duration-250 ease-out-quart hover:border-clay hover:text-clay-deep";
+    return `inline-flex min-h-11 items-center rounded-full border border-ash-line px-5 py-2.5 text-[0.95rem] font-medium text-ink transition-colors duration-250 ease-out-quart hover:border-clay hover:text-clay-deep ${disabledState}`;
   }
-  return "inline-flex min-h-11 items-center rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors duration-250 ease-out-quart hover:bg-clay";
+  return `inline-flex min-h-11 items-center rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors duration-250 ease-out-quart hover:bg-clay ${disabledState}`;
 }

@@ -4,13 +4,13 @@
     "T-023",
     "T-078"
   ],
-  "completedDate": null,
+  "completedDate": "2026-06-23",
   "createdDate": "2026-05-18",
   "description": "Build the patient payment collection path so Stripe cannot charge before the approved MDI clinical event.\n\n**Scope**\n- Implement the selected Stripe flow, likely SetupIntent/payment-method capture or Checkout configured to defer charging until the unlock event is known.\n- Store only `stripe_customer_id`, payment readiness/status, and opaque IDs in DynamoDB/Stripe metadata.\n- Handle users who are clinically declined or abandoned without creating charges or active subscriptions.\n- Keep exact event semantics aligned with T-078.\n\n**Acceptance**\n- In tests, no charge or subscription can be created before the selected MDI approval/unlock event.\n- Clinically declined flow leaves no active billing and presents a clear support/refund path if applicable.\n- Stripe metadata contains only allowed opaque identifiers.",
   "id": "T-024",
   "order": 20,
   "phase": "payments",
-  "status": "open",
+  "status": "complete",
   "title": "Payment-method or checkout flow gated by clinical approval",
   "type": "feature"
 }

@@ -8,7 +8,7 @@ test.describe("public compliance assertions", () => {
     await page.goto("/about");
 
     await expect(
-      page.getByText("Apoth is a telehealth platform.").first(),
+      page.getByText("Apoth is a telehealth technology platform.").first(),
     ).toBeVisible();
     await expect(
       page.getByText("We do not practice medicine. We do not dispense medication."),
@@ -23,6 +23,12 @@ test.describe("public compliance assertions", () => {
       page.getByText(
         "Medication is dispensed by a licensed pharmacy partner that is a separate legal entity",
       ).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Nationwide, where eligible."),
+    ).toBeVisible();
+    await expect(
+      page.getByText("where licensure, clinical eligibility, and pharmacy shipping rules support care"),
     ).toBeVisible();
 
     errors.expectNone();
@@ -47,8 +53,9 @@ test.describe("public compliance assertions", () => {
 
     await page.goto("/terms");
 
+    await expect(page.getByText("Apoth is a technology platform.")).toBeVisible();
     await expect(
-      page.getByText("Apoth is a technology and patient-management platform."),
+      page.getByText("MD Integrations is the clinical system of record"),
     ).toBeVisible();
     await expect(
       page.getByText("Apoth is not a medical provider, does not practice medicine"),

@@ -4,13 +4,14 @@
     "T-045",
     "T-058"
   ],
-  "completedDate": null,
+  "claimedBySession": "35785237-1adf-424f-8432-a7a2de681269",
+  "completedDate": "2026-06-23",
   "createdDate": "2026-05-18",
-  "description": "Create Stripe subscription/billing activation only after the selected MDI clinical approval event and mirror only minimal billing status locally.\n\n**Scope**\n- Implement helpers to create, cancel, pause, or update Stripe billing for a case after the approval/unlock event.\n- Store `stripe_subscription_id`, status, current period, and opaque linkage IDs in DynamoDB.\n- Use MDI/Stripe webhooks to keep local state as a mirror, not a source of truth.\n- Avoid condition names or clinical labels in Stripe-controlled descriptors where Apoth has control.\n\n**Acceptance**\n- TDD invariant prevents activation without a completed/approved MDI state per T-078.\n- Duplicate approval webhook does not create duplicate billing.\n- Cancellation/refund paths update local mirror state without clinical data leakage.",
+  "description": "Create Stripe subscription/billing activation only after the selected MDI clinical approval event and mirror only minimal billing status locally.\n\n**Launch billing contract decisions**\n- Launch billing uses one configured Stripe recurring Price ID, supplied by environment/configuration rather than inferred from condition, medication, or clinical text.\n- Apoth may collect a payment method before clinical approval, but must not create a Stripe subscription, invoice, PaymentIntent, charge, or active billing state until the selected MDI billing unlock event occurs.\n- The selected unlock event is `billing_ready` / `case_clinically_approved`; generic MDI `approved` status is not sufficient for billing activation.\n- After the unlock event, create the Stripe subscription and allow Stripe to charge the first invoice immediately.\n- Duplicate unlock webhooks/events must be idempotent and must reuse the existing subscription/linkage instead of creating a second subscription.\n- Clinically declined or abandoned flows must leave no active billing; existing payment-method readiness may remain only as non-active opaque payment state unless a later product/compliance decision requires detaching payment methods.\n- Local billing state is a mirror containing only opaque linkage IDs, Stripe customer/subscription IDs, billing status, current period timestamps, and bounded evidence metadata.\n- Stripe metadata must remain opaque and non-PHI: no condition names, medication names, diagnoses, symptoms, questionnaire answers, clinician notes, case details, MDI workflow URLs/tokens, or patient health context.\n\n**Scope**\n- Implement helpers to create, cancel, pause, or update Stripe billing for a case after the approval/unlock event.\n- Store `stripe_subscription_id`, status, current period, and opaque linkage IDs in DynamoDB.\n- Use MDI/Stripe webhooks to keep local state as a mirror, not a source of truth.\n- Avoid condition names or clinical labels in Stripe-controlled descriptors where Apoth has control.\n\n**Acceptance**\n- TDD invariant prevents activation without `billing_ready` / `case_clinically_approved` per T-078.\n- Duplicate approval webhook does not create duplicate billing.\n- Cancellation/refund paths update local mirror state without clinical data leakage.",
   "id": "T-025",
   "order": 30,
   "phase": "payments",
-  "status": "open",
+  "status": "complete",
   "title": "Billing activation + subscription state mirror",
   "type": "feature"
 }

@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-06-23",
+  "createdDate": "2026-06-23",
+  "description": "Full infra tests show `infra/src/lambda/mdi-intake.ts` is stale relative to the shared `submitMdiIntake` contract. The Lambda tests still inject/use `submitResponses`, while the shared service now expects the case-creation/handoff contract and rejects missing `casePayload` with `invalid_input` 400.\n\nScope\n- Decide whether the launch Lambda should submit questionnaire responses through the current shared `createCase` handoff path or a separate response-submit service.\n- Update `infra/src/lambda/mdi-intake.ts` and `infra/test/mdi-intake-lambda.test.ts` to match the approved shared contract.\n- Preserve thin-PHI behavior: do not persist questionnaire answers, raw MDI payloads, workflow URLs/tokens, or clinical content.\n- Keep MDI retry/idempotency behavior deterministic and patient-safe.\n\nAcceptance\n- `npm test --prefix infra` passes.\n- Submit tests prove transient answers are sent only to MDI, not written to DynamoDB/logs.\n- Provider unavailable/maintenance returns patient-safe errors and does not duplicate MDI patient/case creation.",
+  "id": "T-105",
+  "order": 180,
+  "phase": "mdi-integration",
+  "status": "complete",
+  "title": "Repair MDI intake Lambda submit contract drift",
+  "type": "task"
+}

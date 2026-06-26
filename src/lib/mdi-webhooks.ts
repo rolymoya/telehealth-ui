@@ -36,7 +36,15 @@ import {
   canonicalMdiPatientId,
 } from "@/lib/mdi/ids";
 import {
+  caseStatusRank,
+  isMdiCaseStatus as isMdiWebhookCaseStatus,
+  isTerminalMdiCaseStatus as isTerminalCaseStatus,
+  onboardingTargetForMdiCaseStatus,
+  type MdiCaseStatus,
+} from "@/lib/mdi/case-status";
+import {
   evaluateBillingUnlock,
+  type BillingUnlockDecision,
   type BillingState,
 } from "@/lib/payment-gating";
 import type { MdiApiSecretPayload } from "@/lib/secrets/contracts";
@@ -64,18 +72,7 @@ export type MdiWebhookEventContract = {
   caseStatus?: MdiWebhookCaseStatus;
 };
 
-export type MdiWebhookCaseStatus =
-  | "assigned"
-  | "billing_ready"
-  | "cancelled"
-  | "clinical_review"
-  | "completed"
-  | "created"
-  | "declined"
-  | "processing"
-  | "support"
-  | "tagged"
-  | "waiting";
+export type MdiWebhookCaseStatus = MdiCaseStatus;
 
 export const mdiWebhookEventContracts = [
   { type: "case_created", handling: "inline", caseStatus: "created" },
@@ -85,7 +82,7 @@ export const mdiWebhookEventContracts = [
   { type: "case_assigned", handling: "inline", caseStatus: "assigned" },
   { type: "case_tag_added", handling: "inline", caseStatus: "tagged" },
   { type: "case_transferred_to_support", handling: "inline", caseStatus: "support" },
-  { type: "case_approved", handling: "inline", caseStatus: "billing_ready" },
+  { type: "case_approved", handling: "inline", caseStatus: "approved" },
   { type: "case_clinically_approved", handling: "inline", caseStatus: "billing_ready" },
   { type: "case_completed", handling: "inline", caseStatus: "completed" },
   { type: "case_cancelled", handling: "inline", caseStatus: "cancelled" },
@@ -150,6 +147,7 @@ export type MdiWebhookMirrorRepository = {
 
 export type HandleMdiWebhookInput = {
   authorization: string;
+  billingActivation?: MdiBillingActivation;
   mdiMirrorRepository: MdiWebhookMirrorRepository;
   payload: string | Buffer;
   receivedAt: string;
@@ -162,6 +160,21 @@ export type HandleMdiWebhookInput = {
   >;
   signature: string;
   webhookRepository: WebhookProcessingRepository;
+};
+
+export type MdiBillingActivation = {
+  activate(input: {
+    cognitoSub: string;
+    mdiCaseId: string;
+    now: string;
+    webhookEventId: string;
+  }): Promise<{ ok: true } | { ok: false; retryable: boolean }>;
+  cancel(input: {
+    cognitoSub: string;
+    mdiCaseId: string;
+    now: string;
+    webhookEventId: string;
+  }): Promise<{ ok: true } | { ok: false; retryable: boolean }>;
 };
 
 type NormalizedMdiWebhook = {
@@ -325,6 +338,7 @@ export async function handleMdiWebhook(input: HandleMdiWebhookInput): Promise<Md
       envelope,
       repository: input.webhookRepository,
       handler: async () => handleVerifiedMdiEvent({
+        billingActivation: input.billingActivation,
         mdiMirrorRepository: input.mdiMirrorRepository,
         now: input.receivedAt,
         webhook: normalized.value,
@@ -484,6 +498,7 @@ function opaquePreferredPharmacyRequestedWebhook(input: {
 }
 
 async function handleVerifiedMdiEvent(input: {
+  billingActivation?: MdiBillingActivation;
   mdiMirrorRepository: MdiWebhookMirrorRepository;
   now: string;
   webhook: NormalizedMdiWebhook;
@@ -609,6 +624,28 @@ async function handleVerifiedMdiEvent(input: {
     return billing.retryable
       ? { outcome: "failed" as const, retryable: true, durableRetry: false }
       : { outcome: "failed" as const, retryable: false, durableRetry: false };
+  }
+  if (input.billingActivation) {
+    const sideEffect = billing.decision.action === "activate_billing"
+      ? await input.billingActivation.activate({
+        cognitoSub: patient.value,
+        mdiCaseId: caseId,
+        now: input.now,
+        webhookEventId: input.webhook.eventId,
+      })
+      : billing.decision.action === "cancel_active_billing"
+        ? await input.billingActivation.cancel({
+          cognitoSub: patient.value,
+          mdiCaseId: caseId,
+          now: input.now,
+          webhookEventId: input.webhook.eventId,
+        })
+        : { ok: true as const };
+    if (!sideEffect.ok) {
+      return sideEffect.retryable
+        ? { outcome: "failed" as const, retryable: true, durableRetry: false }
+        : { outcome: "failed" as const, retryable: false, durableRetry: false };
+    }
   }
 
   return { outcome: "processed" as const };
@@ -773,7 +810,10 @@ async function recordBillingUnlockDecision(
     providerTimestamp: string;
     webhookEventId: string;
   },
-): Promise<{ ok: true } | { ok: false; retryable: boolean }> {
+): Promise<
+  | { ok: true; decision: BillingUnlockDecision }
+  | { ok: false; retryable: boolean }
+> {
   const stripe = await repository.getStripeLinkage(input.cognitoSub);
   if (!stripe.ok) {
     return { ok: false, retryable: stripe.error.kind !== "validation_failed" };
@@ -812,7 +852,7 @@ async function recordBillingUnlockDecision(
     summaryCode: "MDI_BILLING_UNLOCK_DECISION",
   });
   if (evidence.ok || evidence.error.kind === "conditional_conflict") {
-    return { ok: true };
+    return { ok: true, decision };
   }
   return {
     ok: false,
@@ -873,28 +913,6 @@ async function findPatientByMdiPointerDynamoDb(
         message: "MDI reverse key contains another record type",
       },
     };
-}
-
-function onboardingTargetForMdiCaseStatus(
-  status: MdiWebhookCaseStatus | undefined,
-): OnboardingStatus | null {
-  switch (status) {
-    case "assigned":
-    case "clinical_review":
-    case "processing":
-    case "support":
-    case "tagged":
-    case "waiting":
-      return "clinical_review";
-    case "billing_ready":
-    case "completed":
-      return "billing_ready";
-    case "cancelled":
-    case "created":
-    case "declined":
-    case undefined:
-      return null;
-  }
 }
 
 function isCurrentCaseLifecycleEvent(input: {
@@ -964,23 +982,17 @@ function latestCaseStatusEvidence(events: readonly EvidenceEventRecord[]) {
   return latest;
 }
 
-function isMdiWebhookCaseStatus(value: unknown): value is MdiWebhookCaseStatus {
-  return typeof value === "string" && mdiWebhookCaseStatuses.has(value as MdiWebhookCaseStatus);
-}
-
-function isTerminalCaseStatus(status: MdiWebhookCaseStatus) {
-  return status === "cancelled" || status === "declined";
-}
-
-function caseStatusRank(status: MdiWebhookCaseStatus) {
-  return caseStatusRanks[status];
-}
-
 function billingStateForStripeStatus(status: BillingStatus | undefined): BillingState {
   if (status === "payment_method_collected") {
     return "payment_method_collected";
   }
   if (status === "active") {
+    return "subscription_active";
+  }
+  if (status === "past_due") {
+    return "subscription_active";
+  }
+  if (status === "cancel_pending") {
     return "subscription_active";
   }
   return "payment_method_pending";
@@ -1413,31 +1425,3 @@ const unsafeMdiChargeReferencePatterns = [
   /questionnaire/i,
   /treatment/i,
 ];
-
-const mdiWebhookCaseStatuses = new Set<MdiWebhookCaseStatus>([
-  "assigned",
-  "billing_ready",
-  "cancelled",
-  "clinical_review",
-  "completed",
-  "created",
-  "declined",
-  "processing",
-  "support",
-  "tagged",
-  "waiting",
-]);
-
-const caseStatusRanks: Record<MdiWebhookCaseStatus, number> = {
-  assigned: 20,
-  billing_ready: 30,
-  cancelled: 50,
-  clinical_review: 20,
-  completed: 40,
-  created: 10,
-  declined: 50,
-  processing: 20,
-  support: 20,
-  tagged: 20,
-  waiting: 20,
-};

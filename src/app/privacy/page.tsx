@@ -7,10 +7,10 @@ import { LegalReviewBanner } from "@/components/LegalReviewBanner";
 export const metadata: Metadata = {
   title: "Privacy Policy · Apoth",
   description:
-    "How Apoth collects, uses, shares, and protects your personal and health information, including the HIPAA Notice of Privacy Practices.",
+    "How Apoth handles account, billing, intake handoff, linkage, and support information, including the HIPAA Notice of Privacy Practices.",
 };
 
-const lastUpdated = "May 15, 2026";
+const lastUpdated = "June 23, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -25,9 +25,8 @@ export default function PrivacyPage() {
               Privacy Policy
             </h1>
             <p className="mt-6 max-w-measure text-pretty text-ink/75">
-              How Apoth collects, uses, shares, and protects information about
-              you — including your health information. This page also contains
-              the{" "}
+              How Apoth handles account, billing, intake handoff, linkage, and
+              support information. This page also contains the{" "}
               <Link
                 href="#notice-of-privacy-practices"
                 className="underline decoration-ash-line decoration-1 underline-offset-[4px] hover:text-clay-deep hover:decoration-clay-deep"
@@ -124,8 +123,10 @@ export default function PrivacyPage() {
                   Apoth is operated by Apoth Health LLC, an Illinois limited
                   liability company (&ldquo;Apoth,&rdquo; &ldquo;we,&rdquo;
                   &ldquo;us,&rdquo; or &ldquo;our&rdquo;). Apoth is a
-                  telehealth technology and patient-management platform. We are
-                  not a medical provider and we do not dispense medication.
+                  telehealth technology platform. We operate the account,
+                  commerce, intake user interface, and minimal care-workflow
+                  linkage layer. We are not a medical provider and we do not
+                  dispense medication.
                 </p>
                 <p>
                   Clinical care is provided by independent licensed clinicians
@@ -133,11 +134,12 @@ export default function PrivacyPage() {
                   professional entities (collectively the &ldquo;Physician
                   Group&rdquo;). The Physician Group is a covered entity under
                   the Health Insurance Portability and Accountability Act of
-                  1996, as amended (&ldquo;HIPAA&rdquo;). Apoth Health LLC
-                  acts as a business associate of the Physician Group with
-                  respect to Protected Health Information (&ldquo;PHI&rdquo;)
-                  it handles on the Physician Group&apos;s behalf, under a
-                  Business Associate Agreement.
+                  1996, as amended (&ldquo;HIPAA&rdquo;). Before production PHI
+                  is handled for the Physician Group, Apoth must have the
+                  required business-associate agreement and vendor evidence in
+                  place. MD Integrations is the clinical system of record for
+                  questionnaire answers, clinician review, treatment decisions,
+                  and clinical messages.
                 </p>
                 <p>
                   Medication is dispensed by a licensed pharmacy partner that
@@ -172,12 +174,22 @@ export default function PrivacyPage() {
                     identity verification.
                   </li>
                   <li>
-                    <strong>Health information</strong> — answers to your
-                    medical intake, symptoms, medical and family history,
-                    medications, allergies, lab results you upload or
-                    authorize, photos you provide (e.g., scalp photos for hair
-                    visits), and messages you exchange with your clinician.
-                    This is PHI.
+                    <strong>Clinical intake information in transit</strong> —
+                    the questionnaire answers, symptoms, history, medication
+                    information, allergies, uploads, and messages you submit for
+                    clinician review. Apoth may process this information briefly
+                    to send it to MD Integrations, but Apoth does not keep
+                    questionnaire answers as its own local clinical record after
+                    submission. This information is PHI when handled for the
+                    Physician Group.
+                  </li>
+                  <li>
+                    <strong>Minimal workflow records</strong> — opaque IDs and
+                    statuses needed to link your Apoth account to MD
+                    Integrations, the pharmacy workflow, and billing, such as
+                    MDI patient/case IDs, Stripe customer/subscription IDs,
+                    consent timestamps, onboarding state, billing state, and
+                    non-clinical support history.
                   </li>
                   <li>
                     <strong>Payment information</strong> — your billing address
@@ -223,21 +235,22 @@ export default function PrivacyPage() {
                 <p>We use the information described above to:</p>
                 <ul>
                   <li>
-                    Connect you with a licensed clinician, facilitate your
-                    visits, deliver clinical messages, and coordinate
-                    follow-up.
+                    Present the intake experience, send submitted clinical
+                    information to MD Integrations, and maintain the minimal
+                    linkage needed to show patient-safe workflow status.
                   </li>
                   <li>
-                    Transmit your prescription to the licensed pharmacy partner
-                    and receive dispense and shipping confirmations.
+                    Coordinate non-clinical workflow steps with MD Integrations
+                    and, where applicable, the licensed pharmacy partner, such
+                    as dispense or shipping confirmations.
                   </li>
                   <li>
                     Process payments, send receipts, and respond to billing
                     inquiries.
                   </li>
                   <li>
-                    Verify your identity and prevent fraud, abuse, and
-                    diversion of controlled or regulated substances.
+                    Verify your identity where required and prevent fraud,
+                    abuse, and diversion of controlled or regulated substances.
                   </li>
                   <li>
                     Provide customer support and operate, secure, and improve
@@ -250,9 +263,10 @@ export default function PrivacyPage() {
                     withdraw consent at any time.
                   </li>
                   <li>
-                    Comply with legal obligations, including state medical
-                    board requirements, pharmacy regulations, and lawful
-                    requests from government authorities.
+                    Comply with legal obligations, including platform,
+                    payment, telehealth, pharmacy, and lawful government
+                    request obligations that apply to the information we
+                    handle.
                   </li>
                 </ul>
                 <p>
@@ -264,27 +278,30 @@ export default function PrivacyPage() {
               <Section id="how-we-share" title="4. How we share information">
                 <ul>
                   <li>
-                    <strong>With the Physician Group.</strong> Your clinician
-                    accesses your intake, chart, messages, and lab results in
-                    order to provide care. The Physician Group is a HIPAA
-                    covered entity.
+                    <strong>With the Physician Group.</strong> We send your
+                    submitted clinical intake information to MD Integrations so
+                    a licensed clinician can review it and provide care. The
+                    Physician Group is a HIPAA covered entity and maintains the
+                    clinical record for that care.
                   </li>
                   <li>
                     <strong>With the licensed pharmacy partner.</strong> We
-                    share the minimum information needed to fill and ship your
-                    prescription: your name, date of birth, shipping address,
-                    the prescription written by your clinician, and relevant
-                    medical context required for safe dispensing. The pharmacy
+                    coordinate the minimum information needed to fill and ship
+                    an approved prescription, such as patient, shipping,
+                    prescription, dispense, and shipment status information
+                    routed through the clinical/pharmacy workflow. The pharmacy
                     is a separate legal entity governed by its own privacy
                     practices and applicable law.
                   </li>
                   <li>
                     <strong>With service providers.</strong> Vendors that host
-                    our infrastructure, process payments, verify identity,
-                    deliver email and SMS, run analytics, or provide customer
-                    support. Vendors that handle PHI sign a Business Associate
-                    Agreement with us or with the Physician Group as
-                    applicable.
+                    our infrastructure, process payments, verify identity where
+                    required, deliver email and SMS, run approved analytics, or
+                    provide customer support. Vendors that handle PHI sign a
+                    approved BAA/compliance path with us or with the Physician
+                    Group as applicable before production PHI is handled.
+                    Payment processor metadata is limited to opaque, non-PHI
+                    identifiers.
                   </li>
                   <li>
                     <strong>For legal, safety, and compliance reasons.</strong>{" "}
@@ -308,8 +325,7 @@ export default function PrivacyPage() {
                 </ul>
                 <p>
                   We do not sell your personal information or PHI. We do not
-                  share your PHI for marketing without your written
-                  authorization.
+                  share PHI for marketing without your written authorization.
                 </p>
               </Section>
 
@@ -321,7 +337,9 @@ export default function PrivacyPage() {
                 <ul>
                   <li>
                     <strong>Access</strong> your records and request a copy of
-                    the personal information and PHI we hold about you.
+                    the personal information Apoth holds about you. We will
+                    help route medical-record requests to the Physician Group
+                    when the record is maintained by MD Integrations.
                   </li>
                   <li>
                     <strong>Correct</strong> information that is inaccurate or
@@ -329,18 +347,20 @@ export default function PrivacyPage() {
                   </li>
                   <li>
                     <strong>Request deletion</strong> of personal information
-                    we no longer need to retain. Medical records held by the
-                    Physician Group are subject to state and federal medical
-                    records retention requirements and cannot always be
+                    Apoth no longer needs to retain. Medical records held by
+                    the Physician Group are subject to state and federal
+                    medical-record retention requirements and cannot always be
                     deleted on request.
                   </li>
                   <li>
                     <strong>Restrict</strong> certain uses or disclosures of
-                    your PHI.
+                    PHI held by or for the Physician Group, subject to HIPAA
+                    limits.
                   </li>
                   <li>
                     <strong>Receive an accounting</strong> of certain
-                    disclosures of your PHI.
+                    disclosures of your PHI from the covered entity responsible
+                    for the record.
                   </li>
                   <li>
                     <strong>Request confidential communications</strong> by an
@@ -395,11 +415,13 @@ export default function PrivacyPage() {
                 <p>
                   We retain personal information for as long as needed to
                   provide our services and to comply with our legal
-                  obligations. Medical records are retained by the Physician
+                  obligations. Apoth does not retain questionnaire answers as
+                  its own local clinical record after successful handoff to MD
+                  Integrations. Medical records are retained by the Physician
                   Group for the period required by the laws of the state in
-                  which the clinician is licensed, which is typically a
-                  minimum of seven years from the date of last service and
-                  longer in the case of minors. When information is no longer
+                  which the clinician is licensed, which is typically a minimum
+                  of seven years from the date of last service and longer in
+                  the case of minors. When Apoth-held information is no longer
                   required, we securely delete or de-identify it.
                 </p>
               </Section>
@@ -516,9 +538,10 @@ export default function PrivacyPage() {
                     <strong>Health care operations.</strong> For activities
                     such as quality assessment, clinician credentialing,
                     training, audits, accreditation, business management, and
-                    customer service. We may share PHI with Apoth Health LLC
-                    under a Business Associate Agreement to support these
-                    operations.
+                    customer service. Before production PHI is shared with
+                    Apoth Health LLC for these operations, the required
+                    business-associate agreement and vendor evidence must be in
+                    place.
                   </li>
                   <li>
                     <strong>Appointment reminders and care messages</strong>{" "}
@@ -564,8 +587,8 @@ export default function PrivacyPage() {
                 <ul>
                   <li>
                     <strong>Right to inspect and copy.</strong> You may
-                    inspect and obtain a copy of PHI we maintain about you,
-                    subject to limited exceptions.
+                    inspect and obtain a copy of PHI the Physician Group
+                    maintains about you, subject to limited exceptions.
                   </li>
                   <li>
                     <strong>Right to amend.</strong> You may request that we
@@ -574,7 +597,8 @@ export default function PrivacyPage() {
                   <li>
                     <strong>Right to an accounting of disclosures.</strong> You
                     may request a list of certain disclosures of your PHI made
-                    by us in the six years prior to your request.
+                    by the Physician Group in the six years prior to your
+                    request.
                   </li>
                   <li>
                     <strong>Right to request restrictions.</strong> You may
@@ -607,11 +631,11 @@ export default function PrivacyPage() {
                 <h3>Our duties</h3>
                 <p>
                   The Physician Group is required by law to maintain the
-                  privacy of your PHI, to provide you with this Notice of our
+                  privacy of your PHI, to provide you with this Notice of its
                   legal duties and privacy practices, and to abide by the terms
-                  of the Notice currently in effect. We reserve the right to
-                  change this Notice and to make the new Notice provisions
-                  effective for all PHI we maintain.
+                  of the Notice currently in effect. The Physician Group
+                  reserves the right to change this Notice and to make the new
+                  Notice provisions effective for all PHI it maintains.
                 </p>
 
                 <h3>Complaints</h3>
@@ -626,8 +650,8 @@ export default function PrivacyPage() {
                     contact information above
                   </a>
                   ) or with the U.S. Department of Health and Human Services
-                  Office for Civil Rights. We will not retaliate against you
-                  for filing a complaint.
+                  Office for Civil Rights. The Physician Group will not
+                  retaliate against you for filing a complaint.
                 </p>
 
                 <h3>Effective date</h3>

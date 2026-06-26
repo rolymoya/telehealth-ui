@@ -131,11 +131,11 @@ export const faqs: FaqItem[] = [
   },
   {
     q: "Can I cancel?",
-    a: "Anytime, in two clicks, no phone tree. We do not honor charges for medication that has not shipped. If something we shipped is wrong on our end, we replace it.",
+    a: "Anytime from your account, no phone tree. Cancellation and refund handling depends on clinician review and pharmacy shipment status; the full policy is in the Terms.",
   },
   {
     q: "What states are you available in?",
-    a: "All 50 states. Prescriptions are written by clinicians licensed in your state, and medication is dispensed by a licensed compounding pharmacy partner that ships to your state. Eligibility is confirmed at the start of intake — we will not charge a card before clinical approval.",
+    a: "Apoth intends to coordinate care nationwide where clinician licensure, clinical eligibility, and pharmacy shipping rules support the requested care category. Eligibility is confirmed during intake — we will not activate subscription billing before clinical approval.",
   },
 ];
 

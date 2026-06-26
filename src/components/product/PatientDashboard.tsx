@@ -7,8 +7,10 @@ import type {
 } from "@/lib/patient-dashboard";
 
 export function PatientDashboard({
+  cancellation,
   dashboard,
 }: {
+  cancellation?: BillingCancellationControls;
   dashboard: PatientDashboardViewModel;
 }) {
   const primaryActions = [
@@ -39,7 +41,7 @@ export function PatientDashboard({
               <StatusPanel dashboard={dashboard} />
               <div className="grid gap-6 xl:grid-cols-2">
                 <ActionPanel title="Care workflow" actions={primaryActions} />
-                <BillingPanel dashboard={dashboard} />
+                <BillingPanel cancellation={cancellation} dashboard={dashboard} />
               </div>
               <div className="grid gap-6 xl:grid-cols-2">
                 <AccountPanel dashboard={dashboard} />
@@ -53,6 +55,20 @@ export function PatientDashboard({
     </>
   );
 }
+
+export type BillingCancellationState =
+  | "confirming"
+  | "idle"
+  | "submitted"
+  | "submitting"
+  | "unavailable";
+
+export type BillingCancellationControls = {
+  onBegin: () => void;
+  onConfirm: () => void;
+  onDismiss: () => void;
+  state: BillingCancellationState;
+};
 
 function StatusPanel({
   dashboard,
@@ -138,8 +154,10 @@ function ActionPanel({
 }
 
 function BillingPanel({
+  cancellation,
   dashboard,
 }: {
+  cancellation?: BillingCancellationControls;
   dashboard: PatientDashboardViewModel;
 }) {
   return (
@@ -154,7 +172,80 @@ function BillingPanel({
       <p className="mt-5 font-mono text-[0.68rem] uppercase tracking-eyebrow text-clay-deep">
         {dashboard.billing.code}
       </p>
+      {dashboard.billing.canCancel && cancellation ? (
+        <div className="mt-5 border-t border-ash-line pt-5">
+          <CancellationControl cancellation={cancellation} />
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+function CancellationControl({
+  cancellation,
+}: {
+  cancellation: BillingCancellationControls;
+}) {
+  if (cancellation.state === "confirming") {
+    return (
+      <div className="space-y-3">
+        <p className="text-[0.95rem] leading-6 text-ink/70">
+          Cancellation takes effect at the end of the current billing cycle. There is no cancellation fee.
+        </p>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={cancellation.onConfirm}
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors duration-250 ease-out-quart hover:bg-clay"
+          >
+            Confirm cancellation
+          </button>
+          <button
+            type="button"
+            onClick={cancellation.onDismiss}
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-ash-line px-5 py-2.5 text-[0.95rem] font-medium text-ink transition-colors duration-250 ease-out-quart hover:border-clay hover:text-clay-deep"
+          >
+            Keep subscription
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (cancellation.state === "submitted") {
+    return (
+      <p className="text-[0.95rem] leading-6 text-ink/70">
+        Cancellation is scheduled. The billing status will refresh shortly.
+      </p>
+    );
+  }
+
+  if (cancellation.state === "unavailable") {
+    return (
+      <div className="space-y-3">
+        <p className="text-[0.95rem] leading-6 text-ink/70">
+          We could not submit cancellation right now. No account, billing, or care information was changed by this page.
+        </p>
+        <button
+          type="button"
+          onClick={cancellation.onBegin}
+          className="inline-flex min-h-11 items-center justify-center rounded-full border border-ash-line px-5 py-2.5 text-[0.95rem] font-medium text-ink transition-colors duration-250 ease-out-quart hover:border-clay hover:text-clay-deep"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      disabled={cancellation.state === "submitting"}
+      onClick={cancellation.onBegin}
+      className="inline-flex min-h-11 items-center justify-center rounded-full border border-ash-line px-5 py-2.5 text-[0.95rem] font-medium text-ink transition-colors duration-250 ease-out-quart hover:border-clay hover:text-clay-deep disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {cancellation.state === "submitting" ? "Cancelling" : "Cancel subscription"}
+    </button>
   );
 }
 

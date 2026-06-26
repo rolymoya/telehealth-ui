@@ -189,28 +189,34 @@ describe("MDI intake lambda handlers", () => {
 
   it("submits transient answers to MDI and writes only pointer records to DynamoDB", async () => {
     const { submitHandler, configureMdiIntakeLambdaForTests } = await import("../src/lambda/mdi-intake.js");
-    const submitResponses = vi.fn(async (input) => ({
+    const createCase = vi.fn(async (input) => ({
       ok: true as const,
       value: {
         linkage: {
           mdiPatientId: input.patientId,
-          mdiCaseId: input.caseId,
+          mdiCaseId: questionnaire.caseId,
         },
         submissionId: "mdi_submission_opaque_001",
       },
     }));
     configureMdiIntakeLambdaForTests({
-      gateway: gateway({ submitResponses }),
+      gateway: gateway({ createCase }),
     });
     mockProfileAndConsent("intake_ready", {
       mdiPatientId: questionnaire.patientId,
-      mdiCaseId: questionnaire.caseId,
     });
 
     const response = await submitHandler(event({
       body: JSON.stringify({
-        caseId: questionnaire.caseId,
-        patientId: questionnaire.patientId,
+        casePayload: {
+          case_questions: [
+            {
+              answer: "ANSWER_VALUE_SENTINEL",
+              question: "QUESTION_TEXT_SENTINEL",
+              type: "single_select",
+            },
+          ],
+        },
         questionnaireId: questionnaire.questionnaireId,
         responses: [
           {
@@ -227,14 +233,15 @@ describe("MDI intake lambda handlers", () => {
     }));
 
     expect(response.statusCode).toBe(200);
-    expect(JSON.stringify(submitResponses.mock.calls)).toContain("ANSWER_VALUE_SENTINEL");
-    expect(submitResponses.mock.calls[0]?.[0]).toMatchObject({
-      idempotencyKey: expect.stringMatching(/^mdi-intake-[a-f0-9]{32}$/),
+    expect(JSON.stringify(createCase.mock.calls)).toContain("ANSWER_VALUE_SENTINEL");
+    expect(createCase.mock.calls[0]?.[0]).toMatchObject({
+      idempotencyKey: expect.stringMatching(/^mdi-case-[a-f0-9]{32}$/),
+      patientId: questionnaire.patientId,
     });
     const claim = sendMock.mock.calls.find(([command]) => command.kind === "PutItem")
       ?.[0].input;
-    expect(JSON.stringify(claim)).toContain("mdiIntakeSubmissionClaim");
-    expect(JSON.stringify(claim)).toContain("mdi-intake-");
+    expect(JSON.stringify(claim)).toContain("mdiCaseCreateAttempt");
+    expect(JSON.stringify(claim)).toContain("mdi-case-");
     expect(JSON.stringify(claim)).not.toContain("ANSWER_VALUE_SENTINEL");
     expect(JSON.stringify(claim)).not.toContain("QUESTION_TEXT_SENTINEL");
     const transaction = sendMock.mock.calls.find(([command]) =>
@@ -245,7 +252,7 @@ describe("MDI intake lambda handlers", () => {
     expect(JSON.stringify(transaction)).toContain("mdi_submitted");
     expect(JSON.stringify(transaction)).not.toContain("mdiReverseLookup");
     expect(JSON.stringify(transaction)).not.toContain("MDI#PATIENT");
-    expect(JSON.stringify(transaction)).not.toContain("MDI#CASE");
+    expect(JSON.stringify(transaction)).not.toContain("MDI#CASE#");
     expect(JSON.stringify(transaction)).not.toContain("ANSWER_VALUE_SENTINEL");
     expect(JSON.stringify(transaction)).not.toContain("QUESTION_TEXT_SENTINEL");
   });
@@ -273,13 +280,14 @@ describe("MDI intake lambda handlers", () => {
       }
       if (
         url ===
-          `https://mdi.example.test/partner/questionnaires/${encodeURIComponent(questionnaire.questionnaireId)}/responses`
+          "https://mdi.example.test/partner/cases"
       ) {
         expect(init?.headers).toMatchObject({
           authorization: "Bearer mdi_access_token_test",
-          "idempotency-key": expect.stringMatching(/^mdi-intake-[a-f0-9]{32}$/),
+          "idempotency-key": expect.stringMatching(/^mdi-case-[a-f0-9]{32}$/),
         });
         expect(String(init?.body)).toContain("ANSWER_VALUE_SENTINEL");
+        expect(String(init?.body)).toContain(questionnaire.patientId);
         return jsonResponse({});
       }
       throw new Error(`Unexpected fetch URL: ${url}`);
@@ -287,13 +295,19 @@ describe("MDI intake lambda handlers", () => {
     vi.stubGlobal("fetch", fetchMock);
     mockProfileAndConsent("intake_ready", {
       mdiPatientId: questionnaire.patientId,
-      mdiCaseId: questionnaire.caseId,
     });
 
     const response = await submitHandler(event({
       body: JSON.stringify({
-        caseId: questionnaire.caseId,
-        patientId: questionnaire.patientId,
+        casePayload: {
+          case_questions: [
+            {
+              answer: "ANSWER_VALUE_SENTINEL",
+              question: "QUESTION_TEXT_SENTINEL",
+              type: "single_select",
+            },
+          ],
+        },
         questionnaireId: questionnaire.questionnaireId,
         responses: [
           {
@@ -318,19 +332,25 @@ describe("MDI intake lambda handlers", () => {
 
   it("rejects tampered questionnaire IDs before claiming submission", async () => {
     const { submitHandler, configureMdiIntakeLambdaForTests } = await import("../src/lambda/mdi-intake.js");
-    const submitResponses = vi.fn();
+    const createCase = vi.fn();
     configureMdiIntakeLambdaForTests({
-      gateway: gateway({ submitResponses }),
+      gateway: gateway({ createCase }),
     });
     mockProfileAndConsent("intake_ready", {
       mdiPatientId: questionnaire.patientId,
-      mdiCaseId: questionnaire.caseId,
     });
 
     const response = await submitHandler(event({
       body: JSON.stringify({
-        caseId: questionnaire.caseId,
-        patientId: questionnaire.patientId,
+        casePayload: {
+          case_questions: [
+            {
+              answer: "ANSWER_VALUE_SENTINEL",
+              question: "QUESTION_TEXT_SENTINEL",
+              type: "single_select",
+            },
+          ],
+        },
         questionnaireId: "mdi_questionnaire_tampered",
         responses: [
           {
@@ -352,7 +372,7 @@ describe("MDI intake lambda handlers", () => {
       .toBe(true);
     expect(sendMock.mock.calls.some(([command]) => command.kind === "PutItem"))
       .toBe(false);
-    expect(submitResponses).not.toHaveBeenCalled();
+    expect(createCase).not.toHaveBeenCalled();
     expect(response.body).not.toContain("ANSWER_VALUE_SENTINEL");
   });
 
@@ -360,7 +380,7 @@ describe("MDI intake lambda handlers", () => {
     const { submitHandler, configureMdiIntakeLambdaForTests } = await import("../src/lambda/mdi-intake.js");
     configureMdiIntakeLambdaForTests({
       gateway: gateway({
-        submitResponses: vi.fn(async () => ({
+        createCase: vi.fn(async () => ({
           ok: false as const,
           error: {
             code: "provider_unavailable" as const,
@@ -373,13 +393,19 @@ describe("MDI intake lambda handlers", () => {
     });
     mockProfileAndConsent("intake_ready", {
       mdiPatientId: questionnaire.patientId,
-      mdiCaseId: questionnaire.caseId,
     });
 
     const response = await submitHandler(event({
       body: JSON.stringify({
-        caseId: questionnaire.caseId,
-        patientId: questionnaire.patientId,
+        casePayload: {
+          case_questions: [
+            {
+              answer: "ANSWER_VALUE_SENTINEL",
+              question: "QUESTION_TEXT_SENTINEL",
+              type: "single_select",
+            },
+          ],
+        },
         questionnaireId: questionnaire.questionnaireId,
         responses: [
           {
@@ -439,18 +465,18 @@ function mockProfileAndConsent(
 
 function gateway(overrides: Partial<MdiIntakeGateway> = {}): MdiIntakeGateway {
   return {
-    loadQuestionnaire: vi.fn(async () => ({
-      ok: true as const,
-      value: questionnaire,
-    })),
-    submitResponses: vi.fn(async (input) => ({
+    createCase: vi.fn(async (input) => ({
       ok: true as const,
       value: {
         linkage: {
           mdiPatientId: input.patientId,
-          mdiCaseId: input.caseId,
+          mdiCaseId: questionnaire.caseId,
         },
       },
+    })),
+    loadQuestionnaire: vi.fn(async () => ({
+      ok: true as const,
+      value: questionnaire,
     })),
     ...overrides,
   };

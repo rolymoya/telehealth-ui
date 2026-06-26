@@ -3,8 +3,8 @@
   "context": "Added after T-045 autonomous work produced many full multi-lens review rounds. The rounds found real security/reliability issues, but the repeated full-review loop was token-intensive. `.story/config.json` now defaults reviewBackends to `agent`; lenses remain available for explicit risk-gated use.",
   "createdDate": "2026-06-05",
   "id": "L-004",
-  "lastValidated": "2026-06-05",
-  "reinforcements": 0,
+  "lastValidated": "2026-06-23",
+  "reinforcements": 1,
   "source": "manual",
   "status": "active",
   "supersedes": null,
@@ -15,5 +15,5 @@
     "token-efficiency"
   ],
   "title": "Use risk-gated review loops after first full review",
-  "updatedDate": "2026-06-06"
+  "updatedDate": "2026-06-23"
 }

@@ -6,13 +6,14 @@
     "T-064",
     "T-069"
   ],
-  "completedDate": null,
+  "claimedBySession": "6ba0c461-aa33-432f-921e-6ddecf77849c",
+  "completedDate": "2026-06-23",
   "createdDate": "2026-05-19",
   "description": "Build launch operational dashboards and alarms using AWS-native tooling.\n\n**Scope**\n- Dashboard/alarms for webhook receipt/signature failures, DLQ depth, MDI error/418 rate, Stripe webhook failures, onboarding drop-off/error counts, scheduled reconciliation failures, and deployment health.\n- Include runbook links for each alarm.\n- Avoid Datadog/Metabase for launch unless a separate vendor/compliance decision approves them.\n\n**Acceptance**\n- Launch operators can see system health from CloudWatch.\n- Each alarm has owner/channel/runbook metadata.\n- Dashboard contains no PHI and no questionnaire payload data.",
   "id": "T-071",
   "order": 30,
   "phase": "hardening",
-  "status": "open",
+  "status": "complete",
   "title": "CloudWatch ops dashboards + launch alarms",
   "type": "task"
 }

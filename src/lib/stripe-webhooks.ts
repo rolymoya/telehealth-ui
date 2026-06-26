@@ -7,16 +7,21 @@ import {
   type AppDataRepository,
   type BillingStatus,
   type EvidenceEventRecord,
+  type MdiCaseStatusMirrorRecord,
+  type MdiLinkageRecord,
   type StripeLinkageRecord,
   createWebhookEvidenceEventId,
   findPatientByStripePointer,
+  getMdiLinkage,
   getStripeLinkage,
   linkStripeCustomer,
+  mdiCaseStatusMirrorKey,
   recordEvidenceEvent,
 } from "@/lib/dynamodb/app-data";
 import {
   type DynamoDbAppDataRepository,
   findPatientByStripePointerDynamoDb,
+  getMdiLinkageDynamoDb,
   getStripeLinkageDynamoDb,
   linkStripeCustomerDynamoDb,
   recordEvidenceEventDynamoDb,
@@ -64,6 +69,7 @@ export const stripeWebhookEventContracts = [
 ] as const satisfies StripeWebhookEventContract[];
 
 export type HandleStripeWebhookInput = {
+  billingActivation?: StripeBillingActivation;
   stripeMirrorRepository: StripeMirrorRepository;
   enqueue: (message: WebhookQueueMessage) => Promise<void>;
   payload: string | Buffer;
@@ -77,8 +83,19 @@ export type HandleStripeWebhookInput = {
   webhookRepository: WebhookProcessingRepository;
 };
 
+export type StripeBillingActivation = {
+  activate(input: {
+    cognitoSub: string;
+    mdiCaseId: string;
+    now: string;
+    webhookEventId: string;
+  }): Promise<{ ok: true } | { ok: false; retryable: boolean }>;
+};
+
 export type StripeMirrorRepository = {
   findPatientByStripeCustomer(stripeCustomerId: string): Promise<AppDataResult<string | null>>;
+  getMdiCaseStatusMirror(mdiCaseId: string): Promise<AppDataResult<MdiCaseStatusMirrorRecord | null>>;
+  getMdiLinkage(cognitoSub: string): Promise<AppDataResult<MdiLinkageRecord | null>>;
   getStripeLinkage(cognitoSub: string): Promise<AppDataResult<StripeLinkageRecord | null>>;
   linkStripeCustomer(input: {
     billingStatus: BillingStatus;
@@ -86,6 +103,8 @@ export type StripeMirrorRepository = {
     now: string;
     stripeCustomerId: string;
     stripeBillingStatusObservedAt?: string;
+    stripeCurrentPeriodEnd?: string;
+    stripeCurrentPeriodStart?: string;
     stripeSubscriptionId?: string;
   }): Promise<AppDataResult<StripeLinkageRecord>>;
   recordEvidenceEvent(
@@ -102,6 +121,19 @@ export function createInMemoryStripeMirrorRepository(
         pointerType: "customer",
         stripeCustomerId,
       });
+    },
+    async getMdiCaseStatusMirror(mdiCaseId) {
+      const record = repository.get(mdiCaseStatusMirrorKey(mdiCaseId));
+      if (!record.ok || !record.value) {
+        return record as AppDataResult<MdiCaseStatusMirrorRecord | null>;
+      }
+      if (record.value.recordType !== "mdiCaseStatusMirror") {
+        return appDataValidationFailure("MDI case status mirror key contained another record type");
+      }
+      return { ok: true, value: record.value };
+    },
+    async getMdiLinkage(cognitoSub) {
+      return getMdiLinkage(repository, cognitoSub);
     },
     async getStripeLinkage(cognitoSub) {
       return getStripeLinkage(repository, cognitoSub);
@@ -124,6 +156,19 @@ export function createDynamoDbStripeMirrorRepository(
         pointerType: "customer",
         stripeCustomerId,
       });
+    },
+    async getMdiCaseStatusMirror(mdiCaseId) {
+      const record = await repository.get(mdiCaseStatusMirrorKey(mdiCaseId));
+      if (!record.ok || !record.value) {
+        return record as AppDataResult<MdiCaseStatusMirrorRecord | null>;
+      }
+      if (record.value.recordType !== "mdiCaseStatusMirror") {
+        return appDataValidationFailure("MDI case status mirror key contained another record type");
+      }
+      return { ok: true, value: record.value };
+    },
+    async getMdiLinkage(cognitoSub) {
+      return getMdiLinkageDynamoDb(repository, cognitoSub);
     },
     async getStripeLinkage(cognitoSub) {
       return getStripeLinkageDynamoDb(repository, cognitoSub);
@@ -179,6 +224,7 @@ export async function handleStripeWebhook(
       envelope,
       repository: input.webhookRepository,
       handler: async () => handleVerifiedStripeEvent({
+        billingActivation: input.billingActivation,
         contract,
         event: verified.value,
         now: input.receivedAt,
@@ -195,6 +241,7 @@ export async function handleStripeWebhook(
 }
 
 async function handleVerifiedStripeEvent(input: {
+  billingActivation?: StripeBillingActivation;
   contract: StripeWebhookEventContract;
   event: Stripe.Event;
   now: string;
@@ -208,6 +255,7 @@ async function handleVerifiedStripeEvent(input: {
     input.stripeMirrorRepository,
     input.event,
     input.now,
+    input.billingActivation,
   );
   if (!inline.ok) {
     return {
@@ -228,6 +276,7 @@ async function applyInlineStripeMirror(
   repository: StripeMirrorRepository,
   event: Stripe.Event,
   now: string,
+  billingActivation?: StripeBillingActivation,
 ): Promise<
   | { ok: true }
   | { ok: false; retryable: boolean }
@@ -253,6 +302,19 @@ async function applyInlineStripeMirror(
   }
   const previousStatus = existing.value?.billingStatus ?? "not_started";
   const eventObservedAt = stripeCreatedToIso(event.created);
+  const activationAllowed = await clinicalUnlockAllowsStripeBillingMirror(
+    repository,
+    patient.value,
+    event,
+    existing.value,
+  );
+  if (!activationAllowed.ok) {
+    return activationAllowed;
+  }
+  if (!activationAllowed.value) {
+    return { ok: true };
+  }
+
   if (!shouldApplyStripeBillingMirror({
     billingStatus,
     event,
@@ -272,6 +334,16 @@ async function applyInlineStripeMirror(
     billingStatus,
     now,
     stripeBillingStatusObservedAt: eventObservedAt,
+    stripeCurrentPeriodEnd: stripeCurrentPeriodIsoForEvent(
+      event,
+      "end",
+      existing.value?.stripeCurrentPeriodEnd,
+    ),
+    stripeCurrentPeriodStart: stripeCurrentPeriodIsoForEvent(
+      event,
+      "start",
+      existing.value?.stripeCurrentPeriodStart,
+    ),
   });
   if (!linked.ok) {
     return appDataFailure(linked.error);
@@ -291,6 +363,38 @@ async function applyInlineStripeMirror(
       return { ok: true };
     }
     return appDataFailure(evidence.error);
+  }
+
+  if (
+    billingActivation &&
+    billingStatus === "payment_method_collected" &&
+    linked.value.stripeSubscriptionId === undefined
+  ) {
+    const mdi = await repository.getMdiLinkage(patient.value);
+    if (!mdi.ok) {
+      return appDataFailure(mdi.error);
+    }
+    if (mdi.value?.mdiCaseId) {
+      const mirror = await repository.getMdiCaseStatusMirror(mdi.value.mdiCaseId);
+      if (!mirror.ok) {
+        return appDataFailure(mirror.error);
+      }
+      if (mirror.value?.caseStatus !== "billing_ready") {
+        return { ok: true };
+      }
+      const activation = await billingActivation.activate({
+        cognitoSub: patient.value,
+        mdiCaseId: mdi.value.mdiCaseId,
+        now,
+        webhookEventId: event.id,
+      });
+      if (!activation.ok) {
+        return {
+          ok: false,
+          retryable: activation.retryable,
+        };
+      }
+    }
   }
 
   return { ok: true };
@@ -407,6 +511,7 @@ function billingStatusForEvent(event: Stripe.Event): BillingStatus | null {
     case "customer.subscription.updated":
       return billingStatusForStripeSubscriptionStatus(
         objectString(stripeEventObject(event), "status"),
+        objectBoolean(stripeEventObject(event), "cancel_at_period_end"),
       );
     case "customer.subscription.deleted":
       return "canceled";
@@ -419,7 +524,16 @@ function billingStatusForEvent(event: Stripe.Event): BillingStatus | null {
   }
 }
 
-function billingStatusForStripeSubscriptionStatus(status: string | null): BillingStatus | null {
+function billingStatusForStripeSubscriptionStatus(
+  status: string | null,
+  cancelAtPeriodEnd = false,
+): BillingStatus | null {
+  if (
+    cancelAtPeriodEnd &&
+    (status === "active" || status === "trialing" || status === "past_due" || status === "unpaid")
+  ) {
+    return "cancel_pending";
+  }
   switch (status) {
     case "active":
     case "trialing":
@@ -474,6 +588,9 @@ function shouldApplyStripeBillingMirror(input: {
     if (input.previousStatus === "canceled") {
       return false;
     }
+    if (input.previousStatus === "cancel_pending") {
+      return false;
+    }
     if (input.event.type === "invoice.payment_succeeded") {
       return input.previousStatus !== "past_due";
     }
@@ -511,6 +628,44 @@ function objectString(object: Record<string, unknown>, key: string) {
   return null;
 }
 
+function stripeCurrentPeriodIsoForEvent(
+  event: Stripe.Event,
+  boundary: "start" | "end",
+  existing: string | undefined,
+) {
+  const object = stripeEventObject(event);
+  const key = boundary === "start" ? "current_period_start" : "current_period_end";
+  const direct = objectNumber(object, key);
+  if (direct !== null) {
+    return stripeCreatedToIso(direct);
+  }
+
+  const lines = object["lines"];
+  if (isRecord(lines) && Array.isArray(lines.data)) {
+    for (const line of lines.data) {
+      if (!isRecord(line) || !isRecord(line.period)) {
+        continue;
+      }
+      const periodValue = objectNumber(line.period, boundary);
+      if (periodValue !== null) {
+        return stripeCreatedToIso(periodValue);
+      }
+    }
+  }
+
+  return existing;
+}
+
+function objectNumber(object: Record<string, unknown>, key: string) {
+  const value = object[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function objectBoolean(object: Record<string, unknown>, key: string) {
+  const value = object[key];
+  return typeof value === "boolean" ? value : false;
+}
+
 function stripeCreatedToIso(created: number) {
   return new Date(created * 1000).toISOString();
 }
@@ -522,6 +677,8 @@ function isBefore(left: string, right: string) {
 function stripeBillingStatusPrecedence(status: BillingStatus) {
 	switch (status) {
 		case "canceled":
+			return 5;
+		case "cancel_pending":
 			return 4;
 		case "past_due":
 			return 3;
@@ -542,6 +699,50 @@ function appDataFailure(error: AppDataError) {
 	};
 }
 
+async function clinicalUnlockAllowsStripeBillingMirror(
+  repository: StripeMirrorRepository,
+  cognitoSub: string,
+  event: Stripe.Event,
+  existing: StripeLinkageRecord | null,
+): Promise<{ ok: true; value: boolean } | { ok: false; retryable: boolean }> {
+  if (isPreUnlockPaymentMethodCollectionEvent(event)) {
+    return { ok: true, value: true };
+  }
+  if (existing?.stripeSubscriptionId && isSubscribedOrClosedStatus(existing.billingStatus)) {
+    return { ok: true, value: true };
+  }
+
+  const linkage = await repository.getMdiLinkage(cognitoSub);
+  if (!linkage.ok) {
+    return appDataFailure(linkage.error);
+  }
+  if (!linkage.value?.mdiCaseId) {
+    return { ok: true, value: false };
+  }
+
+  const mirror = await repository.getMdiCaseStatusMirror(linkage.value.mdiCaseId);
+  if (!mirror.ok) {
+    return appDataFailure(mirror.error);
+  }
+
+  return {
+    ok: true,
+    value: mirror.value?.caseStatus === "billing_ready",
+  };
+}
+
+function isPreUnlockPaymentMethodCollectionEvent(event: Stripe.Event) {
+  return event.type === "setup_intent.succeeded" ||
+    event.type === "payment_method.attached";
+}
+
+function isSubscribedOrClosedStatus(status: BillingStatus) {
+  return status === "active" ||
+    status === "past_due" ||
+    status === "cancel_pending" ||
+    status === "canceled";
+}
+
 function okEvidence() {
   return {
     ok: true as const,
@@ -551,6 +752,13 @@ function okEvidence() {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function appDataValidationFailure(message: string): AppDataResult<never> {
+  return {
+    ok: false,
+    error: { kind: "validation_failed", message },
+  };
 }
 
 function webhookPayloadByteLength(payload: string | Buffer) {

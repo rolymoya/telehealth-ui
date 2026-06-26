@@ -81,6 +81,7 @@ The stack outputs identifiers needed by app configuration:
 - Static CloudFront distribution domain name and distribution ID.
 - Webhook queue and DLQ URLs/ARNs.
 - Scheduled heartbeat Lambda name.
+- Stripe-MDI billing reconciliation Lambda name.
 - MDI, Stripe, and app signing secret ARNs.
 - CloudWatch launch observability dashboard name.
 
@@ -316,6 +317,41 @@ Repeated heartbeat failures alarm on
 `Scheduled job failures` dashboard widget first. Do not add SNS/email/pager
 actions until the launch ops contact path is approved.
 
+MDI case-status reconciliation runs as
+`apoth-{stage}-mdi-case-reconciliation` every six hours with the same
+EventBridge retry bounds. It reads the bounded
+`MDI#CASE_STATUS_RECONCILIATION#ACTIVE` index, calls the partner case-status
+route, and may write only current status mirror/evidence fields: opaque
+Cognito/MDI IDs, bounded status code, provider timestamp, synthetic opaque MDI
+event ID, rank, and terminal flag. It must not log or persist raw MDI case
+responses, patient demographics, clinical content, prescription/order/refill
+details, workflow URLs, tokens, or voucher payloads. Repeated provider outages,
+418 maintenance windows, or storage failures alarm on
+`apoth-{stage}-mdi-case-reconciliation-errors`; local status drift corrections
+alarm on `apoth-{stage}-mdi-case-reconciliation-drift`. Check the Lambda log
+group, the `Scheduled job failures` dashboard widget, and the MDI
+webhook/case-status evidence before replaying or widening the job.
+
+Stripe-MDI billing reconciliation runs as
+`apoth-{stage}-stripe-mdi-billing-reconciliation` every six hours with the
+same EventBridge retry bounds. It reads the bounded local Stripe billing
+reconciliation index and a bounded Stripe-side subscription search filtered by
+opaque Apoth stage metadata, then reads current MDI case status before deciding
+whether local billing mirror drift is safe to correct. It may write only local
+Stripe linkage mirror updates and deterministic evidence with opaque IDs plus
+bounded reason codes such as `stripe_already_canceled`,
+`mdi_terminal_with_active_billing`, or `unpaired_stripe_subscription`. It must
+not log or persist raw Stripe payloads, payment instruments, raw MDI payloads,
+clinical content, workflow URLs, tokens, questionnaire answers, diagnoses,
+medication names, or provider free text. Provider outages, MDI 418 maintenance,
+Stripe unavailable responses, or storage failures alarm on
+`apoth-{stage}-stripe-mdi-billing-reconciliation-errors`; billing/care-state
+drift that needs human review alarms on
+`apoth-{stage}-stripe-mdi-billing-reconciliation-ops-review`. Check only the
+aggregate Lambda stats, PHI-safe evidence reason code, and vendor dashboards.
+Do not expand refund behavior during triage; file a follow-up if a refund or
+legal decision is required.
+
 ### Support Evidence Triage
 
 Use DynamoDB evidence events for patient/case timelines, CloudWatch for
@@ -363,6 +399,12 @@ operators must watch CloudWatch during supervised testing, and any automated
 alerting target must be added only after the ops contact path and compliance
 review are approved.
 
+Every synthesized launch alarm description includes the same ownership
+metadata: owner `launch-ops`, channel `CloudWatch manual watch until ops
+contact path is approved`, and runbook
+`docs/runbooks/serverless-iac.md#alarm-map`. Treat that metadata as the
+operator handoff contract until a real on-call/contact channel is approved.
+
 ### Alarm Map
 
 | Alarm | Status | Symptom | Threshold | First check | Mitigation / escalation | Close criteria |
@@ -372,6 +414,10 @@ review are approved.
 | `apoth-{stage}-api-5xx-errors` | Active | API is returning server errors | `>= 5` 5xx responses in 5 minutes | API errors widget, Lambda log groups, recent deploys | Roll back the route change if deploy-related; otherwise isolate failing integration | 5xx count below threshold for two periods |
 | `apoth-{stage}-api-4xx-errors` | Active | API is receiving elevated rejected requests | `>= 50` 4xx responses in 5 minutes | API errors widget and route-level deployment notes | Check auth/CORS/config rollout; avoid logging request bodies while debugging | 4xx count returns to expected launch baseline |
 | `apoth-{stage}-scheduled-heartbeat-errors` | Active | Scheduled heartbeat Lambda failed | `> 0` errors in 5 minutes | Scheduled job failures widget and Lambda log group | Fix configuration or DynamoDB write permission before treating scheduled jobs as healthy | Next scheduled invocation writes the heartbeat successfully and alarm clears |
+| `apoth-{stage}-mdi-case-reconciliation-errors` | Active | MDI case-status reconciliation failed or MDI remained unavailable | `> 0` Lambda errors in 5 minutes | Scheduled job failures widget and Lambda log group | Confirm MDI availability/config, inspect only aggregate status evidence, and do not widen retries until PHI-safe logs are verified | Next scheduled invocation succeeds and alarm clears |
+| `apoth-{stage}-mdi-case-reconciliation-drift` | Active | Reconciliation corrected local case-status drift from MDI | `> 0` corrections in 5 minutes | Scheduled job failures widget, Lambda aggregate stats, and MDI case-status evidence | Verify webhook delivery/path and stale local mirror cause; do not copy raw MDI case payloads into triage notes | Drift cause documented and next run has no unexpected corrections |
+| `apoth-{stage}-stripe-mdi-billing-reconciliation-errors` | Active | Stripe-MDI billing reconciliation failed or a provider remained unavailable | `> 0` Lambda errors in 5 minutes | Scheduled job failures widget and Lambda log group | Confirm Stripe/MDI secret config and provider availability; inspect only aggregate stats and bounded evidence codes | Next scheduled invocation succeeds and alarm clears |
+| `apoth-{stage}-stripe-mdi-billing-reconciliation-ops-review` | Active | Reconciliation found active billing/care-state drift needing ops review | `> 0` ops-review findings in 5 minutes | Scheduled job failures widget, Lambda aggregate stats, and deterministic evidence reason code | Verify local linkage, Stripe subscription state, and MDI case status in vendor systems; do not copy raw payloads or add refund behavior inline | Drift disposition documented and next run has no unexpected ops-review findings |
 | `apoth-{stage}-stripe-signature-failures` | Contract-only | Stripe webhook signature verification failed | `> 0` failures in 5 minutes once T-045 emits metrics | Stripe webhook endpoint config and sanitized webhook logs | Rotate/reconfigure webhook secret only through Secrets Manager; escalate in Stripe dashboard | No new failures after endpoint/secret fix |
 | `apoth-{stage}-webhook-processing-failures` | Contract-only | Webhook handler rejected or failed after verification | `> 0` failures in 5 minutes once T-045 emits metrics | Webhook processing widget, idempotency records, DLQ | Fix handler before replay; replay only minimized payloads with idempotency in place | Failed events processed or safely terminal |
 | `apoth-{stage}-mdi-outbound-failures` | Contract-only | MDI API outage, timeout, or integration failure | `>= 2` failures in 5 minutes once MDI clients emit metrics | MDI failures widget and MDI status/account contact | Degrade MDI-backed workflows; escalate through MDI support/account owner | MDI calls succeed for two periods |

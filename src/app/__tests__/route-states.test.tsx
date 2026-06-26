@@ -96,9 +96,9 @@ describe("route states", () => {
 
     render(<BillingPage />);
     expect(screen.getByRole("heading", {
-      name: /billing setup is not available yet/i,
+      name: /add a payment method without starting billing/i,
     })).toBeInTheDocument();
-    expect(screen.getByText(/no payment method is collected/i))
+    expect(screen.getByText(/billing cannot activate until the selected clinical approval event/i))
       .toBeInTheDocument();
   });
 

@@ -6,7 +6,7 @@ import { usStates } from "@/lib/data";
 export const metadata: Metadata = {
   title: "About · Apoth",
   description:
-    "Apoth is a telehealth platform that connects patients with independent US-licensed clinicians and a licensed compounding pharmacy partner. Available in all 50 states.",
+    "Apoth is a telehealth technology platform that connects eligible patients with independent US-licensed clinicians and a licensed pharmacy partner.",
 };
 
 export default function AboutPage() {
@@ -21,13 +21,14 @@ export default function AboutPage() {
               What Apoth is, what it isn't, and how we're set up.
             </h1>
             <p className="mt-7 max-w-measure text-pretty text-[1.075rem] leading-[1.6] text-ink/80 md:text-[1.15rem]">
-              Apoth is a telehealth platform. We connect adults with
+              Apoth is a telehealth technology platform. We connect adults with
               US-licensed clinicians for sexual health, hair, weight, and
               physician-supervised peptide care, and we coordinate with a
-              licensed pharmacy partner that fills the prescriptions. We do not
+              licensed pharmacy partner where medication is prescribed. We do not
               practice medicine. We do not dispense medication. We are the
-              software, the patient experience, and the connective tissue
-              between you, your clinician, and your pharmacy.
+              software, account experience, intake interface, billing
+              orchestration, and minimal linkage layer between you, your
+              clinician, and your pharmacy.
             </p>
           </div>
         </section>
@@ -61,7 +62,8 @@ export default function AboutPage() {
                 <dd className="mt-3 max-w-prose text-pretty text-ink/80">
                   An Illinois limited liability company. Apoth Health LLC
                   operates this website, the patient app, customer support,
-                  scheduling, and the technology that makes the visit happen.
+                  intake interface, billing orchestration, and the technology
+                  that makes the visit happen.
                   Apoth Health LLC is not a medical provider, does not
                   practice medicine, and does not make clinical decisions about
                   your care.
@@ -131,16 +133,19 @@ export default function AboutPage() {
               </p>
               <div className="lg:col-span-9">
                 <h2 className="display-serif text-display-md font-light text-balance">
-                  All 50 states.
+                  Nationwide, where eligible.
                 </h2>
                 <p className="mt-6 max-w-prose text-pretty text-ink/75">
-                  Apoth coordinates care in every US state. Your prescription
-                  is written by a clinician licensed in <em>your</em> state,
-                  and your medication is dispensed by a licensed pharmacy
-                  partner that ships to your state. If a regulatory or
-                  licensure change ever affects availability in your state, we
-                  will tell you before you finish intake and we will not
-                  charge a card we cannot honor.
+                  Apoth intends to coordinate care nationwide where clinician
+                  licensure, clinical eligibility, and pharmacy shipping
+                  eligibility support the requested care category. If care is
+                  available for you, your prescription is written by a
+                  clinician licensed in <em>your</em> state, and medication is
+                  dispensed by a licensed pharmacy partner that can ship to
+                  your state. If a regulatory, licensure, clinical, or shipping
+                  issue affects availability, we will tell you before clinical
+                  approval and will not activate subscription billing for care
+                  we cannot provide.
                 </p>
               </div>
             </header>
@@ -183,8 +188,8 @@ export default function AboutPage() {
                 <p className="mt-6 max-w-prose text-pretty text-ink/75">
                   For medical questions about your active care, message your
                   clinician inside the patient portal — that is the fastest and
-                  most secure way to reach the person who actually knows your
-                  chart. For everything else, use the channels below. If you
+                  most secure way to reach the person responsible for your
+                  medical record. For everything else, use the channels below. If you
                   have a medical emergency, call 911.
                 </p>
               </header>

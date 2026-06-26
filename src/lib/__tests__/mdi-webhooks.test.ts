@@ -142,7 +142,7 @@ describe("MDI webhook receiver service", () => {
     expect(duplicate).toMatchObject({ ok: true, status: 200, body: { action: "skipped" } });
   });
 
-  it("mirrors launch-safe case approval into minimal status and webhook evidence only", async () => {
+  it("mirrors ordinary case approval into non-unlocking status evidence only", async () => {
     const repository = seededMdiRepository("clinical_review", "payment_method_collected");
     const payload = mdiPayload({ event_type: "case_approved" });
 
@@ -159,7 +159,7 @@ describe("MDI webhook receiver service", () => {
     expect(result).toMatchObject({ ok: true, status: 200, body: { action: "processed" } });
     expect(getPatientProfile(repository, cognitoSub)).toMatchObject({
       ok: true,
-      value: { onboardingStatus: "billing_ready" },
+      value: { onboardingStatus: "clinical_review" },
     });
 
     const evidence = listEvidenceEventsForPatient(repository, { cognitoSub, limit: 250 });
@@ -172,10 +172,11 @@ describe("MDI webhook receiver service", () => {
       eventType: "webhook_side_effect_applied",
       mdiCaseId,
       mdiPatientId,
-      metadata: { case_status: "billing_ready", side_effect: "mdi_status_update" },
+      metadata: { case_status: "approved", side_effect: "mdi_status_update" },
       source: "webhook",
       webhookProvider: "mdi",
     });
+    expect(JSON.stringify(evidence)).not.toContain("activate_billing");
     expect(JSON.stringify(evidence)).not.toContain("metadata\":\"");
     expect(JSON.stringify(evidence)).not.toContain("clinical_note");
     expect(JSON.stringify(evidence)).not.toContain("questionnaire");
@@ -349,6 +350,124 @@ describe("MDI webhook receiver service", () => {
     });
   });
 
+  it("invokes billing activation once when T-078 permits it", async () => {
+    const repository = seededMdiRepository("clinical_review", "payment_method_collected");
+    const billingActivation = billingActivationMock();
+    const firstPayload = mdiPayload({
+      event_id: "mdi_evt_billingactivate_001",
+      event_type: "case_clinically_approved",
+      timestamp: 1_781_006_400,
+    });
+    const duplicatePayload = mdiPayload({
+      event_id: "mdi_evt_billingactivate_001",
+      event_type: "case_clinically_approved",
+      timestamp: 1_781_006_400,
+    });
+
+    for (const payload of [firstPayload, duplicatePayload]) {
+      const result = await handleMdiWebhook({
+        authorization: "mdi_authorization_secret",
+        billingActivation,
+        mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+        payload,
+        receivedAt: "2026-06-09T12:00:00.000Z",
+        secret: mdiSecret(),
+        signature: signMdiPayload(payload),
+        webhookRepository: createWebhookProcessingRepository(repository),
+      });
+      expect(result).toMatchObject({ ok: true, status: 200 });
+    }
+
+    expect(billingActivation.activate).toHaveBeenCalledTimes(1);
+    expect(billingActivation.activate).toHaveBeenCalledWith({
+      cognitoSub,
+      mdiCaseId,
+      now: "2026-06-09T12:00:00.000Z",
+      webhookEventId: "mdi_evt_billingactivate_001",
+    });
+    expect(billingActivation.cancel).not.toHaveBeenCalled();
+  });
+
+  it("does not invoke billing activation for ordinary approval or pending payment method", async () => {
+    for (const [eventType, billingStatus] of [
+      ["case_approved", "payment_method_collected"],
+      ["case_clinically_approved", "payment_method_pending"],
+    ] as const) {
+      const repository = seededMdiRepository("clinical_review", billingStatus);
+      const billingActivation = billingActivationMock();
+      const payload = mdiPayload({ event_type: eventType });
+
+      const result = await handleMdiWebhook({
+        authorization: "mdi_authorization_secret",
+        billingActivation,
+        mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+        payload,
+        receivedAt: "2026-06-09T12:00:00.000Z",
+        secret: mdiSecret(),
+        signature: signMdiPayload(payload),
+        webhookRepository: createWebhookProcessingRepository(repository),
+      });
+
+      expect(result).toMatchObject({ ok: true, status: 200 });
+      expect(billingActivation.activate).not.toHaveBeenCalled();
+      expect(billingActivation.cancel).not.toHaveBeenCalled();
+    }
+  });
+
+  it("invokes active billing cancellation when a later clinical closure requires it", async () => {
+    const repository = seededMdiRepository("clinical_review", "active");
+    const billingActivation = billingActivationMock();
+    const payload = mdiPayload({
+      event_id: "mdi_evt_billingcancel_001",
+      event_type: "case_declined",
+    });
+
+    const result = await handleMdiWebhook({
+      authorization: "mdi_authorization_secret",
+      billingActivation,
+      mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+      payload,
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: mdiSecret(),
+      signature: signMdiPayload(payload),
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 200, body: { action: "processed" } });
+    expect(billingActivation.cancel).toHaveBeenCalledTimes(1);
+    expect(billingActivation.cancel).toHaveBeenCalledWith({
+      cognitoSub,
+      mdiCaseId,
+      now: "2026-06-09T12:00:00.000Z",
+      webhookEventId: "mdi_evt_billingcancel_001",
+    });
+    expect(billingActivation.activate).not.toHaveBeenCalled();
+  });
+
+  it("invokes billing cancellation for past_due subscriptions on clinical closure", async () => {
+    const repository = seededMdiRepository("clinical_review", "past_due");
+    const billingActivation = billingActivationMock();
+    const payload = mdiPayload({
+      event_id: "mdi_evt_billingcancel_pastdue_001",
+      event_type: "case_cancelled",
+    });
+
+    const result = await handleMdiWebhook({
+      authorization: "mdi_authorization_secret",
+      billingActivation,
+      mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+      payload,
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: mdiSecret(),
+      signature: signMdiPayload(payload),
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 200 });
+    expect(billingActivation.cancel).toHaveBeenCalledTimes(1);
+    expect(billingActivation.activate).not.toHaveBeenCalled();
+  });
+
   it("recovers billing decision on retry when status evidence already exists", async () => {
     const repository = seededMdiRepository("clinical_review", "payment_method_collected");
     const payload = mdiPayload({ event_type: "case_clinically_approved" });
@@ -475,7 +594,6 @@ describe("MDI webhook receiver service", () => {
   it.each([
     "not_started",
     "payment_method_pending",
-    "past_due",
     "canceled",
     undefined,
   ] as const)("fails closed for %s billing state on clinical approval", async (billingStatus) => {
@@ -509,6 +627,32 @@ describe("MDI webhook receiver service", () => {
         value: { billingStatus },
       });
     }
+  });
+
+  it("treats past_due as already-active and does not duplicate activation on clinical approval", async () => {
+    const repository = seededMdiRepository("clinical_review", "past_due");
+    const payload = mdiPayload({ event_type: "case_clinically_approved" });
+
+    const result = await handleMdiWebhook({
+      authorization: "mdi_authorization_secret",
+      mdiMirrorRepository: createInMemoryMdiWebhookMirrorRepository(repository),
+      payload,
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: mdiSecret(),
+      signature: signMdiPayload(payload),
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, status: 200, body: { action: "processed" } });
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub });
+    expect(evidence.ok && evidence.value.items).toContainEqual(expect.objectContaining({
+      eventType: "mdi_billing_unlock_decision",
+      metadata: {
+        billing_action: "no_op",
+        billing_reason: "already_active",
+      },
+      status: "skipped",
+    }));
   });
 
   it("records message dashboard cues without storing message content", async () => {
@@ -1086,6 +1230,13 @@ function seededMdiRepository(
     expect(stripe.ok).toBe(true);
   }
   return repository;
+}
+
+function billingActivationMock() {
+  return {
+    activate: vi.fn(async () => ({ ok: true as const })),
+    cancel: vi.fn(async () => ({ ok: true as const })),
+  };
 }
 
 function seededChargeFixtureRepository() {

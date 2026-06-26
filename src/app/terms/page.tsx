@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Terms of Service for Apoth, including the telehealth disclosure and the refunds and cancellation policy.",
 };
 
-const lastUpdated = "May 15, 2026";
+const lastUpdated = "June 23, 2026";
 
 export default function TermsPage() {
   return (
@@ -26,7 +26,8 @@ export default function TermsPage() {
             </h1>
             <p className="mt-6 max-w-measure text-pretty text-ink/75">
               The agreement between you and Apoth when you use this site or
-              receive care through our platform. This page also contains the{" "}
+              use the Apoth platform to access care. This page also contains
+              the{" "}
               <Link
                 href="#telehealth-disclosure"
                 className="underline decoration-ash-line decoration-1 underline-offset-[4px] hover:text-clay-deep hover:decoration-clay-deep"
@@ -191,7 +192,9 @@ export default function TermsPage() {
                 <ul>
                   <li>
                     You must be at least eighteen (18) years old and a resident
-                    of a U.S. state where Apoth currently offers services.
+                    of a U.S. state where Apoth currently offers services and
+                    where clinician licensure and pharmacy shipping eligibility
+                    support the requested care category.
                   </li>
                   <li>
                     You must provide accurate, current, and complete
@@ -214,9 +217,9 @@ export default function TermsPage() {
 
               <Section id="nature" title="3. Nature of the service">
                 <p>
-                  Apoth is a technology and patient-management platform. We
-                  build and operate the website, the patient portal, the
-                  intake experience, scheduling, billing, and customer support
+                  Apoth is a technology platform. We build and operate the
+                  website, patient account area, intake user interface, billing
+                  orchestration, customer support, and minimal linkage records
                   that make telehealth visits possible.{" "}
                   <strong>
                     Apoth is not a medical provider, does not practice
@@ -229,6 +232,9 @@ export default function TermsPage() {
                   Clinical decisions — including whether to prescribe, what to
                   prescribe, and how to follow up — are made independently by
                   licensed clinicians of the Physician Group described below.
+                  MD Integrations is the clinical system of record for
+                  questionnaire answers, clinician review, treatment decisions,
+                  and clinical messages.
                   Medication is dispensed by a licensed pharmacy partner that
                   is a separate legal entity.
                 </p>
@@ -599,8 +605,8 @@ export default function TermsPage() {
                 <h3>Privacy and confidentiality</h3>
                 <p>
                   Telehealth visits and clinical messages are conducted
-                  through a HIPAA-aware platform and are documented in your
-                  medical record. See our{" "}
+                  through a HIPAA-aware workflow and are documented in the
+                  Physician Group&apos;s medical record. See our{" "}
                   <Link
                     href="/privacy"
                     className="underline decoration-ash-line underline-offset-[4px] hover:text-clay-deep"
@@ -643,16 +649,20 @@ export default function TermsPage() {
                 <h3>Refunds</h3>
                 <ul>
                   <li>
-                    <strong>Before clinician review.</strong> If you are not
-                    accepted for care after your intake, you will be refunded
-                    in full.
+                    <strong>Before clinician approval.</strong> Apoth does not
+                    activate subscription billing before the selected clinical
+                    approval event. If an authorization, pending payment, or
+                    mistaken pre-approval charge must be reversed because you
+                    are not accepted for care, it will be voided or refunded in
+                    full.
                   </li>
                   <li>
                     <strong>Before the pharmacy ships.</strong> If you cancel
-                    after a visit but before your medication ships, the
-                    medication portion of your subscription is refunded. The
-                    visit fee, where charged separately, is not refundable
-                    because the clinician&apos;s time has been spent.
+                    after clinician approval but before your medication ships,
+                    contact support. Where separable and allowed by law, the
+                    medication portion of your subscription may be refunded or
+                    credited. The visit fee, where charged separately, is not
+                    refundable because the clinician&apos;s time has been spent.
                   </li>
                   <li>
                     <strong>After the pharmacy ships.</strong> Because
@@ -666,15 +676,15 @@ export default function TermsPage() {
                   <li>
                     <strong>Damaged or lost shipments.</strong> If a shipment
                     arrives damaged or is lost in transit, contact us and we
-                    will work with the pharmacy partner to replace it at no
-                    additional cost.
+                    will work with the pharmacy partner to correct the order or
+                    replace it where appropriate.
                   </li>
                   <li>
                     <strong>Side effects or clinical reasons.</strong> If you
                     must stop a medication for medical reasons, contact your
                     clinician through the portal. Your clinician can adjust
-                    your plan, and we will work with you on any pro-rated
-                    refund or credit consistent with applicable law.
+                    your plan, and we will review any pro-rated refund or
+                    credit request consistent with applicable law.
                   </li>
                 </ul>
 

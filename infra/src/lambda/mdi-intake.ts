@@ -16,6 +16,8 @@ import {
   loadMdiIntake,
   mdiIntakeFailure,
   submitMdiIntake,
+  createMdiCaseIdempotencyKey,
+  type MdiCasePayload,
   type MdiIntakeGateway,
   type MdiIntakeRepository,
   type MdiIntakeResponse,
@@ -133,10 +135,10 @@ function activeGateway(): MdiIntakeGateway {
 function productionMdiGateway(): MdiIntakeGateway {
   return {
     async loadQuestionnaire(input) {
-      if (!input.linkage?.mdiPatientId || !input.linkage.mdiCaseId) {
+      if (!input.linkage?.mdiPatientId) {
         return mdiIntakeFailure(
           "provider_unavailable",
-          "MDI patient and case linkage is not available",
+          "MDI patient linkage is not available",
           { retryable: true, status: 503 },
         );
       }
@@ -160,27 +162,26 @@ function productionMdiGateway(): MdiIntakeGateway {
         value: {
           questionnaireId,
           patientId: input.linkage.mdiPatientId,
-          caseId: input.linkage.mdiCaseId,
+          ...(input.linkage.mdiCaseId ? { caseId: input.linkage.mdiCaseId } : {}),
           questions: parsed.value,
         },
       };
     },
-    async submitResponses(input) {
-      const submitted = await requestMdi<unknown>({
+    async createCase(input) {
+      const created = await requestMdi<unknown>({
         body: {
-          caseId: input.caseId,
-          patientId: input.patientId,
-          responses: input.responses,
+          ...input.casePayload,
+          patient_id: input.patientId,
         },
         idempotencyKey: input.idempotencyKey,
         method: "POST",
-        path: `/partner/questionnaires/${encodeURIComponent(input.questionnaireId)}/responses`,
+        path: "/partner/cases",
       });
-      if (!submitted.ok) {
-        return submitted;
+      if (!created.ok) {
+        return created;
       }
 
-      const parsed = parseMdiSubmission(submitted.value);
+      const parsed = parseMdiCase(created.value);
       if (!parsed.ok) {
         return parsed;
       }
@@ -190,9 +191,8 @@ function productionMdiGateway(): MdiIntakeGateway {
         value: {
           linkage: {
             mdiPatientId: input.patientId,
-            mdiCaseId: input.caseId,
+            mdiCaseId: parsed.value.mdiCaseId,
           },
-          submissionId: parsed.value.submissionId,
         },
       };
     },
@@ -233,7 +233,11 @@ async function requestMdi<T>(input: {
       return mdiIntakeFailure(
         response.status === 418 ? "provider_unavailable" : "provider_unavailable",
         "MDI provider request failed",
-        { retryable: response.status === 429 || response.status >= 500 || response.status === 418, status: response.status },
+        {
+          retryAfterSeconds: parseRetryAfterSeconds(response.headers.get("retry-after")),
+          retryable: response.status === 429 || response.status >= 500 || response.status === 418,
+          status: response.status,
+        },
       );
     }
 
@@ -443,6 +447,23 @@ function dynamoRepository(): MdiIntakeRepository {
                 TableName: requiredEnv("APP_TABLE_NAME"),
               },
             },
+            {
+              Put: {
+                Item: mdiCaseCreateAttemptItem({
+                  attempts: 1,
+                  cognitoSub: input.cognitoSub,
+                  idempotencyKey: input.idempotencyKey,
+                  linkedAt: input.now,
+                  mdiCaseId: input.linkage.mdiCaseId,
+                  mdiPatientId: input.linkage.mdiPatientId,
+                  mdiSubmissionId: input.submissionId,
+                  now: input.now,
+                  status: "submitted",
+                  submittedAt: input.now,
+                }),
+                TableName: requiredEnv("APP_TABLE_NAME"),
+              },
+            },
           ],
         }));
         return {
@@ -458,45 +479,134 @@ function dynamoRepository(): MdiIntakeRepository {
       }
     },
     async claimSubmission(input) {
-      const now = new Date().toISOString();
-      const idempotencyKey = mdiSubmissionIdempotencyKey(input.cognitoSub);
-      const leaseExpiresAt = new Date(
-        new Date(now).getTime() + 10 * 60 * 1000,
-      ).toISOString();
+      const now = input.now;
+      const idempotencyKey = createMdiCaseIdempotencyKey(input.cognitoSub);
+      const linkage = await getMdiLinkage(input.cognitoSub);
+      if (!linkage || linkage.mdiPatientId !== input.mdiPatientId) {
+        return mdiIntakeFailure(
+          "not_ready",
+          "MDI patient linkage is required before case creation",
+          { retryable: false, status: 409 },
+        );
+      }
+      if (linkage.mdiCaseId) {
+        return {
+          ok: true,
+          value: {
+            idempotencyKey,
+            mdiCaseId: linkage.mdiCaseId,
+            outcome: "linkExisting",
+          },
+        };
+      }
+
+      const existing = await getMdiCaseCreateAttempt(input.cognitoSub);
+      if (existing?.status === "submitted" && existing.mdiCaseId) {
+        return {
+          ok: true,
+          value: {
+            idempotencyKey: existing.idempotencyKey,
+            mdiCaseId: existing.mdiCaseId,
+            outcome: "linkExisting",
+          },
+        };
+      }
+      if (existing?.status === "case_storage_retryable_failure" && existing.mdiCaseId) {
+        return {
+          ok: true,
+          value: {
+            idempotencyKey: existing.idempotencyKey,
+            mdiCaseId: existing.mdiCaseId,
+            outcome: "linkExisting",
+          },
+        };
+      }
+      if (existing?.status === "claiming_case" && !isExpired(existing.claimExpiresAt, now)) {
+        return { ok: true, value: { outcome: "alreadyClaiming", retryable: true } };
+      }
+      if (existing?.status === "case_provider_terminal_failure") {
+        return { ok: true, value: { outcome: "terminalFailure", retryable: false } };
+      }
+
+      const nextAttempts = existing ? existing.attempts + 1 : 1;
       try {
         await ddb.send(new PutItemCommand({
-          ConditionExpression: "attribute_not_exists(#pk) OR #leaseExpiresAt < :now",
-          ExpressionAttributeNames: {
-            "#leaseExpiresAt": "leaseExpiresAt",
-            "#pk": "pk",
-          },
-          ExpressionAttributeValues: {
-            ":now": { S: now },
-          },
-          Item: {
-            ...submissionClaimKey(input.cognitoSub),
-            cognitoSub: { S: input.cognitoSub },
-            createdAt: { S: now },
-            idempotencyKey: { S: idempotencyKey },
-            leaseExpiresAt: { S: leaseExpiresAt },
-            recordType: { S: "mdiIntakeSubmissionClaim" },
-            schemaVersion: { N: "1" },
-            updatedAt: { S: now },
-          },
+          ...(existing ? {} : {
+            ConditionExpression: "attribute_not_exists(#pk)",
+            ExpressionAttributeNames: { "#pk": "pk" },
+          }),
+          Item: mdiCaseCreateAttemptItem({
+            attempts: nextAttempts,
+            claimExpiresAt: claimExpiresAt(now),
+            cognitoSub: input.cognitoSub,
+            idempotencyKey: existing?.idempotencyKey ?? idempotencyKey,
+            lastAttemptAt: now,
+            mdiPatientId: input.mdiPatientId,
+            now,
+            status: "claiming_case",
+          }),
           TableName: requiredEnv("APP_TABLE_NAME"),
         }));
-        return { ok: true, value: { claimed: true, idempotencyKey } };
+        return {
+          ok: true,
+          value: {
+            idempotencyKey: existing?.idempotencyKey ?? idempotencyKey,
+            outcome: "claimed",
+          },
+        };
       } catch (error) {
         if (isConditionalCheckFailed(error)) {
-          return mdiIntakeFailure(
-            "submission_in_progress",
-            "MDI intake submission is already in progress",
-            { retryable: true, status: 409 },
-          );
+          return { ok: true, value: { outcome: "alreadyClaiming", retryable: true } };
         }
         return mdiIntakeFailure(
           "storage_failed",
           "MDI intake submission could not be claimed",
+          { retryable: true, status: 500 },
+        );
+      }
+    },
+    async recordFailure(input) {
+      const existing = await getMdiCaseCreateAttempt(input.cognitoSub);
+      try {
+        const item = mdiCaseCreateAttemptItem({
+          attempts: existing?.attempts ?? 1,
+          cognitoSub: input.cognitoSub,
+          idempotencyKey: existing?.idempotencyKey ?? input.idempotencyKey,
+          lastAttemptAt: input.now,
+          mdiCaseId: input.mdiCaseId,
+          mdiPatientId: input.mdiPatientId,
+          now: existing?.createdAt ?? input.now,
+          providerStatus: input.providerStatus,
+          retryAfterSeconds: input.retryAfterSeconds,
+          status: input.status,
+        });
+        await ddb.send(new PutItemCommand({
+          Item: {
+            ...item,
+            updatedAt: { S: input.now },
+          },
+          TableName: requiredEnv("APP_TABLE_NAME"),
+        }));
+        return {
+          ok: true,
+          value: {
+            attempts: Number(item.attempts.N),
+            cognitoSub: input.cognitoSub,
+            createdAt: item.createdAt.S ?? input.now,
+            idempotencyKey: item.idempotencyKey.S ?? input.idempotencyKey,
+            lastAttemptAt: input.now,
+            mdiCaseId: input.mdiCaseId,
+            mdiPatientId: input.mdiPatientId,
+            providerStatus: input.providerStatus,
+            retryAfterSeconds: input.retryAfterSeconds,
+            status: input.status,
+            updatedAt: input.now,
+          },
+        };
+      } catch {
+        return mdiIntakeFailure(
+          "storage_failed",
+          "MDI intake failure status could not be stored",
           { retryable: true, status: 500 },
         );
       }
@@ -574,30 +684,30 @@ function parseMdiQuestions(payload: unknown): ReturnType<typeof mdiIntakeFailure
   return { ok: true, value: questions };
 }
 
-function parseMdiSubmission(payload: unknown): ReturnType<typeof mdiIntakeFailure> | {
+function parseMdiCase(payload: unknown): ReturnType<typeof mdiIntakeFailure> | {
   ok: true;
-  value: { submissionId?: string };
+  value: { mdiCaseId: string };
 } {
   if (!isRecord(payload)) {
     return mdiIntakeFailure(
       "provider_unavailable",
-      "MDI submission response was invalid",
+      "MDI case response was invalid",
       { retryable: false, status: 502 },
     );
   }
 
-  const submissionId = payload.submissionId ?? payload.mdiSubmissionId ?? payload.id;
-  if (typeof submissionId !== "string" || typeof payload.status !== "string") {
+  const mdiCaseId = payload.case_id ?? payload.caseId ?? payload.id;
+  if (typeof mdiCaseId !== "string" || !mdiCaseId.trim()) {
     return mdiIntakeFailure(
       "provider_unavailable",
-      "MDI submission response fields were invalid",
+      "MDI case response fields were invalid",
       { retryable: false, status: 502 },
     );
   }
 
   return {
     ok: true,
-    value: { submissionId },
+    value: { mdiCaseId: mdiCaseId.trim() },
   };
 }
 
@@ -720,9 +830,8 @@ function parseSubmissionBody(body: string | null | undefined):
   | {
       ok: true;
       value: {
+        casePayload: MdiCasePayload;
         questionnaireId: string;
-        patientId: string;
-        caseId: string;
         responses: MdiIntakeResponse[];
       };
     }
@@ -734,8 +843,7 @@ function parseSubmissionBody(body: string | null | undefined):
     }
     if (
       typeof parsed.questionnaireId !== "string" ||
-      typeof parsed.patientId !== "string" ||
-      typeof parsed.caseId !== "string" ||
+      !isRecord(parsed.casePayload) ||
       !Array.isArray(parsed.responses)
     ) {
       return { ok: false };
@@ -753,9 +861,8 @@ function parseSubmissionBody(body: string | null | undefined):
     return {
       ok: true,
       value: {
+        casePayload: parsed.casePayload,
         questionnaireId: parsed.questionnaireId,
-        patientId: parsed.patientId,
-        caseId: parsed.caseId,
         responses,
       },
     };
@@ -804,17 +911,6 @@ function mdiLinkageKey(cognitoSub: string) {
   };
 }
 
-function submissionClaimKey(cognitoSub: string) {
-  return {
-    pk: { S: `PATIENT#${cognitoSub}` },
-    sk: { S: "MDI#INTAKE#SUBMISSION_CLAIM" },
-  };
-}
-
-function mdiSubmissionIdempotencyKey(cognitoSub: string) {
-  return `mdi-intake-${sha256(`mdi-intake:${cognitoSub}`).slice(0, 32)}`;
-}
-
 function consentKey(cognitoSub: string, consentKind: string, version: string) {
   return {
     pk: { S: `PATIENT#${cognitoSub}` },
@@ -837,6 +933,145 @@ function mdiLinkageItem(input: {
     schemaVersion: { N: "1" },
     updatedAt: { S: input.now },
   });
+}
+
+type MdiCaseCreateAttemptStatus =
+  | "claiming_case"
+  | "case_provider_retryable_failure"
+  | "case_provider_terminal_failure"
+  | "case_storage_retryable_failure"
+  | "submitted";
+
+type MdiCaseCreateAttempt = {
+  attempts: number;
+  cognitoSub: string;
+  createdAt: string;
+  idempotencyKey: string;
+  status: MdiCaseCreateAttemptStatus;
+  updatedAt: string;
+  claimExpiresAt?: string;
+  lastAttemptAt?: string;
+  mdiCaseId?: string;
+  mdiPatientId?: string;
+};
+
+function mdiCaseCreateAttemptKey(cognitoSub: string) {
+  return {
+    pk: { S: `PATIENT#${cognitoSub}` },
+    sk: { S: "MDI#CASE_CREATE" },
+  };
+}
+
+async function getMdiCaseCreateAttempt(cognitoSub: string): Promise<MdiCaseCreateAttempt | null> {
+  const response = await ddb.send(new GetItemCommand({
+    ConsistentRead: true,
+    Key: mdiCaseCreateAttemptKey(cognitoSub),
+    TableName: requiredEnv("APP_TABLE_NAME"),
+  }));
+  const item = response.Item;
+  if (!item || item.recordType?.S !== "mdiCaseCreateAttempt") {
+    return null;
+  }
+  const attempts = Number(item.attempts?.N);
+  const idempotencyKey = item.idempotencyKey?.S;
+  const status = item.status?.S;
+  const createdAt = item.createdAt?.S;
+  const updatedAt = item.updatedAt?.S;
+  if (
+    !Number.isInteger(attempts) ||
+    !idempotencyKey ||
+    !isMdiCaseCreateAttemptStatus(status) ||
+    !createdAt ||
+    !updatedAt
+  ) {
+    return null;
+  }
+  return {
+    attempts,
+    cognitoSub,
+    createdAt,
+    idempotencyKey,
+    status,
+    updatedAt,
+    claimExpiresAt: item.claimExpiresAt?.S,
+    lastAttemptAt: item.lastAttemptAt?.S,
+    mdiCaseId: item.mdiCaseId?.S,
+    mdiPatientId: item.mdiPatientId?.S,
+  };
+}
+
+function mdiCaseCreateAttemptItem(input: {
+  attempts: number;
+  cognitoSub: string;
+  idempotencyKey: string;
+  now: string;
+  status: MdiCaseCreateAttemptStatus;
+  claimExpiresAt?: string;
+  lastAttemptAt?: string;
+  linkedAt?: string;
+  submittedAt?: string;
+  mdiPatientId?: string;
+  mdiCaseId?: string;
+  mdiSubmissionId?: string;
+  providerStatus?: number;
+  retryAfterSeconds?: number;
+}): Record<string, AttributeValue> {
+  return withoutUndefined({
+    ...mdiCaseCreateAttemptKey(input.cognitoSub),
+    attempts: { N: String(input.attempts) },
+    claimExpiresAt: input.claimExpiresAt ? { S: input.claimExpiresAt } : undefined,
+    cognitoSub: { S: input.cognitoSub },
+    createdAt: { S: input.now },
+    idempotencyKey: { S: input.idempotencyKey },
+    lastAttemptAt: input.lastAttemptAt ? { S: input.lastAttemptAt } : undefined,
+    linkedAt: input.linkedAt ? { S: input.linkedAt } : undefined,
+    mdiCaseId: input.mdiCaseId ? { S: input.mdiCaseId } : undefined,
+    mdiPatientId: input.mdiPatientId ? { S: input.mdiPatientId } : undefined,
+    mdiSubmissionId: input.mdiSubmissionId ? { S: input.mdiSubmissionId } : undefined,
+    providerStatus: input.providerStatus ? { N: String(input.providerStatus) } : undefined,
+    retryAfterSeconds: input.retryAfterSeconds ? { N: String(input.retryAfterSeconds) } : undefined,
+    recordType: { S: "mdiCaseCreateAttempt" },
+    schemaVersion: { N: "1" },
+    status: { S: input.status },
+    submittedAt: input.submittedAt ? { S: input.submittedAt } : undefined,
+    updatedAt: { S: input.now },
+  });
+}
+
+function isMdiCaseCreateAttemptStatus(
+  value: string | undefined,
+): value is MdiCaseCreateAttemptStatus {
+  return value === "claiming_case" ||
+    value === "case_provider_retryable_failure" ||
+    value === "case_provider_terminal_failure" ||
+    value === "case_storage_retryable_failure" ||
+    value === "submitted";
+}
+
+function claimExpiresAt(now: string) {
+  return new Date(Date.parse(now) + 15 * 60 * 1000).toISOString();
+}
+
+function isExpired(timestamp: string | undefined, now: string) {
+  if (!timestamp) {
+    return true;
+  }
+  return Date.parse(timestamp) <= Date.parse(now);
+}
+
+function parseRetryAfterSeconds(value: string | null) {
+  if (!value) {
+    return undefined;
+  }
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return Math.min(Math.ceil(numeric), 3600);
+  }
+  const dateMs = Date.parse(value);
+  if (!Number.isFinite(dateMs)) {
+    return undefined;
+  }
+  return Math.min(Math.max(Math.ceil((dateMs - Date.now()) / 1000), 1), 3600);
 }
 
 function isAllowedOrigin(event: ApiEvent) {

@@ -1,4 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  activateBillingAfterClinicalUnlock,
+  cancelActiveBillingAfterClinicalClosure,
+  createDynamoDbBillingActivationRepository,
+} from "@/lib/billing-activation";
 import { createDynamoDbAppDataRepository, resolveDynamoDbAppDataConfig } from "@/lib/dynamodb/app-data-dynamodb";
 import {
   createDynamoDbMdiWebhookMirrorRepository,
@@ -6,6 +11,7 @@ import {
   maxMdiWebhookPayloadBytes,
 } from "@/lib/mdi-webhooks";
 import { resolveRuntimeStage, resolveStartupSecretSource, validateServerStartupSecrets } from "@/lib/secrets/startup";
+import { createStripeClient } from "@/lib/stripe";
 import { createDynamoDbWebhookProcessingRepository } from "@/lib/webhook-processing-repository";
 
 export async function POST(request: NextRequest) {
@@ -28,6 +34,43 @@ export async function POST(request: NextRequest) {
 
   const result = await handleMdiWebhook({
     authorization,
+    billingActivation: {
+      async activate(input) {
+        const dependencies = await resolveBillingActivationDependencies(process.env);
+        if (!dependencies.ok) {
+          return { ok: false as const, retryable: true };
+        }
+        const activated = await activateBillingAfterClinicalUnlock({
+          cognitoSub: input.cognitoSub,
+          mdiCaseId: input.mdiCaseId,
+          now: input.now,
+          priceId: dependencies.priceId,
+          repository: createDynamoDbBillingActivationRepository(repository.value),
+          stage: resolvePaymentStage(process.env),
+          stripe: dependencies.stripe,
+        });
+        return activated.ok
+          ? { ok: true as const }
+          : { ok: false as const, retryable: activated.code !== "invalid_stripe_metadata" };
+      },
+      async cancel(input) {
+        const dependencies = await resolveBillingActivationDependencies(process.env);
+        if (!dependencies.ok) {
+          return { ok: false as const, retryable: true };
+        }
+        const canceled = await cancelActiveBillingAfterClinicalClosure({
+          cognitoSub: input.cognitoSub,
+          mdiCaseId: input.mdiCaseId,
+          now: input.now,
+          repository: createDynamoDbBillingActivationRepository(repository.value),
+          stage: resolvePaymentStage(process.env),
+          stripe: dependencies.stripe,
+        });
+        return canceled.ok
+          ? { ok: true as const }
+          : { ok: false as const, retryable: true };
+      },
+    },
     mdiMirrorRepository: createDynamoDbMdiWebhookMirrorRepository(repository.value),
     payload: payload.value,
     receivedAt: new Date().toISOString(),
@@ -94,9 +137,55 @@ async function resolveMdiSecret(env: Record<string, string | undefined>) {
     : { ok: false as const };
 }
 
+async function resolveStripeSecret(env: Record<string, string | undefined>) {
+  const source = resolveStartupSecretSource({
+    env,
+    requiredSecrets: ["stripeApi"],
+  });
+  if (!source.ok) {
+    return { ok: false as const };
+  }
+  const validated = await validateServerStartupSecrets({
+    stage: resolveRuntimeStage(env),
+    requiredSecrets: ["stripeApi"],
+    source: source.value.source,
+  });
+  if (!validated.ok) {
+    return { ok: false as const };
+  }
+  const secret = validated.value.find((value) => value.secretKind === "stripeApi");
+  return secret
+    ? { ok: true as const, value: secret }
+    : { ok: false as const };
+}
+
 function resolveRepository(env: Record<string, string | undefined>) {
   const config = resolveDynamoDbAppDataConfig(env);
   return config.ok
     ? { ok: true as const, value: createDynamoDbAppDataRepository(config.value) }
     : { ok: false as const };
+}
+
+async function resolveBillingActivationDependencies(env: Record<string, string | undefined>) {
+  const stripeSecret = await resolveStripeSecret(env);
+  const priceId = resolveStripeRecurringPriceId(env);
+  if (!stripeSecret.ok || !priceId.ok) {
+    return { ok: false as const };
+  }
+  return {
+    ok: true as const,
+    priceId: priceId.value,
+    stripe: createStripeClient(stripeSecret.value),
+  };
+}
+
+function resolveStripeRecurringPriceId(env: Record<string, string | undefined>) {
+  const value = env.STRIPE_RECURRING_PRICE_ID;
+  return value && /^price_[A-Za-z0-9_]+$/.test(value)
+    ? { ok: true as const, value }
+    : { ok: false as const };
+}
+
+function resolvePaymentStage(env: Record<string, string | undefined>) {
+  return env.APOTH_STAGE === "production" ? "production" as const : "staging" as const;
 }

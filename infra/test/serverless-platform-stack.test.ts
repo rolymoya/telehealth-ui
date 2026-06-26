@@ -46,7 +46,7 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
     template.resourceCountIs("AWS::DynamoDB::Table", 1);
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 11);
+    template.resourceCountIs("AWS::Lambda::Function", 13);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
@@ -54,7 +54,7 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::CloudFront::Distribution", 1);
     template.resourceCountIs("AWS::CloudFront::Function", 1);
     template.resourceCountIs("AWS::CloudFront::OriginAccessControl", 1);
-    template.resourceCountIs("AWS::Events::Rule", 1);
+    template.resourceCountIs("AWS::Events::Rule", 3);
     template.resourceCountIs("AWS::S3::Bucket", 1);
     template.resourceCountIs("AWS::SQS::Queue", 2);
 
@@ -415,6 +415,76 @@ describe("ServerlessPlatformStack", () => {
         ]),
       },
     });
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-mdi-case-reconciliation",
+      Runtime: "nodejs20.x",
+      Handler: "index.handler",
+      Timeout: 60,
+      Environment: {
+        Variables: {
+          APOTH_MDI_CASE_RECONCILIATION_LIMIT: "5",
+          APOTH_SECRET_MDI_API_ID: "/apoth/staging/mdi/api",
+          APOTH_STAGE: "staging",
+          APP_TABLE_NAME: Match.anyValue(),
+          JOB_NAME: "mdi-case-reconciliation",
+        },
+      },
+    });
+
+    template.hasResourceProperties("AWS::Events::Rule", {
+      Name: "apoth-staging-mdi-case-reconciliation",
+      ScheduleExpression: "rate(6 hours)",
+      State: "ENABLED",
+      Targets: Match.arrayWith([
+        Match.objectLike({
+          RetryPolicy: {
+            MaximumEventAgeInSeconds: 3600,
+            MaximumRetryAttempts: 1,
+          },
+        }),
+      ]),
+    });
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-stripe-mdi-billing-reconciliation",
+      Runtime: "nodejs20.x",
+      Handler: "index.handler",
+      Timeout: 60,
+      Environment: {
+        Variables: {
+          APOTH_SECRET_MDI_API_ID: "/apoth/staging/mdi/api",
+          APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
+          APOTH_STAGE: "staging",
+          APOTH_STRIPE_MDI_BILLING_RECONCILIATION_LIMIT: "5",
+          APP_TABLE_NAME: Match.anyValue(),
+          JOB_NAME: "stripe-mdi-billing-reconciliation",
+        },
+      },
+    });
+
+    template.hasResourceProperties("AWS::Events::Rule", {
+      Name: "apoth-staging-stripe-mdi-billing-reconciliation",
+      ScheduleExpression: "rate(6 hours)",
+      State: "ENABLED",
+      Targets: Match.arrayWith([
+        Match.objectLike({
+          RetryPolicy: {
+            MaximumEventAgeInSeconds: 3600,
+            MaximumRetryAttempts: 1,
+          },
+        }),
+      ]),
+    });
+
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+    expect(policies).toContain("dynamodb:Query");
+    expect(policies).toContain("dynamodb:PutItem");
+    expect(policies).toContain("dynamodb:TransactWriteItems");
+    expect(policies).toContain("dynamodb:UpdateItem");
+    expect(policies).toContain("secretsmanager:GetSecretValue");
   });
 
   it("does not configure placeholder OAuth callback URLs", () => {
@@ -444,8 +514,13 @@ describe("ServerlessPlatformStack", () => {
         AllowAdminCreateUserOnly: false,
       },
       AutoVerifiedAttributes: ["email"],
-      EnabledMfas: ["SOFTWARE_TOKEN_MFA"],
-      MfaConfiguration: "ON",
+      EmailConfiguration: {
+        EmailSendingAccount: "COGNITO_DEFAULT",
+        ReplyToEmailAddress: "contact@apothhealth.com",
+        SourceArn: Match.anyValue(),
+      },
+      EnabledMfas: Match.absent(),
+      MfaConfiguration: "OFF",
       Policies: {
         PasswordPolicy: {
           MinimumLength: 12,
@@ -468,15 +543,27 @@ describe("ServerlessPlatformStack", () => {
       GenerateSecret: Match.absent(),
       PreventUserExistenceErrors: "ENABLED",
     });
+    expect(JSON.stringify(template.toJSON())).toContain("identity/contact@apothhealth.com");
   });
 
-  it("uses MFA and stage-specific CORS origins", () => {
+  it("keeps the auth email sender on the verified Apoth domain", () => {
+    expect(getStageConfig("staging")).toMatchObject({
+      authEmailDomain: "apothhealth.com",
+      authEmailFromAddress: "contact@apothhealth.com",
+    });
+    expect(getStageConfig("production")).toMatchObject({
+      authEmailDomain: "apothhealth.com",
+      authEmailFromAddress: "contact@apothhealth.com",
+    });
+  });
+
+  it("uses no required MFA and stage-specific CORS origins", () => {
     const stagingTemplate = synthesizeTemplate("staging");
     const productionTemplate = synthesizeTemplate("production");
 
     stagingTemplate.hasResourceProperties("AWS::Cognito::UserPool", {
-      MfaConfiguration: "ON",
-      EnabledMfas: ["SOFTWARE_TOKEN_MFA"],
+      MfaConfiguration: "OFF",
+      EnabledMfas: Match.absent(),
     });
 
     stagingTemplate.hasResourceProperties("AWS::ApiGatewayV2::Api", {
@@ -534,6 +621,16 @@ describe("ServerlessPlatformStack", () => {
       (resource) => resource.Type === "AWS::CloudWatch::Alarm",
     );
     for (const alarm of alarms) {
+      expect(alarm.Properties.AlarmDescription).toContain("Owner: launch-ops.");
+      expect(alarm.Properties.AlarmDescription).toContain(
+        "Channel: CloudWatch manual watch until ops contact path is approved.",
+      );
+      expect(alarm.Properties.AlarmDescription).toContain(
+        "Runbook: docs/runbooks/serverless-iac.md#alarm-map.",
+      );
+      for (const forbidden of phiUnsafeObservabilityPatterns) {
+        expect(alarm.Properties.AlarmDescription).not.toMatch(forbidden);
+      }
       expect(alarm.Properties.AlarmActions).toBeUndefined();
       expect(alarm.Properties.OKActions).toBeUndefined();
       expect(alarm.Properties.InsufficientDataActions).toBeUndefined();
@@ -612,6 +709,10 @@ describe("ServerlessPlatformStack", () => {
     expect(dashboard?.Properties.DashboardName).toBe(
       "apoth-staging-launch-observability",
     );
+    const renderedDashboardBody = renderDashboardBody(dashboard?.Properties.DashboardBody);
+    for (const forbidden of phiUnsafeObservabilityPatterns) {
+      expect(renderedDashboardBody).not.toMatch(forbidden);
+    }
     const parsedDashboard = parseDashboardBody(dashboard?.Properties.DashboardBody);
     const metricsByTitle = dashboardMetricsByTitle(parsedDashboard);
 
@@ -668,6 +769,50 @@ describe("ServerlessPlatformStack", () => {
         cloudFormationToken,
         { stat: "Sum" },
       ],
+      [
+        "AWS/Lambda",
+        "Errors",
+        "FunctionName",
+        cloudFormationToken,
+        { stat: "Sum" },
+      ],
+      [
+        "Apoth/ScheduledJobs",
+        "MdiCaseReconciliationCorrections",
+        "Outcome",
+        "recorded",
+        "Provider",
+        "mdi",
+        "ReasonCode",
+        "case_status_reconciliation",
+        "RouteGroup",
+        "scheduled",
+        "Stage",
+        "staging",
+        { stat: "Sum" },
+      ],
+      [
+        "AWS/Lambda",
+        "Errors",
+        "FunctionName",
+        cloudFormationToken,
+        { stat: "Sum" },
+      ],
+      [
+        "Apoth/ScheduledJobs",
+        "StripeMdiBillingReconciliationOpsReview",
+        "Outcome",
+        "recorded",
+        "Provider",
+        "stripe",
+        "ReasonCode",
+        "billing_reconciliation",
+        "RouteGroup",
+        "scheduled",
+        "Stage",
+        "staging",
+        { stat: "Sum" },
+      ],
     ]);
     expect(metricsByTitle.get("Stripe webhook failures and lag")).toEqual([
       expectedDashboardCustomMetric("StripeSignatureFailures"),
@@ -693,6 +838,8 @@ describe("ServerlessPlatformStack", () => {
       "/aws/lambda/apoth-staging-intake-bootstrap",
       "/aws/lambda/apoth-staging-intake-precheck",
       "/aws/lambda/apoth-staging-scheduled-heartbeat",
+      "/aws/lambda/apoth-staging-mdi-case-reconciliation",
+      "/aws/lambda/apoth-staging-stripe-mdi-billing-reconciliation",
       "/aws/apigateway/apoth-staging-api-access",
     ]) {
       template.hasResourceProperties("AWS::Logs::LogGroup", {
@@ -829,6 +976,7 @@ describe("ServerlessPlatformStack", () => {
       "WebhookDeadLetterQueueUrl",
       "WebhookDeadLetterQueueArn",
       "ScheduledHeartbeatFunctionName",
+      "StripeMdiBillingReconciliationFunctionName",
       "MdiApiSecretArn",
       "StripeSecretArn",
       "AppSigningSecretArn",
@@ -1085,6 +1233,10 @@ const expectedAlarmNames = [
   "apoth-staging-onboarding-failures",
   "apoth-staging-stripe-webhook-lag-seconds",
   "apoth-staging-scheduled-heartbeat-errors",
+  "apoth-staging-mdi-case-reconciliation-errors",
+  "apoth-staging-mdi-case-reconciliation-drift",
+  "apoth-staging-stripe-mdi-billing-reconciliation-errors",
+  "apoth-staging-stripe-mdi-billing-reconciliation-ops-review",
 ] as const;
 
 const expectedCustomMetricNames = observabilityMetricNames;
@@ -1174,6 +1326,80 @@ const expectedActiveAlarmContracts = [
         Name: "FunctionName",
         Value: Match.anyValue(),
       },
+    ]),
+  },
+  {
+    AlarmName: "apoth-staging-mdi-case-reconciliation-errors",
+    MetricName: "Errors",
+    Namespace: "AWS/Lambda",
+    Threshold: 0,
+    ComparisonOperator: "GreaterThanThreshold",
+    EvaluationPeriods: 1,
+    DatapointsToAlarm: 1,
+    Period: 300,
+    Statistic: "Sum",
+    TreatMissingData: "notBreaching",
+    Dimensions: Match.arrayWith([
+      {
+        Name: "FunctionName",
+        Value: Match.anyValue(),
+      },
+    ]),
+  },
+  {
+    AlarmName: "apoth-staging-mdi-case-reconciliation-drift",
+    MetricName: "MdiCaseReconciliationCorrections",
+    Namespace: "Apoth/ScheduledJobs",
+    Threshold: 0,
+    ComparisonOperator: "GreaterThanThreshold",
+    EvaluationPeriods: 1,
+    DatapointsToAlarm: 1,
+    Period: 300,
+    Statistic: "Sum",
+    TreatMissingData: "notBreaching",
+    Dimensions: Match.arrayWith([
+      { Name: "Outcome", Value: "recorded" },
+      { Name: "Provider", Value: "mdi" },
+      { Name: "ReasonCode", Value: "case_status_reconciliation" },
+      { Name: "RouteGroup", Value: "scheduled" },
+      { Name: "Stage", Value: "staging" },
+    ]),
+  },
+  {
+    AlarmName: "apoth-staging-stripe-mdi-billing-reconciliation-errors",
+    MetricName: "Errors",
+    Namespace: "AWS/Lambda",
+    Threshold: 0,
+    ComparisonOperator: "GreaterThanThreshold",
+    EvaluationPeriods: 1,
+    DatapointsToAlarm: 1,
+    Period: 300,
+    Statistic: "Sum",
+    TreatMissingData: "notBreaching",
+    Dimensions: Match.arrayWith([
+      {
+        Name: "FunctionName",
+        Value: Match.anyValue(),
+      },
+    ]),
+  },
+  {
+    AlarmName: "apoth-staging-stripe-mdi-billing-reconciliation-ops-review",
+    MetricName: "StripeMdiBillingReconciliationOpsReview",
+    Namespace: "Apoth/ScheduledJobs",
+    Threshold: 0,
+    ComparisonOperator: "GreaterThanThreshold",
+    EvaluationPeriods: 1,
+    DatapointsToAlarm: 1,
+    Period: 300,
+    Statistic: "Sum",
+    TreatMissingData: "notBreaching",
+    Dimensions: Match.arrayWith([
+      { Name: "Outcome", Value: "recorded" },
+      { Name: "Provider", Value: "stripe" },
+      { Name: "ReasonCode", Value: "billing_reconciliation" },
+      { Name: "RouteGroup", Value: "scheduled" },
+      { Name: "Stage", Value: "staging" },
     ]),
   },
 ] as const;
@@ -1277,6 +1503,20 @@ const accessLogForbiddenFragments = [
   "responseOverride",
   "source",
   "user",
+] as const;
+
+const phiUnsafeObservabilityPatterns = [
+  /questionnaire/i,
+  /\banswer\b/i,
+  /diagnosis/i,
+  /medication/i,
+  /symptom/i,
+  /workflow[_-]?url/i,
+  /\btoken\b/i,
+  /raw[_-]?payload/i,
+  /payment[_-]?instrument/i,
+  /clinician/i,
+  /provider free text/i,
 ] as const;
 
 const expectedStagingSecrets = [

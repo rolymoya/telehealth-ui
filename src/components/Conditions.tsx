@@ -20,9 +20,9 @@ export function Conditions() {
             </h2>
             <p className="mt-6 max-w-measure text-pretty text-ink/75">
               We chose categories where the patient is usually well-informed
-              already and what they need is a clinician who will read the chart
-              and answer the actual question. Pricing is per-condition and
-              starts here.
+              already and what they need is a clinician who will review their
+              intake and answer the actual question. Pricing is per-condition
+              and starts here.
             </p>
           </div>
         </header>

@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-025",
+    "T-026",
+    "T-078"
+  ],
+  "completedDate": "2026-06-23",
+  "createdDate": "2026-06-23",
+  "description": "Add a production-readiness smoke plan for the post-unlock Stripe subscription activation path introduced by T-025.\n\n**Scope**\n- Document required launch configuration for `STRIPE_RECURRING_PRICE_ID`, Stripe webhook secrets, and stage-specific test/live mode separation.\n- Provide a Stripe test-mode smoke path that starts from payment-method readiness, applies the selected MDI billing unlock event, creates exactly one subscription, and mirrors billing status/current-period timestamps locally.\n- Verify Stripe metadata and descriptors remain opaque and free of condition, medication, diagnosis, symptom, questionnaire answer, clinician note, MDI workflow URL/token, or patient health context.\n- Cover expected operator checks for duplicate unlock events, missing/invalid price configuration, late Stripe webhooks, and compensating cancellation after clinical closure.\n- Keep any smoke fixture payloads synthetic and PHI-free.\n\n**Acceptance**\n- Runbook steps let an operator verify subscription activation in Stripe test mode without touching live patient data.\n- Smoke evidence records show one subscription creation and no duplicate activation on replay.\n- Missing or invalid billing configuration fails closed with patient-safe behavior and actionable operator diagnostics.\n- Metadata assertions or inspection steps prove Stripe-controlled fields contain only opaque Apoth/Stripe IDs.",
+  "id": "T-101",
+  "order": 55,
+  "phase": "payments",
+  "status": "complete",
+  "title": "Billing activation production smoke/runbook",
+  "type": "task"
+}

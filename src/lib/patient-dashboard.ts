@@ -39,6 +39,8 @@ export type DashboardActionCode =
 
 export type DashboardBillingCode =
   | "billing_active"
+  | "billing_cancel_pending"
+  | "billing_canceled"
   | "billing_issue"
   | "billing_payment_method_needed"
   | "billing_pending_approval"
@@ -90,6 +92,7 @@ export type DashboardAction = {
 };
 
 export type DashboardBilling = {
+  canCancel: boolean;
   code: DashboardBillingCode;
   label: string;
   summary: string;
@@ -174,6 +177,7 @@ export async function loadPatientDashboard(
       actions: dashboardActionsFromEvidence(events.value),
       billing: mapBillingStatus({
         billingStatus: stripe.value?.billingStatus,
+        currentPeriodEnd: stripe.value?.stripeCurrentPeriodEnd,
         unlocked: isBillingUnlocked(caseStatus.code, profile.value?.onboardingStatus),
       }),
       care: mapCareActions(Boolean(mdi.value?.mdiCaseId)),
@@ -207,6 +211,7 @@ export function createUnavailablePatientDashboard(
       },
     ],
     billing: {
+      canCancel: false,
       code: "billing_unavailable",
       label: "Billing unavailable",
       summary: "Billing status could not be loaded yet.",
@@ -394,12 +399,15 @@ function caseStatusCode(input: {
 
 function mapBillingStatus(input: {
   billingStatus?: BillingStatus;
+  currentPeriodEnd?: string;
   unlocked: boolean;
 }): DashboardBilling {
   const code = billingCode(input);
   return {
+    canCancel: code === "billing_active",
     code,
-    ...billingCopy[code],
+    label: billingCopy[code].label,
+    summary: billingSummary(code, input.currentPeriodEnd),
   };
 }
 
@@ -410,11 +418,14 @@ function billingCode(input: {
   switch (input.billingStatus) {
     case "active":
       return input.unlocked ? "billing_active" : "billing_pending_approval";
+    case "cancel_pending":
+      return "billing_cancel_pending";
     case "payment_method_collected":
       return input.unlocked ? "billing_pending_approval" : "billing_pending_approval";
     case "past_due":
-    case "canceled":
       return "billing_issue";
+    case "canceled":
+      return "billing_canceled";
     case "not_started":
     case "payment_method_pending":
       return "billing_payment_method_needed";
@@ -628,6 +639,14 @@ const billingCopy = {
     label: "Billing active",
     summary: "Billing is active for this account.",
   },
+  billing_cancel_pending: {
+    label: "Cancellation scheduled",
+    summary: "Your subscription is set to end at the close of the current billing cycle.",
+  },
+  billing_canceled: {
+    label: "Billing canceled",
+    summary: "This subscription has been canceled. Contact support for account and billing questions.",
+  },
   billing_issue: {
     label: "Billing issue",
     summary: "Billing needs attention. No clinical details are shown here.",
@@ -645,3 +664,26 @@ const billingCopy = {
     summary: "Billing status could not be loaded right now.",
   },
 } satisfies Record<DashboardBillingCode, { label: string; summary: string }>;
+
+function billingSummary(code: DashboardBillingCode, currentPeriodEnd?: string) {
+  if (code === "billing_cancel_pending" && currentPeriodEnd) {
+    const date = formatBillingDate(currentPeriodEnd);
+    if (date) {
+      return `Your subscription is set to end at the close of the current billing cycle on ${date}.`;
+    }
+  }
+  return billingCopy[code].summary;
+}
+
+function formatBillingDate(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return null;
+  }
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(date);
+}

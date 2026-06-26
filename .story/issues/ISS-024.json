@@ -7,10 +7,14 @@
   "impact": "A fresh intake path still needs MDI patient/case creation and linkage before questionnaire load; that work is already tracked by T-055/T-056 and T-022 now consumes existing server-owned linkage.",
   "location": [],
   "phase": null,
-  "relatedTickets": [],
-  "resolution": null,
-  "resolvedDate": null,
+  "relatedTickets": [
+    "T-022",
+    "T-055",
+    "T-056"
+  ],
+  "resolution": "Resolved as stale tracker state. T-055 completed MDI patient creation and DynamoDB linkage, T-056 completed MDI case creation and questionnaire submission without local answer retention, and T-022 now consumes server-owned MDI linkage for the intake UI.",
+  "resolvedDate": "2026-06-23",
   "severity": "medium",
-  "status": "open",
+  "status": "resolved",
   "title": "[scope] A fresh intake path still needs MDI patient/case creation and linkage before que"
 }

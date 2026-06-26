@@ -209,6 +209,46 @@ describe("MDI workflow URL helpers", () => {
     });
   });
 
+  it("records unavailable fallback for MDI maintenance without storing workflow URLs", async () => {
+    const repository = seededRepository();
+    const gateway = createGateway({
+      getMessagingWorkflowUrl: vi.fn(async () => ({
+        ok: false as const,
+        error: {
+          code: "maintenance" as const,
+          message: "MDI maintenance",
+          retryAfterSeconds: 300,
+          retryable: true,
+          status: 418,
+        },
+      })),
+    });
+
+    const result = await requestMdiWorkflowUrl(
+      repository,
+      { cognitoSub, workflow: "messaging" },
+      { gateway, now, requestId: "req_workflow_maintenance_001" },
+    );
+
+    expect(result).toEqual({ ok: false, fallback: "unavailable", workflow: "messaging" });
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub });
+    expect(evidence).toMatchObject({
+      ok: true,
+      value: {
+        items: [
+          expect.objectContaining({
+            eventType: "mdi_workflow_url_requested",
+            metadata: { outcome: "unavailable", workflow: "messaging" },
+            status: "skipped",
+          }),
+        ],
+      },
+    });
+    expect(JSON.stringify(evidence)).not.toContain("https://mdi.example.test");
+    expect(JSON.stringify(evidence)).not.toContain("secret_");
+    expect(JSON.stringify(evidence)).not.toContain("ANSWER_VALUE_SENTINEL");
+  });
+
   it("enforces runtime allowlists before provider side effects", async () => {
     const repository = seededRepository();
     const gateway = createGateway();

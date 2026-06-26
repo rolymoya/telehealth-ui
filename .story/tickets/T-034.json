@@ -1,12 +1,12 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "completedDate": "2026-06-23",
   "createdDate": "2026-05-18",
   "description": "Add app/robots.ts, app/sitemap.ts, favicon, and an Open Graph image. The public/ directory is currently empty — a LegitScript-reviewed healthcare site needs crawlability and brand metadata controls.",
   "id": "T-034",
   "order": 10,
   "phase": "deploy",
-  "status": "open",
+  "status": "complete",
   "title": "SEO & metadata assets (robots, sitemap, favicon, OG)",
   "type": "chore"
 }

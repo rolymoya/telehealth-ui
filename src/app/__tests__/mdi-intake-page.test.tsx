@@ -57,8 +57,20 @@ describe("MDI intake page", () => {
     const firstOption = questionnaire.questions[0].options?.[0];
     expect(firstOption).toBeDefined();
     expect(JSON.parse(String(submitCall?.[1]?.body))).toEqual({
-      caseId: questionnaire.caseId,
-      patientId: questionnaire.patientId,
+      casePayload: {
+        case_questions: [
+          {
+            answer: firstOption?.label,
+            question: questionnaire.questions[0].text,
+            type: questionnaire.questions[0].controlType,
+          },
+          {
+            answer: "ANSWER_VALUE_SENTINEL",
+            question: questionnaire.questions[1].text,
+            type: questionnaire.questions[1].controlType,
+          },
+        ],
+      },
       questionnaireId: questionnaire.questionnaireId,
       responses: [
         {
@@ -140,6 +152,20 @@ describe("MDI intake page", () => {
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith("/intake");
     });
+  });
+
+  it("shows patient-safe unavailable copy when MDI is in maintenance", async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ code: "provider_unavailable" }, { status: 503 })
+    );
+
+    render(<MdiIntakeClient fetchImpl={fetchMock as typeof fetch} />);
+
+    expect(await screen.findByText(/MDI workflow is temporarily unavailable/i))
+      .toBeInTheDocument();
+    expect(screen.getByText(/No questionnaire answers were saved by this page/i))
+      .toBeInTheDocument();
+    expect(screen.queryByText("ANSWER_VALUE_SENTINEL")).not.toBeInTheDocument();
   });
 });
 
