@@ -25,7 +25,7 @@ const protectedRoutes = [
   { path: "/dashboard", heading: "Dashboard", body: "Review account workflow status" },
   { path: "/billing", heading: "Billing", body: "Complete billing setup" },
   { path: "/intake", heading: "Intake", body: "submits responses to the clinical system of record" },
-  { path: "/onboarding/consent", heading: "Consent", body: "Review required platform consents" },
+  { path: "/onboarding/consent", heading: "Review telehealth and platform terms.", body: "Review telehealth consent" },
   { path: "/onboarding/mdi", heading: "Care workflow", body: "MDI-backed workflow" },
 ];
 

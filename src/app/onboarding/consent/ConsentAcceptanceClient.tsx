@@ -9,47 +9,29 @@ import {
 import { postConsentAcceptance } from "@/lib/consent-api-client";
 
 export function ConsentAcceptanceClient({
-  emptyMedicationGate = false,
-  gate,
-  requiredConsents,
+  medicationConsents,
+  preMdiConsents,
 }: {
-  emptyMedicationGate?: boolean;
-  gate: "pre_mdi" | "post_questionnaire_medication";
-  requiredConsents: readonly RequiredConsentDocument[];
+  medicationConsents: readonly RequiredConsentDocument[];
+  preMdiConsents: readonly RequiredConsentDocument[];
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [gate, setGate] = useState<"pre_mdi" | "post_questionnaire_medication">("pre_mdi");
   const [loading, setLoading] = useState(false);
+  const requiredConsents = gate === "post_questionnaire_medication"
+    ? medicationConsents
+    : preMdiConsents;
+  const copy = consentPageCopy(gate);
 
   useEffect(() => {
     const params = new URLSearchParams(globalThis.location?.search ?? "");
+    setGate(params.get("gate") === "medication"
+      ? "post_questionnaire_medication"
+      : "pre_mdi");
     if (params.get("error") === "acceptance_failed") {
       setError("We could not record consent. Review each acknowledgement and try again.");
     }
   }, []);
-
-  if (emptyMedicationGate) {
-    return (
-      <section
-        className="mt-10 max-w-3xl border border-ash-line bg-cream-warm p-5 sm:p-7"
-        aria-live="polite"
-      >
-        <p className="text-eyebrow uppercase text-ash">Medication disclosure</p>
-        <h2 className="mt-3 text-[1.35rem] font-semibold text-ink">
-          Finish the clinical intake first.
-        </h2>
-        <p className="mt-3 text-[1rem] text-ink/72">
-          Medication disclosures appear only after the MDI questionnaire is
-          submitted and only when they apply to the selected treatment.
-        </p>
-        <Link
-          className="mt-6 inline-flex rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors hover:bg-clay"
-          href="/onboarding/mdi"
-        >
-          Continue clinical intake
-        </Link>
-      </section>
-    );
-  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -97,6 +79,16 @@ export function ConsentAcceptanceClient({
 
   return (
     <>
+      <div className="max-w-3xl">
+        <p className="text-eyebrow uppercase text-ash">Onboarding</p>
+        <h1 className="display-serif mt-4 text-display-md font-light text-balance">
+          {copy.heading}
+        </h1>
+        <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
+          {copy.body}
+        </p>
+      </div>
+
       {error ? (
         <p
           className="mt-8 max-w-3xl border border-clay-deep px-4 py-3 text-[1rem] text-clay-deep"
@@ -181,4 +173,16 @@ async function readJsonBody(response: Response): Promise<Record<string, unknown>
   } catch {
     return {};
   }
+}
+
+function consentPageCopy(gate: "pre_mdi" | "post_questionnaire_medication") {
+  return gate === "post_questionnaire_medication"
+    ? {
+        heading: "Review medication disclosure.",
+        body: "If your treatment path includes a medication-specific disclosure, Apoth asks for it after your MDI questionnaire is submitted and before billing or prescribing can continue.",
+      }
+    : {
+        heading: "Review telehealth and platform terms.",
+        body: "You have already acknowledged the privacy notice. Review telehealth consent and Apoth platform terms before the MDI questionnaire opens.",
+      };
 }

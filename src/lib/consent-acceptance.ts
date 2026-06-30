@@ -1,6 +1,6 @@
 import "server-only";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import {
   getServerSession,
   resolveCognitoAuthConfig,
@@ -28,10 +28,6 @@ import type {
   ConsentEvidenceRecord,
   TransactWriteOperation,
 } from "@/lib/dynamodb/app-data";
-import {
-  allowsE2eProtectedRouteBypass,
-  e2eAuthHeaderName,
-} from "@/lib/e2e-auth";
 import {
   consentEvidenceKey,
   createConsentEvidenceRecord,
@@ -196,17 +192,6 @@ export async function resolveConsentDocumentsForDisplay(input: {
     ? await readAccessCookie()
     : input.token;
   if (!token) {
-    if (await allowsE2eMedicationDisplayBypass(gate)) {
-      return {
-        ok: true,
-        value: {
-          gate,
-          requiredConsents: requiredMedicationDisclosureConsents({
-            treatment: "weight",
-          }),
-        },
-      };
-    }
     return {
       ok: true,
       value: { gate, requiredConsents: [] },
@@ -243,15 +228,6 @@ export async function resolveConsentDocumentsForDisplay(input: {
       requiredConsents: resolved.value.requiredConsents,
     },
   };
-}
-
-async function allowsE2eMedicationDisplayBypass(gate: ConsentAcceptanceGate) {
-  if (gate !== "post_questionnaire_medication") {
-    return false;
-  }
-
-  const headerValue = (await headers()).get(e2eAuthHeaderName);
-  return allowsE2eProtectedRouteBypass({ headerValue });
 }
 
 async function resolveConsentAcceptanceGate(
