@@ -643,12 +643,16 @@ exports.handler = async () => ({
         depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
         timeout: Duration.seconds(10),
         bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
           minify: true,
           sourceMap: false,
         },
         environment: {
           APP_TABLE_NAME: appTable.tableName,
           APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_SECRET_APP_SIGNING_ID: secretName(props.config.stage, "appSigning"),
           APOTH_STAGE: props.config.stage,
           COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
           COGNITO_USER_POOL_ID: userPool.userPoolId,
@@ -662,6 +666,36 @@ exports.handler = async () => ({
     );
     appTable.grant(intakeBootstrapFunction, "dynamodb:GetItem");
 
+    const intakePrivacyNoticeFunction = new NodejsFunction(
+      this,
+      "IntakePrivacyNoticeFunction",
+      {
+        functionName: `apoth-${props.config.stage}-intake-privacy-notice`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "privacyNoticeHandler",
+        entry: path.join(__dirname, "lambda", "intake.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_SECRET_APP_SIGNING_ID: secretName(props.config.stage, "appSigning"),
+          APOTH_STAGE: props.config.stage,
+        },
+        logGroup: new LogGroup(this, "IntakePrivacyNoticeFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-intake-privacy-notice`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+
     const intakePrecheckFunction = new NodejsFunction(
       this,
       "IntakePrecheckFunction",
@@ -673,12 +707,16 @@ exports.handler = async () => ({
         depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
         timeout: Duration.seconds(10),
         bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
           minify: true,
           sourceMap: false,
         },
         environment: {
           APP_TABLE_NAME: appTable.tableName,
           APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_SECRET_APP_SIGNING_ID: secretName(props.config.stage, "appSigning"),
           APOTH_STAGE: props.config.stage,
           COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
           COGNITO_USER_POOL_ID: userPool.userPoolId,
@@ -696,6 +734,22 @@ exports.handler = async () => ({
       "dynamodb:PutItem",
       "dynamodb:UpdateItem",
     );
+    for (const fn of [
+      intakeBootstrapFunction,
+      intakePrivacyNoticeFunction,
+      intakePrecheckFunction,
+    ]) {
+      fn.addToRolePolicy(new PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          this.formatArn({
+            service: "secretsmanager",
+            resource: "secret",
+            resourceName: `${secretName(props.config.stage, "appSigning")}*`,
+          }),
+        ],
+      }));
+    }
 
     api.addRoutes({
       path: "/api/intake/bootstrap",
@@ -703,6 +757,15 @@ exports.handler = async () => ({
       integration: new HttpLambdaIntegration(
         "IntakeBootstrapIntegration",
         intakeBootstrapFunction,
+      ),
+    });
+
+    api.addRoutes({
+      path: "/api/intake/privacy-notice",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "IntakePrivacyNoticeIntegration",
+        intakePrivacyNoticeFunction,
       ),
     });
 
@@ -1106,6 +1169,7 @@ function handler(event) {
     ].join(",");
     for (const fn of [
       intakeBootstrapFunction,
+      intakePrivacyNoticeFunction,
       intakePrecheckFunction,
       mdiIntakeBootstrapFunction,
       mdiIntakeSubmitFunction,

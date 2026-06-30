@@ -46,7 +46,7 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
     template.resourceCountIs("AWS::DynamoDB::Table", 1);
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 14);
+    template.resourceCountIs("AWS::Lambda::Function", 15);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
@@ -98,6 +98,11 @@ describe("ServerlessPlatformStack", () => {
 
     template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
       RouteKey: "GET /api/intake/bootstrap",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "POST /api/intake/privacy-notice",
       AuthorizationType: "NONE",
     });
 
@@ -158,6 +163,7 @@ describe("ServerlessPlatformStack", () => {
           Variables: {
             APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
             APOTH_ALLOWED_ORIGINS: Match.anyValue(),
+            APOTH_SECRET_APP_SIGNING_ID: "/apoth/staging/app/signing",
             APOTH_STAGE: "staging",
             APP_TABLE_NAME: Match.anyValue(),
             COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
@@ -167,12 +173,29 @@ describe("ServerlessPlatformStack", () => {
       });
     }
 
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-intake-privacy-notice",
+      Handler: "index.privacyNoticeHandler",
+      Runtime: "nodejs20.x",
+      Timeout: 10,
+      Environment: {
+        Variables: {
+          APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
+          APOTH_ALLOWED_ORIGINS: Match.anyValue(),
+          APOTH_SECRET_APP_SIGNING_ID: "/apoth/staging/app/signing",
+          APOTH_STAGE: "staging",
+        },
+      },
+    });
+
     const policies = JSON.stringify(
       Object.values(template.findResources("AWS::IAM::Policy")),
     );
     expect(policies).toContain("dynamodb:GetItem");
     expect(policies).toContain("dynamodb:PutItem");
     expect(policies).toContain("dynamodb:UpdateItem");
+    expect(policies).toContain("secretsmanager:GetSecretValue");
+    expect(policies).toContain("/apoth/staging/app/signing");
     expect(policies).not.toContain("dynamodb:DeleteItem");
   });
 

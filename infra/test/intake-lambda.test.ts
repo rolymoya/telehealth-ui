@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  consentAcknowledgementFieldName,
+  requiredConsentsForPrecheck,
+} from "../../shared/consents";
+import { anonymousPrecheckContextCookieName } from "../../shared/intake/anonymous-precheck-context";
 
 const sendMock = vi.hoisted(() => vi.fn());
 const verifyMock = vi.hoisted(() => vi.fn());
@@ -43,9 +48,64 @@ describe("intake lambda handlers", () => {
     process.env.APP_TABLE_NAME = "apoth-staging-app";
     process.env.APOTH_ALLOWED_ORIGIN = "http://localhost:3000";
     process.env.APOTH_ALLOWED_ORIGINS = "http://localhost:3000,https://static.example.cloudfront.net";
+    process.env.APOTH_ALLOW_ENV_SECRET_PAYLOADS = "true";
+    process.env.APOTH_REQUIRED_SERVER_SECRETS = "appSigning";
+    process.env.APOTH_SECRET_APP_SIGNING_JSON = JSON.stringify({
+      apothStage: "staging",
+      schemaVersion: 1,
+      secretKind: "appSigning",
+      signingSecret: "lambda-intake-signing-secret",
+    });
+    process.env.APOTH_STAGE = "staging";
     process.env.COGNITO_USER_POOL_CLIENT_ID = "client123456789012";
     process.env.COGNITO_USER_POOL_ID = "us-east-1_abc123";
     verifyMock.mockResolvedValue({ sub: "cognito-sub-intake-lambda" });
+  });
+
+  it("mints a privacy notice gate cookie without DynamoDB access", async () => {
+    const { privacyNoticeHandler } = await import("../src/lambda/intake.js");
+
+    const response = await privacyNoticeHandler(event({
+      body: JSON.stringify({
+        acknowledgements: currentPrivacyNoticeAcknowledgements(),
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+      },
+      omitDefaultCookie: true,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      status: "privacy_notice_accepted",
+    });
+    expect(response.cookies?.[0]).toContain("__Host-apoth_privacy_notice=");
+    expect(response.cookies?.[0]).toContain("HttpOnly");
+    expect(response.cookies?.[0]).toContain("Secure");
+    expect(response.cookies?.[0]).toContain("SameSite=Lax");
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects stale privacy notice acknowledgement without setting cookies", async () => {
+    const { privacyNoticeHandler } = await import("../src/lambda/intake.js");
+
+    const response = await privacyNoticeHandler(event({
+      body: JSON.stringify({
+        acknowledgements: {
+          "consent:privacy_notice:old-version": "accepted",
+        },
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+      },
+      omitDefaultCookie: true,
+    }));
+
+    expect(response.statusCode).toBe(400);
+    expect(response.cookies).toBeUndefined();
+    expect(sendMock).not.toHaveBeenCalled();
   });
 
   it("bootstrap verifies cookie and consent, performs no writes, and returns csrf tokens", async () => {
@@ -149,7 +209,7 @@ describe("intake lambda handlers", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it("precheck returns 401 for missing sessions before DynamoDB writes", async () => {
+  it("anonymous precheck requires privacy evidence before DynamoDB writes", async () => {
     const { precheckHandler } = await import("../src/lambda/intake.js");
 
     await expect(precheckHandler(event({
@@ -167,8 +227,64 @@ describe("intake lambda handlers", () => {
       },
       omitDefaultCookie: true,
     }))).resolves.toMatchObject({
+      statusCode: 403,
+    });
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("precheck does not downgrade invalid authenticated cookies to anonymous mode", async () => {
+    const { precheckHandler } = await import("../src/lambda/intake.js");
+    verifyMock.mockRejectedValueOnce(new Error("invalid"));
+
+    await expect(precheckHandler(event({
+      body: JSON.stringify({
+        age: "34",
+        blockingContraindication: "no",
+        emergencySymptoms: "no",
+        offering: "weight",
+        state: "IL",
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "x-apoth-csrf": csrfFor("intake-precheck", "valid-token"),
+      },
+    }))).resolves.toMatchObject({
       statusCode: 401,
     });
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it("anonymous precheck writes only the short-lived context cookie", async () => {
+    const { precheckHandler } = await import("../src/lambda/intake.js");
+    const privacyCookie = await mintPrivacyNoticeCookie();
+
+    const response = await precheckHandler(event({
+      body: JSON.stringify({
+        age: "34",
+        blockingContraindication: "no",
+        emergencySymptoms: "no",
+        offering: "weight",
+        state: " il ",
+      }),
+      headers: {
+        cookie: privacyCookie,
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "x-apoth-csrf": csrfFor("intake-precheck", privacyCookieValue(privacyCookie)),
+      },
+      omitDefaultCookie: true,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      status: "ready_for_account_creation",
+    });
+    expect(response.body).not.toMatch(/weight|34|emergency|contraindication/i);
+    expect(response.cookies?.[0]).toContain(`${anonymousPrecheckContextCookieName}=`);
+    expect(response.cookies?.[0]).toContain("HttpOnly");
+    expect(response.cookies?.[0]).toContain("Secure");
+    expect(response.cookies?.[0]).toContain("Max-Age=1800");
     expect(sendMock).not.toHaveBeenCalled();
   });
 
@@ -435,6 +551,42 @@ function csrfFor(scope: "intake-precheck" | "mdi-patient", token: string) {
   return createHash("sha256")
     .update(`${scope}:${token}`)
     .digest("base64url");
+}
+
+function currentPrivacyNoticeAcknowledgements() {
+  const privacyNotice = requiredConsentsForPrecheck().find((consent) =>
+    consent.consentKind === "privacy_notice"
+  );
+  if (!privacyNotice) {
+    throw new Error("Expected privacy notice consent");
+  }
+  return {
+    [consentAcknowledgementFieldName(privacyNotice)]: "accepted",
+  };
+}
+
+async function mintPrivacyNoticeCookie() {
+  const { privacyNoticeHandler } = await import("../src/lambda/intake.js");
+  const response = await privacyNoticeHandler(event({
+    body: JSON.stringify({
+      acknowledgements: currentPrivacyNoticeAcknowledgements(),
+    }),
+    headers: {
+      "content-type": "application/json",
+      origin: "http://localhost:3000",
+    },
+    omitDefaultCookie: true,
+  }));
+  const cookie = response.cookies?.[0];
+  if (!cookie) {
+    throw new Error("Expected privacy notice cookie");
+  }
+  return cookie.split(";")[0];
+}
+
+function privacyCookieValue(cookie: string) {
+  const [, value] = cookie.split("=");
+  return decodeURIComponent(value ?? "");
 }
 
 function namedError(name: string) {

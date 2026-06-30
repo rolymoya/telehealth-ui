@@ -57,6 +57,13 @@ export function readPatientRouteToken(request: NextRequest) {
   return request.cookies.get(patientAccessCookieName)?.value ?? "";
 }
 
+export function hasPatientRouteCookie(request: NextRequest) {
+  return request.cookies.has(patientAccessCookieName) ||
+    (request.headers.get("cookie") ?? "").split(";").some((part) =>
+      part.trim().startsWith(`${patientAccessCookieName}=`)
+    );
+}
+
 export function resolveAppDataRepository(
   env: Record<string, string | undefined> = process.env,
 ): RouteResult<DynamoDbAppDataRepository> {
@@ -115,10 +122,15 @@ export function csrfTokenFor(scope: string, token: string) {
     .digest("base64url");
 }
 
-export function noStoreJson(body: Record<string, unknown>, status = 200) {
+export function noStoreJson(
+  body: Record<string, unknown>,
+  status = 200,
+  headers: Record<string, string> = {},
+) {
   return NextResponse.json(body, {
     headers: {
       "Cache-Control": "no-store, private",
+      ...headers,
     },
     status,
   });
@@ -147,7 +159,7 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isJsonRequest(request: NextRequest) {
+export function isJsonRequest(request: NextRequest) {
   return /^application\/json(?:;|$)/i.test(request.headers.get("content-type") ?? "");
 }
 

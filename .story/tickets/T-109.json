@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-108"
+  ],
+  "claimedBySession": "33f55611-0b07-47e0-9ba3-7c28653bd769",
+  "completedDate": "2026-06-29",
+  "createdDate": "2026-06-29",
+  "description": "Allow /intake precheck to run before Cognito account creation after the user accepts the minimum privacy notice. Create a short-lived signed server-readable context/cookie containing only precheck outcome, residency state, selected treatment, privacy notice version, issued-at/expiry, and nonce. Do not persist anonymous precheck records in DynamoDB, localStorage, sessionStorage, logs, Stripe, or URLs. Update Next route and serverless Lambda mirrors for anonymous bootstrap/precheck while preserving the authenticated path.",
+  "id": "T-109",
+  "order": 90,
+  "parentTicket": "T-107",
+  "phase": "intake-flow",
+  "status": "complete",
+  "title": "Implement anonymous precheck context token",
+  "type": "feature"
+}

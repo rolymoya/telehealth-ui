@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  consentAcknowledgementFieldName,
+  requiredConsentsForPrecheck,
+} from "@/lib/consents";
+import { anonymousPrecheckContextCookieName } from "../../../../../shared/intake/anonymous-precheck-context";
 
 const mocks = vi.hoisted(() => ({
   acceptCurrentConsents: vi.fn(),
@@ -86,6 +91,15 @@ describe("intake and onboarding API route boundary", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    process.env.APOTH_ALLOW_ENV_SECRET_PAYLOADS = "true";
+    process.env.APOTH_REQUIRED_SERVER_SECRETS = "appSigning";
+    process.env.APOTH_SECRET_APP_SIGNING_JSON = JSON.stringify({
+      apothStage: "staging",
+      schemaVersion: 1,
+      secretKind: "appSigning",
+      signingSecret: "route-boundary-signing-secret",
+    });
+    process.env.APOTH_STAGE = "staging";
     mocks.resolveCognitoAuthConfig.mockReturnValue({
       ok: true,
       value: { issuer: "https://cognito.example", userPoolClientId: "client", userPoolId: "pool" },
@@ -193,6 +207,188 @@ describe("intake and onboarding API route boundary", () => {
       repository: { kind: "repo" },
       token: "valid-token",
     }));
+  });
+
+  it("mints a privacy notice gate cookie without app-data side effects", async () => {
+    const { POST } = await import("../../intake/privacy-notice/route");
+
+    const response = await POST(request("https://apoth.test/api/intake/privacy-notice", {
+      body: {
+        acknowledgements: currentPrivacyNoticeAcknowledgements(),
+      },
+      method: "POST",
+      origin: "https://apoth.test",
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      status: "privacy_notice_accepted",
+    });
+    const cookie = response.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain("__Host-apoth_privacy_notice=");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("Secure");
+    expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("Path=/");
+    expect(cookie).toContain("Max-Age=1800");
+    expect(mocks.createDynamoDbAppDataRepository).not.toHaveBeenCalled();
+    expect(mocks.getServerSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid privacy notice minting without setting a cookie", async () => {
+    const { POST } = await import("../../intake/privacy-notice/route");
+
+    for (const body of [
+      {},
+      { acknowledgements: { stale: "accepted" } },
+      { acknowledgements: { nested: { value: "accepted" } } },
+    ]) {
+      const response = await POST(request("https://apoth.test/api/intake/privacy-notice", {
+        body,
+        method: "POST",
+        origin: "https://apoth.test",
+      }));
+
+      expect(response.status).toBe(400);
+      expect(response.headers.get("set-cookie")).toBeNull();
+    }
+  });
+
+  it("bootstraps anonymous precheck after privacy notice without DynamoDB access", async () => {
+    const privacyCookie = await mintPrivacyNoticeCookie();
+    const { GET } = await import("../../intake/bootstrap/route");
+
+    const response = await GET(request("https://apoth.test/api/intake/bootstrap", {
+      cookie: privacyCookie,
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      csrfToken: csrfFor("intake-precheck", privacyCookieValue(privacyCookie)),
+      status: "ready_for_anonymous_precheck",
+    });
+    expect(mocks.createDynamoDbAppDataRepository).not.toHaveBeenCalled();
+    expect(mocks.getServerSession).not.toHaveBeenCalled();
+  });
+
+  it("does not downgrade invalid authenticated intake bootstrap cookies", async () => {
+    mocks.getServerSession.mockResolvedValueOnce({ ok: false });
+    const { GET } = await import("../../intake/bootstrap/route");
+
+    const response = await GET(request("https://apoth.test/api/intake/bootstrap", {
+      cookie: true,
+    }));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({
+      error: "authentication_required",
+    });
+  });
+
+  it("does not downgrade empty or malformed authenticated bootstrap cookies", async () => {
+    const privacyCookie = await mintPrivacyNoticeCookie();
+    const { GET } = await import("../../intake/bootstrap/route");
+
+    for (const authCookie of ["apoth_patient_access=", "apoth_patient_access=%E0%A4%A"]) {
+      mocks.getServerSession.mockResolvedValueOnce({ ok: false });
+      const response = await GET(request("https://apoth.test/api/intake/bootstrap", {
+        cookie: `${authCookie}; ${privacyCookie}`,
+      }));
+
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toEqual({
+        error: "authentication_required",
+      });
+    }
+  });
+
+  it("rejects tampered anonymous privacy evidence before precheck storage", async () => {
+    const privacyCookie = await mintPrivacyNoticeCookie();
+    const tampered = `${privacyCookie}x`;
+    const { POST } = await import("../../intake/precheck/route");
+
+    const response = await POST(request("https://apoth.test/api/intake/precheck", {
+      body: {
+        age: "34",
+        blockingContraindication: "no",
+        emergencySymptoms: "no",
+        offering: "weight",
+        state: "IL",
+      },
+      cookie: tampered,
+      csrf: csrfFor("intake-precheck", privacyCookieValue(privacyCookie)),
+      method: "POST",
+      origin: "https://apoth.test",
+    }));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "privacy_notice_required",
+    });
+    expect(mocks.completeIntakePrecheckProfileDynamoDb).not.toHaveBeenCalled();
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("stores anonymous precheck only in a short-lived httpOnly cookie", async () => {
+    const privacyCookie = await mintPrivacyNoticeCookie();
+    const { POST } = await import("../../intake/precheck/route");
+
+    const response = await POST(request("https://apoth.test/api/intake/precheck", {
+      body: {
+        age: "34",
+        blockingContraindication: "no",
+        emergencySymptoms: "no",
+        offering: "weight",
+        state: "IL",
+      },
+      cookie: privacyCookie,
+      csrf: csrfFor("intake-precheck", privacyCookieValue(privacyCookie)),
+      method: "POST",
+      origin: "https://apoth.test",
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({ status: "ready_for_account_creation" });
+    expect(JSON.stringify(body)).not.toMatch(/weight|34|emergency|contraindication/i);
+    const cookie = response.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain(`${anonymousPrecheckContextCookieName}=`);
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("Secure");
+    expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("Max-Age=1800");
+    expect(mocks.completeIntakePrecheckProfileDynamoDb).not.toHaveBeenCalled();
+    expect(mocks.createDynamoDbAppDataRepository).not.toHaveBeenCalled();
+  });
+
+  it("does not downgrade empty or malformed authenticated precheck cookies", async () => {
+    const privacyCookie = await mintPrivacyNoticeCookie();
+    const { POST } = await import("../../intake/precheck/route");
+
+    for (const authCookie of ["apoth_patient_access=", "apoth_patient_access=%E0%A4%A"]) {
+      mocks.getServerSession.mockResolvedValueOnce({ ok: false });
+      const response = await POST(request("https://apoth.test/api/intake/precheck", {
+        body: {
+          age: "34",
+          blockingContraindication: "no",
+          emergencySymptoms: "no",
+          offering: "weight",
+          state: "IL",
+        },
+        cookie: `${authCookie}; ${privacyCookie}`,
+        csrf: csrfFor("intake-precheck", privacyCookieValue(privacyCookie)),
+        method: "POST",
+        origin: "https://apoth.test",
+      }));
+
+      expect(response.status).toBe(401);
+      await expect(response.json()).resolves.toEqual({
+        code: "authentication_required",
+      });
+      expect(response.headers.get("set-cookie")).toBeNull();
+    }
+    expect(mocks.completeIntakePrecheckProfileDynamoDb).not.toHaveBeenCalled();
   });
 
   it("persists only residency and onboarding status after a successful intake precheck", async () => {
@@ -487,17 +683,23 @@ describe("intake and onboarding API route boundary", () => {
 
 function request(url: string, options: {
   body?: unknown;
-  cookie?: boolean;
+  cookie?: boolean | string;
+  csrf?: string;
   csrfScope?: string;
   method?: string;
   origin?: string;
 } = {}) {
   const headers: Record<string, string> = {};
-  if (options.cookie) {
+  if (typeof options.cookie === "string") {
+    headers.cookie = options.cookie;
+  } else if (options.cookie) {
     headers.cookie = "apoth_patient_access=valid-token";
   }
   if (options.origin) {
     headers.origin = options.origin;
+  }
+  if (options.csrf) {
+    headers["x-apoth-csrf"] = options.csrf;
   }
   if (options.csrfScope) {
     headers["x-apoth-csrf"] = csrfFor(options.csrfScope);
@@ -513,8 +715,41 @@ function request(url: string, options: {
   });
 }
 
-function csrfFor(scope: string) {
+function csrfFor(scope: string, token = "valid-token") {
   return createHash("sha256")
-    .update(`${scope}:valid-token`)
+    .update(`${scope}:${token}`)
     .digest("base64url");
+}
+
+function currentPrivacyNoticeAcknowledgements() {
+  const privacyNotice = requiredConsentsForPrecheck().find((consent) =>
+    consent.consentKind === "privacy_notice"
+  );
+  if (!privacyNotice) {
+    throw new Error("Expected privacy notice consent");
+  }
+  return {
+    [consentAcknowledgementFieldName(privacyNotice)]: "accepted",
+  };
+}
+
+async function mintPrivacyNoticeCookie() {
+  const { POST } = await import("../../intake/privacy-notice/route");
+  const response = await POST(request("https://apoth.test/api/intake/privacy-notice", {
+    body: {
+      acknowledgements: currentPrivacyNoticeAcknowledgements(),
+    },
+    method: "POST",
+    origin: "https://apoth.test",
+  }));
+  const cookie = response.headers.get("set-cookie");
+  if (!cookie) {
+    throw new Error("Expected privacy notice cookie");
+  }
+  return cookie.split(";")[0];
+}
+
+function privacyCookieValue(cookie: string) {
+  const [, value] = cookie.split("=");
+  return decodeURIComponent(value ?? "");
 }

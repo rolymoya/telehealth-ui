@@ -8,6 +8,15 @@ import {
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { requiredConsentsForCurrentOnboarding } from "../../../shared/consents";
 import {
+  anonymousPrecheckContextSetCookieHeader,
+  createAnonymousPrecheckContext,
+  createPrivacyNoticeGateContext,
+  privacyNoticeGateCookieName,
+  privacyNoticeGateSetCookieHeader,
+  verifyPrivacyNoticeGateContext,
+  type AppSigningSecret,
+} from "../../../shared/intake/anonymous-precheck-context";
+import {
   screenIntakePrecheck,
   type IntakePrecheckFailure,
 } from "../../../shared/intake/precheck";
@@ -15,6 +24,11 @@ import {
   parseCookieHeader,
   patientAccessCookieName,
 } from "../../../shared/auth/session-cookie";
+import {
+  resolveRuntimeStage,
+  resolveStartupSecretSource,
+  validateServerStartupSecrets,
+} from "../../../src/lib/secrets/startup.js";
 
 type ApiEvent = {
   body?: string | null;
@@ -30,6 +44,7 @@ type ApiEvent = {
 
 type ApiResponse = {
   body: string;
+  cookies?: string[];
   headers: Record<string, string>;
   statusCode: number;
 };
@@ -50,7 +65,38 @@ type VerifiedSession = {
 
 const ddb = new DynamoDBClient({});
 
+export async function privacyNoticeHandler(event: ApiEvent): Promise<ApiResponse> {
+  if (!isAllowedOrigin(event)) {
+    return json(403, { code: "invalid_origin" });
+  }
+  if (!/^application\/json(?:;|$)/i.test(header(event, "content-type") ?? "")) {
+    return json(415, { code: "invalid_content_type" });
+  }
+
+  const parsed = parseJsonBody(event.body);
+  if (!parsed.ok || !hasCurrentPrivacyNoticeAcknowledgement(parsed.value)) {
+    return json(400, { code: "privacy_notice_required" });
+  }
+
+  const secret = await loadAppSigningSecret();
+  if (!secret.ok) {
+    return json(503, { error: "intake_unavailable" });
+  }
+
+  return json(200, { status: "privacy_notice_accepted" }, {
+    cookies: [
+      privacyNoticeGateSetCookieHeader(
+        createPrivacyNoticeGateContext({ secret: secret.value }),
+      ),
+    ],
+  });
+}
+
 export async function bootstrapHandler(event: ApiEvent): Promise<ApiResponse> {
+  if (!sessionCookieValue(event) && !hasPatientAccessCookie(event)) {
+    return anonymousBootstrap(event);
+  }
+
   const auth = await verifyCookieSession(event);
   if (!auth.ok) {
     return json(401, { code: auth.code });
@@ -81,6 +127,18 @@ export async function bootstrapHandler(event: ApiEvent): Promise<ApiResponse> {
 }
 
 export async function precheckHandler(event: ApiEvent): Promise<ApiResponse> {
+  if (!isAllowedOrigin(event)) {
+    return json(403, { code: "invalid_origin" });
+  }
+
+  if (!/^application\/json(?:;|$)/i.test(header(event, "content-type") ?? "")) {
+    return json(415, { code: "invalid_content_type" });
+  }
+
+  if (!sessionCookieValue(event) && !hasPatientAccessCookie(event)) {
+    return anonymousPrecheck(event);
+  }
+
   const csrf = await verifyCsrf(event);
   if (!csrf.ok) {
     return json(csrf.status, { code: csrf.code });
@@ -123,6 +181,76 @@ export async function precheckHandler(event: ApiEvent): Promise<ApiResponse> {
   });
 }
 
+async function anonymousBootstrap(event: ApiEvent) {
+  const secret = await loadAppSigningSecret();
+  if (!secret.ok) {
+    return json(503, { error: "intake_unavailable" });
+  }
+  const value = parseCookieHeader(cookieHeader(event)).get(privacyNoticeGateCookieName);
+  const privacy = verifyPrivacyNoticeGateContext({
+    secret: secret.value,
+    value,
+  });
+  if (!privacy.ok) {
+    return json(403, {
+      code: "privacy_notice_required",
+      redirect: "/onboarding/consent",
+    });
+  }
+  return json(200, {
+    csrfToken: csrfTokenFor("intake-precheck", value ?? ""),
+    status: "ready_for_anonymous_precheck",
+  });
+}
+
+async function anonymousPrecheck(event: ApiEvent) {
+  const secret = await loadAppSigningSecret();
+  if (!secret.ok) {
+    return json(503, { error: "intake_unavailable" });
+  }
+  const privacyCookie = parseCookieHeader(cookieHeader(event)).get(privacyNoticeGateCookieName);
+  const privacy = verifyPrivacyNoticeGateContext({
+    secret: secret.value,
+    value: privacyCookie,
+  });
+  if (!privacy.ok) {
+    return json(403, {
+      code: "privacy_notice_required",
+      redirect: "/onboarding/consent",
+    });
+  }
+  const csrfHeader = header(event, "x-apoth-csrf");
+  if (!csrfHeader || csrfHeader !== csrfTokenFor("intake-precheck", privacyCookie ?? "")) {
+    return json(403, { code: "invalid_csrf" });
+  }
+
+  const parsed = parseJsonBody(event.body);
+  if (!parsed.ok) {
+    return json(400, { code: "invalid_json" });
+  }
+
+  const precheck = screenIntakePrecheck(parsed.value);
+  if (!precheck.ok) {
+    return json(statusForPrecheckFailure(precheck.error), {
+      code: precheck.error.reason,
+      outcome: precheck.error.outcome,
+    });
+  }
+
+  return json(200, {
+    status: "ready_for_account_creation",
+  }, {
+    cookies: [
+      anonymousPrecheckContextSetCookieHeader(createAnonymousPrecheckContext({
+        privacyNoticeVersion: privacy.payload.privacyNoticeVersion,
+        residencyState: precheck.value.residencyState,
+        secret: secret.value,
+        selectedTreatment: precheck.value.offering,
+      })),
+    ],
+  });
+}
+
 async function verifyCsrf(event: ApiEvent):
   Promise<
     | { ok: true; session: VerifiedSession }
@@ -154,7 +282,7 @@ async function verifyCookieSession(event: ApiEvent):
     | { ok: true; session: VerifiedSession }
     | { ok: false; code: string }
 > {
-  const token = parseCookieHeader(cookieHeader(event)).get(patientAccessCookieName);
+  const token = sessionCookieValue(event);
   if (!token) {
     return { ok: false, code: "missing_session" };
   }
@@ -175,6 +303,40 @@ async function verifyCookieSession(event: ApiEvent):
   } catch {
     return { ok: false, code: "invalid_session" };
   }
+}
+
+async function loadAppSigningSecret(): Promise<
+  | { ok: true; value: AppSigningSecret }
+  | { ok: false }
+> {
+  const source = resolveStartupSecretSource({
+    env: process.env,
+    requiredSecrets: ["appSigning"],
+  });
+  if (!source.ok) {
+    return { ok: false };
+  }
+  const validated = await validateServerStartupSecrets({
+    stage: resolveRuntimeStage(process.env),
+    requiredSecrets: ["appSigning"],
+    source: source.value.source,
+  });
+  if (!validated.ok) {
+    return { ok: false };
+  }
+  const secret = validated.value.find((value) =>
+    value.secretKind === "appSigning"
+  );
+  return secret && secret.secretKind === "appSigning"
+    ? {
+        ok: true,
+        value: {
+          signingSecret: secret.signingSecret,
+          signingSecretPrevious: secret.signingSecretPrevious,
+          signingSecretPreviousExpiresAt: secret.signingSecretPreviousExpiresAt,
+        },
+      }
+    : { ok: false };
 }
 
 function verifier() {
@@ -428,6 +590,24 @@ function consentKey(cognitoSub: string, consentKind: string, version: string) {
   };
 }
 
+function hasCurrentPrivacyNoticeAcknowledgement(body: Record<string, unknown>) {
+  const acknowledgements = body.acknowledgements;
+  if (
+    !acknowledgements ||
+    typeof acknowledgements !== "object" ||
+    Array.isArray(acknowledgements)
+  ) {
+    return false;
+  }
+  const fieldName = `consent:privacy_notice:${
+    requiredConsentsForCurrentOnboarding().find((consent) =>
+      consent.consentKind === "privacy_notice"
+    )?.version ?? ""
+  }`;
+  const value = (acknowledgements as Record<string, unknown>)[fieldName];
+  return value === "accepted" || value === true;
+}
+
 function parseJsonBody(body: string | null | undefined):
   | { ok: true; value: Record<string, unknown> }
   | { ok: false } {
@@ -476,9 +656,24 @@ function cookieHeader(event: ApiEvent) {
   return event.cookies?.join("; ");
 }
 
-function json(statusCode: number, body: Record<string, unknown>): ApiResponse {
+function sessionCookieValue(event: ApiEvent) {
+  return parseCookieHeader(cookieHeader(event)).get(patientAccessCookieName);
+}
+
+function hasPatientAccessCookie(event: ApiEvent) {
+  return (cookieHeader(event) ?? "").split(";").some((part) =>
+    part.trim().startsWith(`${patientAccessCookieName}=`)
+  );
+}
+
+function json(
+  statusCode: number,
+  body: Record<string, unknown>,
+  options: { cookies?: string[] } = {},
+): ApiResponse {
   return {
     body: JSON.stringify(body),
+    ...(options.cookies ? { cookies: options.cookies } : {}),
     headers: {
       "cache-control": "no-store",
       "content-type": "application/json",
