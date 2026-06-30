@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "claimedBySession": "33f55611-0b07-47e0-9ba3-7c28653bd769",
+  "completedDate": "2026-06-29",
+  "createdDate": "2026-06-29",
+  "description": "Umbrella planning ticket for the anonymous-precheck onboarding reorder. Completed by creating and approving the implementation plan in session 33f55611-0b07-47e0-9ba3-7c28653bd769 and decomposing the work into child tickets T-108 through T-113. Target flow: privacy notice before anonymous precheck, sealed/opaque anonymous precheck context, account binding with durable privacy evidence, telehealth/platform consent before MDI, MDI patient/profile questionnaire without answer retention, and treatment-specific medication disclosure before billing/prescribing. The concrete implementation remains tracked by child tickets.",
+  "id": "T-107",
+  "order": 70,
+  "phase": "intake-flow",
+  "status": "complete",
+  "title": "Anonymous precheck onboarding reorder",
+  "type": "feature"
+}
