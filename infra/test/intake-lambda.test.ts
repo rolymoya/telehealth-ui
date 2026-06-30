@@ -48,13 +48,13 @@ describe("intake lambda handlers", () => {
     verifyMock.mockResolvedValue({ sub: "cognito-sub-intake-lambda" });
   });
 
-  it("bootstrap verifies cookie and consent, performs no writes, and returns csrf", async () => {
+  it("bootstrap verifies cookie and consent, performs no writes, and returns csrf tokens", async () => {
     const { bootstrapHandler } = await import("../src/lambda/intake.js");
     sendMock.mockImplementation(async (command) => {
       const input = command.input as {
         Key?: { sk?: { S?: string } };
       };
-      return input.Key?.sk?.S === "PROFILE"
+      return input.Key?.sk?.S === "PROFILE" || input.Key?.sk?.S === "MDI#LINKAGE"
         ? {}
         : { Item: { recordType: { S: "consentEvidence" } } };
     });
@@ -63,11 +63,51 @@ describe("intake lambda handlers", () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toMatchObject({
-      csrfToken: csrfFor("valid-token"),
+      csrfToken: csrfFor("intake-precheck", "valid-token"),
+      mdiPatientCsrfToken: csrfFor("mdi-patient", "valid-token"),
+      mdiPatientLinked: false,
       status: "ready_for_precheck",
     });
     expect(sendMock.mock.calls.every(([command]) => command.kind === "GetItem"))
       .toBe(true);
+  });
+
+  it("bootstrap reports when an MDI patient linkage already exists", async () => {
+    const { bootstrapHandler } = await import("../src/lambda/intake.js");
+    sendMock.mockImplementation(async (command) => {
+      const input = command.input as {
+        Key?: { sk?: { S?: string } };
+      };
+      if (input.Key?.sk?.S === "PROFILE") {
+        return {
+          Item: {
+            onboardingStatus: { S: "intake_ready" },
+            recordType: { S: "patientProfile" },
+            residencyState: { S: "IL" },
+          },
+        };
+      }
+      if (input.Key?.sk?.S === "MDI#LINKAGE") {
+        return {
+          Item: {
+            mdiPatientId: { S: "mdi_patient_123" },
+            recordType: { S: "mdiLinkage" },
+          },
+        };
+      }
+      return { Item: { recordType: { S: "consentEvidence" } } };
+    });
+
+    const response = await bootstrapHandler(event());
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mdiPatientLinked: true,
+      profile: {
+        onboardingStatus: "intake_ready",
+        residencyState: "IL",
+      },
+    });
   });
 
   it("bootstrap accepts HTTP API v2 cookie arrays", async () => {
@@ -76,7 +116,7 @@ describe("intake lambda handlers", () => {
       const input = command.input as {
         Key?: { sk?: { S?: string } };
       };
-      return input.Key?.sk?.S === "PROFILE"
+      return input.Key?.sk?.S === "PROFILE" || input.Key?.sk?.S === "MDI#LINKAGE"
         ? {}
         : { Item: { recordType: { S: "consentEvidence" } } };
     });
@@ -123,7 +163,7 @@ describe("intake lambda handlers", () => {
       headers: {
         "content-type": "application/json",
         origin: "http://localhost:3000",
-        "x-apoth-csrf": csrfFor("valid-token"),
+        "x-apoth-csrf": csrfFor("intake-precheck", "valid-token"),
       },
       omitDefaultCookie: true,
     }))).resolves.toMatchObject({
@@ -160,7 +200,7 @@ describe("intake lambda handlers", () => {
       headers: {
         "content-type": "application/json",
         origin: "http://localhost:3000",
-        "x-apoth-csrf": csrfFor("valid-token"),
+        "x-apoth-csrf": csrfFor("intake-precheck", "valid-token"),
       },
     }));
 
@@ -205,11 +245,14 @@ describe("intake lambda handlers", () => {
       headers: {
         "content-type": "application/json",
         origin: "http://localhost:3000",
-        "x-apoth-csrf": csrfFor("valid-token"),
+        "x-apoth-csrf": csrfFor("intake-precheck", "valid-token"),
       },
     }));
 
     expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mdiPatientCsrfToken: csrfFor("mdi-patient", "valid-token"),
+    });
     const update = sendMock.mock.calls.find(([command]) =>
       command.kind === "UpdateItem"
     )?.[0].input as {
@@ -246,7 +289,7 @@ describe("intake lambda handlers", () => {
       headers: {
         "content-type": "application/json",
         origin: "https://static.example.cloudfront.net",
-        "x-apoth-csrf": csrfFor("valid-token"),
+        "x-apoth-csrf": csrfFor("intake-precheck", "valid-token"),
       },
     }));
 
@@ -287,7 +330,7 @@ describe("intake lambda handlers", () => {
       headers: {
         "content-type": "application/json",
         origin: "http://localhost:3000",
-        "x-apoth-csrf": csrfFor("valid-token"),
+        "x-apoth-csrf": csrfFor("intake-precheck", "valid-token"),
       },
     }));
 
@@ -331,7 +374,7 @@ describe("intake lambda handlers", () => {
       headers: {
         "content-type": "application/json",
         origin: "http://localhost:3000",
-        "x-apoth-csrf": csrfFor("valid-token"),
+        "x-apoth-csrf": csrfFor("intake-precheck", "valid-token"),
       },
     }));
 
@@ -356,7 +399,7 @@ describe("intake lambda handlers", () => {
       headers: {
         "content-type": "application/json",
         origin: "http://localhost:3000",
-        "x-apoth-csrf": csrfFor("valid-token"),
+        "x-apoth-csrf": csrfFor("intake-precheck", "valid-token"),
       },
     }));
 
@@ -388,9 +431,9 @@ function event(overrides: {
   };
 }
 
-function csrfFor(token: string) {
+function csrfFor(scope: "intake-precheck" | "mdi-patient", token: string) {
   return createHash("sha256")
-    .update(`intake-precheck:${token}`)
+    .update(`${scope}:${token}`)
     .digest("base64url");
 }
 

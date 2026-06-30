@@ -39,6 +39,10 @@ type PatientProfile = {
   residencyState?: string;
 };
 
+type MdiLinkage = {
+  mdiPatientId: string;
+};
+
 type VerifiedSession = {
   cognitoSub: string;
   token: string;
@@ -61,8 +65,11 @@ export async function bootstrapHandler(event: ApiEvent): Promise<ApiResponse> {
   }
 
   const profile = await getProfile(auth.session.cognitoSub);
+  const linkage = await getMdiLinkage(auth.session.cognitoSub);
   return json(200, {
-    csrfToken: csrfTokenFor(auth.session.token),
+    csrfToken: csrfTokenFor("intake-precheck", auth.session.token),
+    mdiPatientCsrfToken: csrfTokenFor("mdi-patient", auth.session.token),
+    mdiPatientLinked: Boolean(linkage?.mdiPatientId),
     profile: profile
       ? {
           onboardingStatus: profile.onboardingStatus,
@@ -110,6 +117,7 @@ export async function precheckHandler(event: ApiEvent): Promise<ApiResponse> {
   }
 
   return json(200, {
+    mdiPatientCsrfToken: csrfTokenFor("mdi-patient", csrf.session.token),
     residencyState: completed.residencyState,
     status: completed.status,
   });
@@ -134,7 +142,7 @@ async function verifyCsrf(event: ApiEvent):
   }
 
   const csrfHeader = header(event, "x-apoth-csrf");
-  if (!csrfHeader || csrfHeader !== csrfTokenFor(auth.session.token)) {
+  if (!csrfHeader || csrfHeader !== csrfTokenFor("intake-precheck", auth.session.token)) {
     return { ok: false, code: "invalid_csrf", status: 403 };
   }
 
@@ -207,6 +215,22 @@ async function getProfile(cognitoSub: string): Promise<PatientProfile | null> {
     onboardingStatus: response.Item.onboardingStatus?.S ?? "",
     residencyState: response.Item.residencyState?.S,
   };
+}
+
+async function getMdiLinkage(cognitoSub: string): Promise<MdiLinkage | null> {
+  const response = await ddb.send(new GetItemCommand({
+    ConsistentRead: true,
+    Key: mdiLinkageKey(cognitoSub),
+    TableName: requiredEnv("APP_TABLE_NAME"),
+  }));
+  if (!response.Item) {
+    return null;
+  }
+  if (response.Item.recordType?.S !== "mdiLinkage") {
+    throw new Error("MDI linkage key contains another record type");
+  }
+  const mdiPatientId = response.Item.mdiPatientId?.S;
+  return mdiPatientId ? { mdiPatientId } : null;
 }
 
 async function completeProfile(input: {
@@ -360,9 +384,9 @@ function isAllowedOrigin(event: ApiEvent) {
     );
 }
 
-function csrfTokenFor(token: string) {
+function csrfTokenFor(scope: "intake-precheck" | "mdi-patient", token: string) {
   return createHash("sha256")
-    .update(`intake-precheck:${token}`)
+    .update(`${scope}:${token}`)
     .digest("base64url");
 }
 
@@ -387,6 +411,13 @@ function profileKey(cognitoSub: string) {
   return {
     pk: { S: `PATIENT#${cognitoSub}` },
     sk: { S: "PROFILE" },
+  };
+}
+
+function mdiLinkageKey(cognitoSub: string) {
+  return {
+    pk: { S: `PATIENT#${cognitoSub}` },
+    sk: { S: "MDI#LINKAGE" },
   };
 }
 
