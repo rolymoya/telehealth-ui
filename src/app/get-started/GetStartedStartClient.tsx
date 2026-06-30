@@ -9,7 +9,7 @@ type StartState =
   | { status: "signed_out" }
   | { status: "unavailable" };
 
-const signUpHref = "/sign-up?returnTo=%2Fget-started";
+const intakeHref = "/intake";
 const signInHref = "/sign-in?returnTo=%2Fget-started";
 
 export function GetStartedStartClient({
@@ -69,10 +69,11 @@ export function GetStartedStartClient({
       <div className="border border-ash-line bg-cream-warm p-5 sm:p-7">
         <p className="text-eyebrow uppercase text-ash">Start a visit</p>
         <p className="mt-4 text-[1rem] text-ink/72">
-          We could not check your account status. You can start by creating an account, or try again.
+          We could not check your visit status. You can still begin with the
+          privacy notice and precheck, or try again.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <PrimaryLink href={signUpHref}>Create account</PrimaryLink>
+          <PrimaryLink href={intakeHref}>Start precheck</PrimaryLink>
           <button
             className="border border-clay-deep px-5 py-3 text-[1rem] font-medium text-clay-deep transition-colors hover:border-clay hover:text-clay"
             onClick={retry}
@@ -104,8 +105,12 @@ export function StartLinks() {
   return (
     <div className="border border-ash-line bg-cream-warm p-5 sm:p-7">
       <p className="text-eyebrow uppercase text-ash">Start a visit</p>
+      <p className="mt-4 text-[1rem] text-ink/72">
+        Begin with the privacy notice and a short precheck. You will create or
+        sign in to your account after that step if online intake can continue.
+      </p>
       <div className="mt-6 flex flex-wrap gap-3">
-        <PrimaryLink href={signUpHref}>Create account</PrimaryLink>
+        <PrimaryLink href={intakeHref}>Start precheck</PrimaryLink>
         <SecondaryLink href={signInHref}>Sign in</SecondaryLink>
       </div>
     </div>
@@ -169,7 +174,7 @@ async function safeJson(response: Response) {
 }
 
 function isSafeStartDestination(destination: string) {
-  return /^\/(?:onboarding\/consent|intake|onboarding\/mdi|billing)$/.test(destination);
+  return /^\/(?:onboarding\/consent(?:\?gate=medication)?|intake|onboarding\/mdi|billing)$/.test(destination);
 }
 
 function defaultNavigate(destination: string) {

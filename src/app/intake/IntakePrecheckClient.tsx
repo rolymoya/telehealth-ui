@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
+import {
+  consentAcknowledgementFieldName,
+  requiredConsentsForPrecheck,
+} from "@/lib/consents";
 import {
   launchOfferingSlugs,
   type LaunchOfferingSlug,
@@ -10,6 +15,8 @@ import { usStates } from "../../../shared/intake/us-states";
 type GateState =
   | { status: "checking" }
   | { status: "redirecting"; destination: string }
+  | { status: "privacy_required" }
+  | { status: "account_required" }
   | { status: "ready"; csrfToken: string }
   | {
       status: "patient";
@@ -27,6 +34,12 @@ const offeringLabels = {
   hair: "Hair",
   weight: "Weight",
 } satisfies Record<LaunchOfferingSlug, string>;
+
+const signUpAfterPrecheckHref = "/sign-up?returnTo=%2Fget-started";
+const signInAfterPrecheckHref = "/sign-in?returnTo=%2Fget-started";
+const privacyNotice = requiredConsentsForPrecheck().find((consent) =>
+  consent.consentKind === "privacy_notice"
+);
 
 export function IntakePrecheckClient({
   fetchImpl = fetch,
@@ -59,13 +72,17 @@ export function IntakePrecheckClient({
         navigate(destination);
         return;
       }
+      const body = await safeJson(response);
+      if (response.status === 403 && body.code === "privacy_notice_required") {
+        setGate({ status: "privacy_required" });
+        return;
+      }
       if (response.status === 403) {
         const destination = "/onboarding/consent";
         setGate({ status: "redirecting", destination });
         navigate(destination);
         return;
       }
-      const body = await safeJson(response);
       if (!response.ok || typeof body.csrfToken !== "string") {
         setMessage("We could not prepare intake. Please try again in a moment.");
         setGate({ status: "checking" });
@@ -100,6 +117,40 @@ export function IntakePrecheckClient({
     setBootstrapAttempt((attempt) => attempt + 1);
   }
 
+  async function onPrivacySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (gate.status !== "privacy_required" || !privacyNotice || submitting) {
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage(null);
+    const form = new FormData(event.currentTarget);
+    const response = await fetchImpl("/api/intake/privacy-notice", {
+      body: JSON.stringify({
+        acknowledgements: {
+          [consentAcknowledgementFieldName(privacyNotice)]:
+            form.get(consentAcknowledgementFieldName(privacyNotice)) === "accepted"
+              ? "accepted"
+              : "",
+        },
+      }),
+      credentials: "include",
+      headers: {
+        "content-type": "application/json",
+      },
+      method: "POST",
+    }).catch(() => null);
+    setSubmitting(false);
+
+    if (!response?.ok) {
+      setMessage("We could not record the privacy notice acknowledgement. Review it and try again.");
+      return;
+    }
+
+    setBootstrapAttempt((attempt) => attempt + 1);
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (gate.status !== "ready") {
@@ -127,7 +178,12 @@ export function IntakePrecheckClient({
     setSubmitting(false);
 
     if (response.status === 401) {
-      navigate("/sign-in?returnTo=%2Fintake");
+      setGate({ status: "account_required" });
+      return;
+    }
+    const body = await safeJson(response);
+    if (response.status === 403 && body.code === "privacy_notice_required") {
+      setGate({ status: "privacy_required" });
       return;
     }
     if (response.status === 403) {
@@ -135,7 +191,6 @@ export function IntakePrecheckClient({
       return;
     }
     if (response.ok) {
-      const body = await safeJson(response);
       if (typeof body.mdiPatientCsrfToken === "string") {
         setGate({
           status: "patient",
@@ -144,11 +199,10 @@ export function IntakePrecheckClient({
         });
         return;
       }
-      navigate("/onboarding/mdi");
+      setGate({ status: "account_required" });
       return;
     }
 
-    const body = await safeJson(response);
     setMessage(messageForCode(typeof body.code === "string" ? body.code : ""));
   }
 
@@ -209,6 +263,20 @@ export function IntakePrecheckClient({
     setMessage(patientMessageForCode(typeof body.code === "string" ? body.code : ""));
   }
 
+  if (gate.status === "privacy_required") {
+    return (
+      <PrivacyNoticeForm
+        message={message}
+        onSubmit={onPrivacySubmit}
+        submitting={submitting}
+      />
+    );
+  }
+
+  if (gate.status === "account_required") {
+    return <AccountRequiredPanel />;
+  }
+
   if (gate.status !== "ready" && gate.status !== "patient") {
     return (
       <div className="border border-ash-line bg-cream-warm p-5 sm:p-7">
@@ -250,6 +318,14 @@ export function IntakePrecheckClient({
       className="border border-ash-line bg-cream-warm p-5 sm:p-7"
       onSubmit={onSubmit}
     >
+      <p className="text-eyebrow uppercase text-ash">Precheck</p>
+      <h2 className="mt-3 text-[1.35rem] font-semibold text-ink">
+        Answer a short eligibility precheck.
+      </h2>
+      <p className="mt-3 text-[1rem] text-ink/72">
+        These answers help route your intake before account setup. They are not
+        the MDI clinical questionnaire.
+      </p>
       <div className="space-y-6">
         <label className="block">
           <span className="text-[0.95rem] font-medium text-ink">
@@ -343,6 +419,110 @@ export function IntakePrecheckClient({
         {submitting ? "Checking" : "Continue"}
       </button>
     </form>
+  );
+}
+
+function PrivacyNoticeForm({
+  message,
+  onSubmit,
+  submitting,
+}: {
+  message: string | null;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  submitting: boolean;
+}) {
+  if (!privacyNotice) {
+    return (
+      <section className="border border-ash-line bg-cream-warm p-5 sm:p-7">
+        <p className="text-eyebrow uppercase text-ash">Privacy notice</p>
+        <p className="mt-4 text-[1rem] text-ink/72">
+          We could not prepare the privacy notice. Please try again in a moment.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <form
+      className="border border-ash-line bg-cream-warm p-5 sm:p-7"
+      onSubmit={onSubmit}
+    >
+      <p className="text-eyebrow uppercase text-ash">Privacy notice</p>
+      <h2 className="mt-3 text-[1.35rem] font-semibold text-ink">
+        Review privacy before precheck.
+      </h2>
+      <p className="mt-3 text-[1rem] text-ink/72">
+        Apoth asks you to acknowledge the current privacy notice before you
+        answer health-adjacent precheck questions. Telehealth consent and
+        platform terms come later, before the MDI questionnaire.
+      </p>
+      <p className="mt-4 text-[1rem] text-ink/72">
+        Version <span className="font-mono">{privacyNotice.version}</span>
+        {" · "}
+        <Link
+          className="font-medium text-clay-deep underline underline-offset-4"
+          href={privacyNotice.documentPath}
+        >
+          Open {privacyNotice.label.toLowerCase()}
+        </Link>
+      </p>
+      <label className="mt-5 flex gap-3 text-[1rem] leading-relaxed text-ink">
+        <input
+          className="mt-1 h-5 w-5 accent-clay-deep"
+          name={consentAcknowledgementFieldName(privacyNotice)}
+          required
+          type="checkbox"
+          value="accepted"
+        />
+        <span>
+          I have reviewed the current {privacyNotice.label.toLowerCase()}.
+        </span>
+      </label>
+
+      {message ? (
+        <p className="mt-6 border border-clay-deep px-4 py-3 text-[1rem] text-clay-deep" role="alert">
+          {message}
+        </p>
+      ) : null}
+
+      <button
+        className="mt-8 rounded-full bg-clay-deep px-6 py-3 text-[1rem] font-medium text-cream transition-colors hover:bg-clay disabled:cursor-not-allowed disabled:bg-ash"
+        disabled={submitting}
+        type="submit"
+      >
+        {submitting ? "Recording" : "Continue to precheck"}
+      </button>
+    </form>
+  );
+}
+
+function AccountRequiredPanel() {
+  return (
+    <section className="border border-ash-line bg-cream-warm p-5 sm:p-7">
+      <p className="text-eyebrow uppercase text-ash">Account</p>
+      <h2 className="mt-3 text-[1.35rem] font-semibold text-ink">
+        Create an account to continue.
+      </h2>
+      <p className="mt-3 text-[1rem] text-ink/72">
+        Your precheck is ready to attach to a secure Apoth account. Return to
+        get started after sign-up or sign-in so we can bind that precheck to
+        your profile.
+      </p>
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Link
+          className="rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors hover:bg-clay"
+          href={signUpAfterPrecheckHref}
+        >
+          Create account
+        </Link>
+        <Link
+          className="rounded-full border border-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-clay-deep transition-colors hover:border-clay hover:text-clay"
+          href={signInAfterPrecheckHref}
+        >
+          Sign in
+        </Link>
+      </div>
+    </section>
   );
 }
 

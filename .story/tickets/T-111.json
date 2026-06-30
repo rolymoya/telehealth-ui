@@ -1,0 +1,17 @@
+{
+  "blockedBy": [
+    "T-110",
+    "T-112"
+  ],
+  "claimedBySession": "33f55611-0b07-47e0-9ba3-7c28653bd769",
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-29",
+  "description": "Update the patient-facing flow to: get started -> privacy notice acknowledgement -> anonymous precheck -> account creation/sign-in -> telehealth consent + platform terms -> MDI patient profile -> MDI questionnaire -> medication disclosure when applicable. Revise copy and redirects so users understand why each acknowledgement appears at that point. Keep privacy-first before health-adjacent precheck and keep telehealth/platform acceptance before submitting the clinical questionnaire to MDI.",
+  "id": "T-111",
+  "order": 100,
+  "parentTicket": "T-107",
+  "phase": "intake-flow",
+  "status": "complete",
+  "title": "Reorder onboarding UI around staged disclosures",
+  "type": "feature"
+}

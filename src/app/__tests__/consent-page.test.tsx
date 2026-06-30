@@ -53,6 +53,9 @@ describe("consent page", () => {
     });
     expect(screen.getByRole("button", { name: "Accept and continue" }))
       .toBeInTheDocument();
+    expect(screen.getByRole("heading", {
+      name: /review telehealth and platform terms/i,
+    })).toBeInTheDocument();
   });
 
   it("renders medication disclosure acknowledgements on the medication gate", async () => {
@@ -77,6 +80,31 @@ describe("consent page", () => {
     expect(screen.getAllByText(/not FDA-approved/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/not Ozempic, Wegovy, Mounjaro, or Zepbound/i))
       .toBeInTheDocument();
+    expect(screen.getByRole("heading", {
+      name: /review medication disclosure/i,
+    })).toBeInTheDocument();
+  });
+
+  it("does not render an empty consent form for an early medication gate", async () => {
+    mocks.resolveConsentDocumentsForDisplay.mockResolvedValue({
+      ok: true,
+      value: {
+        gate: "post_questionnaire_medication",
+        requiredConsents: [],
+      },
+    });
+
+    render(await ConsentPage({
+      searchParams: { gate: "medication" },
+    }));
+
+    expect(screen.getByRole("heading", {
+      name: /finish the clinical intake first/i,
+    })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /continue clinical intake/i }))
+      .toHaveAttribute("href", "/onboarding/mdi");
+    expect(screen.queryByRole("button", { name: /accept and continue/i }))
+      .not.toBeInTheDocument();
   });
 
   it("renders a patient-safe acceptance error", async () => {

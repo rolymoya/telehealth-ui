@@ -26,6 +26,7 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps = {
     : gate === "pre_mdi"
       ? requiredConsentsBeforeMdi()
       : [];
+  const copy = consentPageCopy(gate);
 
   return (
     <>
@@ -35,16 +36,18 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps = {
           <div className="max-w-3xl">
             <p className="text-eyebrow uppercase text-ash">Onboarding</p>
             <h1 className="display-serif mt-4 text-display-md font-light text-balance">
-              Review required consents.
+              {copy.heading}
             </h1>
             <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
-              Apoth is a technology platform. Independent clinicians and MD
-              Integrations handle medical care. Review each current document
-              before continuing to intake.
+              {copy.body}
             </p>
           </div>
 
-          <ConsentAcceptanceClient gate={gate} requiredConsents={requiredConsents} />
+          <ConsentAcceptanceClient
+            emptyMedicationGate={gate === "post_questionnaire_medication" && requiredConsents.length === 0}
+            gate={gate}
+            requiredConsents={requiredConsents}
+          />
         </section>
       </main>
       <Footer />
@@ -62,4 +65,16 @@ function consentGateFromSearchParams(
 
 function paramValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function consentPageCopy(gate: ConsentAcceptanceGate) {
+  return gate === "post_questionnaire_medication"
+    ? {
+        heading: "Review medication disclosure.",
+        body: "If your treatment path includes a medication-specific disclosure, Apoth asks for it after your MDI questionnaire is submitted and before billing or prescribing can continue.",
+      }
+    : {
+        heading: "Review telehealth and platform terms.",
+        body: "You have already acknowledged the privacy notice. Review telehealth consent and Apoth platform terms before the MDI questionnaire opens.",
+      };
 }

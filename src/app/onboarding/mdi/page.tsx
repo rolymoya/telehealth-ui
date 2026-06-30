@@ -13,11 +13,13 @@ export default function MdiHandoffPage() {
         <div className="mb-7 max-w-3xl">
           <p className="text-eyebrow uppercase text-ash">Onboarding</p>
           <h1 className="mt-4 text-[2rem] font-semibold leading-tight text-ink sm:text-[2.6rem]">
-            Clinical intake
+            MDI questionnaire
           </h1>
           <p className="mt-4 text-[1.05rem] leading-7 text-ink/72">
-            Answer the MDI questionnaire here. Apoth sends the response to MDI
-            and keeps only the handoff status and opaque case pointers.
+            Answer the MDI questionnaire here after your profile is linked.
+            Apoth sends responses to MDI and keeps only the handoff status and
+            opaque case pointers. Medication disclosure comes after submission
+            when it applies.
           </p>
         </div>
         <MdiIntakeClient />

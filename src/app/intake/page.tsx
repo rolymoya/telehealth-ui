@@ -17,13 +17,12 @@ export default function IntakePage() {
           <div className="max-w-prose">
             <p className="text-eyebrow uppercase text-ash">Onboarding</p>
             <h1 className="display-serif mt-4 text-display-md font-light text-balance">
-              Confirm the basics before clinical intake.
+              Privacy notice, then a short precheck.
             </h1>
             <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
-              Apoth uses this step to route your intake to clinicians and
-              pharmacy partners appropriately. Medical questionnaire answers
-              are collected later and sent to MD Integrations as the clinical
-              system of record.
+              Start by acknowledging the privacy notice, then answer a few
+              basics so Apoth can route you before account setup. Medical
+              questionnaire answers are collected later by MD Integrations.
             </p>
             <p className="mt-6 text-[1rem] text-ink/65">
               This is not a clinical decision. A licensed clinician decides

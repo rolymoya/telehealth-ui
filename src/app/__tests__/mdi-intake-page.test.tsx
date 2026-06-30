@@ -11,9 +11,9 @@ describe("MDI intake page", () => {
   it("renders the static clinical intake shell", () => {
     render(<MdiHandoffPage />);
 
-    expect(screen.getByRole("heading", { name: /^clinical intake$/i }))
+    expect(screen.getByRole("heading", { name: /^MDI questionnaire$/i }))
       .toBeInTheDocument();
-    expect(screen.getByText(/keeps only the handoff status and opaque case pointers/i))
+    expect(screen.getByText(/Medication disclosure comes after submission/i))
       .toBeInTheDocument();
   });
 
@@ -85,6 +85,8 @@ describe("MDI intake page", () => {
     });
     expect(String(submitCall?.[0])).not.toContain("ANSWER_VALUE_SENTINEL");
     expect(await screen.findByText(/questionnaire was sent for clinical review/i))
+      .toBeInTheDocument();
+    expect(screen.getByText(/If a medication disclosure applies/i))
       .toBeInTheDocument();
     expect(screen.queryByText("ANSWER_VALUE_SENTINEL")).not.toBeInTheDocument();
     expect(screen.queryByText("QUESTION_TEXT_SENTINEL")).not.toBeInTheDocument();

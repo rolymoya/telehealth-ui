@@ -9,9 +9,9 @@ describe("intake page", () => {
     render(<IntakePage />);
 
     expect(screen.getByRole("heading", {
-      name: /confirm the basics before clinical intake/i,
+      name: /privacy notice, then a short precheck/i,
     })).toBeInTheDocument();
-    expect(screen.getByText(/Medical questionnaire answers are collected later/i))
+    expect(screen.getByText(/Medical questionnaire answers are collected later by MD Integrations/i))
       .toBeInTheDocument();
   });
 
@@ -29,6 +29,52 @@ describe("intake page", () => {
       },
       method: "GET",
     });
+  });
+
+  it("requires privacy notice acknowledgement before rendering precheck fields", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(
+        { code: "privacy_notice_required" },
+        { status: 403 },
+      ))
+      .mockResolvedValueOnce(jsonResponse({ status: "privacy_notice_accepted" }))
+      .mockResolvedValueOnce(jsonResponse({
+        csrfToken: "csrf_after_privacy",
+        status: "ready_for_precheck",
+      }));
+
+    render(<IntakePrecheckClient fetchImpl={fetchMock as typeof fetch} />);
+
+    expect(await screen.findByRole("heading", {
+      name: /review privacy before precheck/i,
+    })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/State of residence/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /open privacy notice/i }))
+      .toHaveAttribute("href", "/privacy");
+
+    await user.click(screen.getByRole("checkbox", {
+      name: /reviewed the current privacy notice/i,
+    }));
+    await user.click(screen.getByRole("button", { name: /continue to precheck/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/intake/privacy-notice", expect.objectContaining({
+        credentials: "include",
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      }));
+    });
+    const privacyCall = fetchMock.mock.calls.find(
+      ([url]) => String(url) === "/api/intake/privacy-notice",
+    );
+    expect(JSON.stringify(JSON.parse(String(privacyCall?.[1]?.body))))
+      .toContain("privacy_notice");
+    expect(await screen.findByLabelText(/State of residence/i))
+      .toBeInTheDocument();
   });
 
   it("renders all-state precheck form after bootstrap and posts bounded JSON with CSRF", async () => {
@@ -133,6 +179,75 @@ describe("intake page", () => {
     expect(window.localStorage.getItem("patient@example.test")).toBeNull();
   });
 
+  it("uses get-started auth return links after anonymous precheck succeeds", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      if (String(input) === "/api/intake/bootstrap") {
+        return jsonResponse({ csrfToken: "csrf_anon", status: "ready_for_precheck" });
+      }
+      return jsonResponse({ status: "ready_for_mdi_intake" });
+    });
+
+    render(<IntakePrecheckClient fetchImpl={fetchMock as typeof fetch} />);
+
+    await user.selectOptions(
+      await screen.findByLabelText(/State of residence/i),
+      "IL",
+    );
+    await user.type(screen.getByLabelText("Age"), "34");
+    await user.selectOptions(screen.getByLabelText(/Care category/i), "weight");
+    const noRadios = screen.getAllByRole("radio", { name: "No" });
+    await user.click(noRadios[0]);
+    await user.click(noRadios[1]);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByRole("heading", {
+      name: /create an account to continue/i,
+    })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Create account" }))
+      .toHaveAttribute("href", "/sign-up?returnTo=%2Fget-started");
+    expect(screen.getByRole("link", { name: "Sign in" }))
+      .toHaveAttribute("href", "/sign-in?returnTo=%2Fget-started");
+  });
+
+  it("returns to privacy notice when privacy expires during precheck submit", async () => {
+    const user = userEvent.setup();
+    const navigate = vi.fn();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      if (String(input) === "/api/intake/bootstrap") {
+        return jsonResponse({ csrfToken: "csrf_123", status: "ready_for_precheck" });
+      }
+      return jsonResponse(
+        { code: "privacy_notice_required" },
+        { status: 403 },
+      );
+    });
+
+    render(
+      <IntakePrecheckClient
+        fetchImpl={fetchMock as typeof fetch}
+        navigate={navigate}
+      />,
+    );
+
+    await user.selectOptions(
+      await screen.findByLabelText(/State of residence/i),
+      "IL",
+    );
+    await user.type(screen.getByLabelText("Age"), "34");
+    await user.selectOptions(screen.getByLabelText(/Care category/i), "weight");
+    const noRadios = screen.getAllByRole("radio", { name: "No" });
+    await user.click(noRadios[0]);
+    await user.click(noRadios[1]);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByRole("heading", {
+      name: /review privacy before precheck/i,
+    })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/State of residence/i)).not.toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalledWith("/onboarding/consent");
+  });
+
   it("allows a bootstrap retry without retaining form values", async () => {
     const user = userEvent.setup();
     const fetchMock = vi
@@ -213,7 +328,7 @@ describe("intake page", () => {
     expect(screen.queryByLabelText(/State of residence/i)).not.toBeInTheDocument();
   });
 
-  it("redirects to sign in when the submit session expires", async () => {
+  it("shows account CTAs when anonymous precheck reaches auth", async () => {
     const user = userEvent.setup();
     const navigate = vi.fn();
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
@@ -241,9 +356,14 @@ describe("intake page", () => {
     await user.click(noRadios[1]);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith("/sign-in?returnTo=%2Fintake");
-    });
+    expect(await screen.findByRole("heading", {
+      name: /create an account to continue/i,
+    })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Create account" }))
+      .toHaveAttribute("href", "/sign-up?returnTo=%2Fget-started");
+    expect(screen.getByRole("link", { name: "Sign in" }))
+      .toHaveAttribute("href", "/sign-in?returnTo=%2Fget-started");
+    expect(navigate).not.toHaveBeenCalledWith("/sign-in?returnTo=%2Fintake");
     expect(navigate).not.toHaveBeenCalledWith("/onboarding/consent");
   });
 

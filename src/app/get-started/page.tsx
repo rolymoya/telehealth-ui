@@ -19,11 +19,12 @@ export default function GetStartedPage() {
           <div className="max-w-3xl">
             <p className="text-eyebrow uppercase text-ash">Start a visit</p>
             <h1 className="display-serif mt-4 text-display-md font-light text-balance">
-              Start with a secure account.
+              Start with the privacy notice.
             </h1>
             <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
-              Create an Apoth account first so your visit can resume safely if
-              you step away. Clinical intake happens after account setup.
+              Review the privacy notice, answer a short precheck, then create
+              or sign in to your account if online intake is a fit. Clinical
+              questionnaire answers come later through MD Integrations.
             </p>
             <div className="mt-8 flex flex-wrap gap-4 text-[0.95rem] font-medium text-clay-deep">
               <Link className="hover:text-clay" href="/#what-we-treat">

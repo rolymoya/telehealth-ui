@@ -9,9 +9,11 @@ import {
 import { postConsentAcceptance } from "@/lib/consent-api-client";
 
 export function ConsentAcceptanceClient({
+  emptyMedicationGate = false,
   gate,
   requiredConsents,
 }: {
+  emptyMedicationGate?: boolean;
   gate: "pre_mdi" | "post_questionnaire_medication";
   requiredConsents: readonly RequiredConsentDocument[];
 }) {
@@ -24,6 +26,30 @@ export function ConsentAcceptanceClient({
       setError("We could not record consent. Review each acknowledgement and try again.");
     }
   }, []);
+
+  if (emptyMedicationGate) {
+    return (
+      <section
+        className="mt-10 max-w-3xl border border-ash-line bg-cream-warm p-5 sm:p-7"
+        aria-live="polite"
+      >
+        <p className="text-eyebrow uppercase text-ash">Medication disclosure</p>
+        <h2 className="mt-3 text-[1.35rem] font-semibold text-ink">
+          Finish the clinical intake first.
+        </h2>
+        <p className="mt-3 text-[1rem] text-ink/72">
+          Medication disclosures appear only after the MDI questionnaire is
+          submitted and only when they apply to the selected treatment.
+        </p>
+        <Link
+          className="mt-6 inline-flex rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors hover:bg-clay"
+          href="/onboarding/mdi"
+        >
+          Continue clinical intake
+        </Link>
+      </section>
+    );
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

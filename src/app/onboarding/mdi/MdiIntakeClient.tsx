@@ -202,7 +202,8 @@ export function MdiIntakeClient({
           Preparing your MDI questionnaire.
         </h2>
         <p className="mt-3 text-[1rem] text-ink/72">
-          Checking your account, consent, and intake status.
+          Checking your account, telehealth consent, platform terms, and MDI
+          profile status.
         </p>
       </section>
     );
@@ -217,6 +218,8 @@ export function MdiIntakeClient({
         </h2>
         <p className="mt-3 text-[1rem] text-ink/72">
           Apoth saved only the MDI handoff status and opaque case pointers.
+          If a medication disclosure applies, you will review it before billing
+          or prescribing can continue.
         </p>
         <a
           className="mt-6 inline-flex rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors hover:bg-clay"
