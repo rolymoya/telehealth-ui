@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-111"
+  ],
+  "claimedBySession": "33f55611-0b07-47e0-9ba3-7c28653bd769",
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-29",
+  "description": "Add Playwright and route/Lambda regression coverage for the reordered flow: anonymous get-started/privacy acknowledgement, anonymous precheck with no browser/local persistence, account creation/sign-in binding of precheck context, telehealth/platform acceptance before MDI, MDI patient profile and questionnaire, applicable medication disclosure after questionnaire, and no local questionnaire answer retention. Include stale/expired token recovery and ineligible precheck cases.",
+  "id": "T-113",
+  "order": 90,
+  "parentTicket": "T-107",
+  "phase": "playwright-e2e",
+  "status": "complete",
+  "title": "E2E coverage for anonymous precheck staged consent flow",
+  "type": "task"
+}

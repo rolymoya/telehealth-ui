@@ -14,6 +14,13 @@ export type ApiMockHandler = (
 
 export type ApiMockHandlers = Record<string, ApiMockHandler | ApiMockHandler[]>;
 
+type ApiMockQueueEntry = {
+  handler: ApiMockHandler;
+  persistent: boolean;
+};
+
+const persistentApiMockHandler = Symbol("persistentApiMockHandler");
+
 export type NetworkCapture = {
   method: string;
   path: string;
@@ -28,9 +35,16 @@ export type OnboardingNetworkGuard = {
   captures: NetworkCapture[];
   consoleErrors: string[];
   expectNoForbiddenFragments: (fragments: readonly string[]) => Promise<void>;
+  expectFragmentsConfined: (rules: readonly FragmentConfinementRule[]) => Promise<void>;
   expectNoNetworkViolations: () => void;
   requestUrls: string[];
   violations: string[];
+};
+
+export type FragmentConfinementRule = {
+  allowedRequestBodies?: readonly string[];
+  fragments: readonly string[];
+  label: string;
 };
 
 export type OnboardingNetworkGuardOptions = {
@@ -72,10 +86,13 @@ export async function installOnboardingNetworkGuard(
   const requestUrls: string[] = [];
   const violations: string[] = [];
   const consoleErrors = collectOnboardingConsoleErrors(page);
-  const queues = new Map<string, ApiMockHandler[]>();
+  const queues = new Map<string, ApiMockQueueEntry[]>();
 
   for (const [key, value] of Object.entries(handlers)) {
-    queues.set(key, Array.isArray(value) ? [...value] : [value]);
+    queues.set(key, (Array.isArray(value) ? value : [value]).map((handler) => ({
+      handler,
+      persistent: isPersistentApiMockHandler(handler),
+    })));
   }
 
   await page.route("**/*", async (route) => {
@@ -102,7 +119,8 @@ export async function installOnboardingNetworkGuard(
     const method = request.method().toUpperCase();
     const key = `${method} ${url.pathname}`;
     const queue = queues.get(key);
-    const handler = queue?.length ? queue.shift() : undefined;
+    const entry = queue?.[0];
+    const handler = entry?.handler;
     const requestBody = request.postData() ?? "";
 
     if (!handler) {
@@ -119,6 +137,9 @@ export async function installOnboardingNetworkGuard(
       return;
     }
 
+    if (!entry.persistent) {
+      queue?.shift();
+    }
     await fulfillApiMock(route, request, handler, captures);
   });
 
@@ -156,6 +177,45 @@ export async function installOnboardingNetworkGuard(
       ];
 
       expect(findForbiddenFragments(scanned, fragments)).toEqual([]);
+    },
+    expectFragmentsConfined: async (rules) => {
+      const storageText = await readBrowserStorageText(page);
+      const findings: string[] = [];
+
+      for (const rule of rules) {
+        const allowedRequestBodies = new Set(rule.allowedRequestBodies ?? []);
+        const scanned = [
+          ...captures.flatMap((capture) => {
+            const requestKey = `${capture.method} ${capture.path}`;
+            const responseBody = capture.method === "GET" &&
+                capture.path === "/api/onboarding/mdi/bootstrap"
+              ? redactAllowedMdiBootstrapQuestionnaireOptions(
+                capture.responseBody,
+                options.allowedMdiBootstrapResponseFragments ?? [],
+              )
+              : capture.responseBody;
+            return [
+              `request url ${requestKey}`,
+              capture.url,
+              ...(allowedRequestBodies.has(requestKey)
+                ? []
+                : [`request ${requestKey}`, capture.requestBody]),
+              `response ${requestKey}`,
+              responseBody,
+            ];
+          }),
+          ...requestUrls.flatMap((url) => ["request url", url]),
+          "browser storage",
+          storageText,
+          ...consoleErrors.flatMap((error) => ["console error", error]),
+        ];
+        findings.push(
+          ...findForbiddenFragments(scanned, rule.fragments)
+            .map((finding) => `${rule.label}: ${finding}`),
+        );
+      }
+
+      expect(findings).toEqual([]);
     },
     expectNoNetworkViolations: () => {
       expect(violations).toEqual([]);
@@ -215,6 +275,10 @@ export function jsonApi(body: ApiMockBody, status = 200): ApiMockResponse {
     body,
     status,
   };
+}
+
+export function persistentApiMock(handler: ApiMockHandler): ApiMockHandler {
+  return Object.assign(handler, { [persistentApiMockHandler]: true });
 }
 
 export function expectNoBillingOrStripeActivity(captures: readonly NetworkCapture[]) {
@@ -368,4 +432,10 @@ function isLocalAppHost(url: URL) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPersistentApiMockHandler(
+  handler: ApiMockHandler,
+): handler is ApiMockHandler & { [persistentApiMockHandler]: true } {
+  return persistentApiMockHandler in handler;
 }
