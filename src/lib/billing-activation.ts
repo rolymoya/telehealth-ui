@@ -24,6 +24,11 @@ import {
   linkStripeCustomerDynamoDb,
   recordEvidenceEventDynamoDb,
 } from "@/lib/dynamodb/app-data-dynamodb";
+import {
+  evaluateBillingDisclosureGate,
+  type BillingDisclosureGateRepository,
+  type BillingDisclosureGateStatus,
+} from "@/lib/billing-disclosure-gate";
 import { createStripeSubscriptionParams } from "@/lib/stripe";
 
 export type BillingActivationStage = "production" | "staging";
@@ -53,7 +58,7 @@ export type BillingActivationStripeClient = {
   };
 };
 
-export type BillingActivationRepository = {
+export type BillingActivationRepository = BillingDisclosureGateRepository & {
   getMdiCaseStatusMirror(mdiCaseId: string): Promise<AppDataResult<MdiCaseStatusMirrorRecord | null>>;
   getMdiLinkage(cognitoSub: string): Promise<AppDataResult<MdiLinkageRecord | null>>;
   getStripeLinkage(cognitoSub: string): Promise<AppDataResult<StripeLinkageRecord | null>>;
@@ -77,6 +82,7 @@ export type BillingActivationResult =
   | { ok: true; status: "not_ready" }
   | { ok: true; status: "await_payment_method" }
   | { ok: true; status: "clinical_closed" }
+  | { ok: true; status: "medication_disclosure_required" }
   | { ok: true; status: "already_subscribed"; stripeSubscriptionId: string }
   | { ok: true; status: "subscription_created"; stripeSubscriptionId: string }
   | { ok: false; code: "invalid_stripe_metadata" | "storage_unavailable" | "stripe_unavailable" };
@@ -121,6 +127,9 @@ export function createInMemoryBillingActivationRepository(
   repository: AppDataRepository,
 ): BillingActivationRepository {
   return {
+    async get(key) {
+      return repository.get(key);
+    },
     async getMdiCaseStatusMirror(mdiCaseId) {
       const record = repository.get(mdiCaseStatusMirrorKey(mdiCaseId));
       if (!record.ok || !record.value) {
@@ -150,6 +159,9 @@ export function createDynamoDbBillingActivationRepository(
   repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
 ): BillingActivationRepository {
   return {
+    async get(key) {
+      return repository.get(key);
+    },
     async getMdiCaseStatusMirror(mdiCaseId) {
       const record = await repository.get(mdiCaseStatusMirrorKey(mdiCaseId));
       if (!record.ok || !record.value) {
@@ -202,6 +214,27 @@ export async function activateBillingAfterClinicalUnlock(input: {
   }
   if (existing.billingStatus !== "payment_method_collected") {
     return { ok: true, status: "await_payment_method" };
+  }
+
+  const disclosureGate = await evaluateBillingDisclosureGate(input.repository, {
+    cognitoSub: input.cognitoSub,
+  });
+  if (disclosureGate.status === "storage_unavailable") {
+    return { ok: false, code: "storage_unavailable" };
+  }
+  if (disclosureGate.status !== "ok") {
+    const recorded = await recordBillingActivationSkippedEvidence(input.repository, {
+      cognitoSub: input.cognitoSub,
+      mdiCaseId: context.mdiLinkage.mdiCaseId,
+      mdiPatientId: context.mdiLinkage.mdiPatientId,
+      now: input.now,
+      reason: disclosureGate.status,
+      stripeCustomerId: existing.stripeCustomerId,
+    });
+    if (!recorded.ok) {
+      return { ok: false, code: "storage_unavailable" };
+    }
+    return { ok: true, status: "medication_disclosure_required" };
   }
 
   const metadata = stripeMetadataForPatient({
@@ -697,6 +730,38 @@ async function recordBillingActivationEvidence(
     summaryCode: input.status === "subscription_created"
       ? "STRIPE_BILLING_ACTIVATED"
       : "STRIPE_BILLING_STATUS_CHANGED",
+  });
+  return event.ok || event.error.kind === "conditional_conflict"
+    ? { ok: true as const }
+    : { ok: false as const };
+}
+
+async function recordBillingActivationSkippedEvidence(
+  repository: BillingActivationRepository,
+  input: {
+    cognitoSub: string;
+    mdiCaseId: string;
+    mdiPatientId: string;
+    now: string;
+    reason: Exclude<BillingDisclosureGateStatus, "ok" | "storage_unavailable">;
+    stripeCustomerId: string;
+  },
+) {
+  const event = await repository.recordEvidenceEvent({
+    actorType: "system",
+    cognitoSub: input.cognitoSub,
+    eventCategory: "stripe_billing",
+    eventId: `stripe:billing_activation:${input.stripeCustomerId}:${input.reason}`,
+    eventType: "stripe_billing_activation_skipped",
+    occurredAt: input.now,
+    recordedAt: input.now,
+    mdiCaseId: input.mdiCaseId,
+    mdiPatientId: input.mdiPatientId,
+    metadata: { reason_code: input.reason },
+    source: "app",
+    status: "skipped",
+    stripeCustomerId: input.stripeCustomerId,
+    summaryCode: "STRIPE_BILLING_ACTIVATION_SKIPPED",
   });
   return event.ok || event.error.kind === "conditional_conflict"
     ? { ok: true as const }

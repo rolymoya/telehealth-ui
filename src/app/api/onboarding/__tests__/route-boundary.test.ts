@@ -13,8 +13,10 @@ import {
 
 const mocks = vi.hoisted(() => ({
   acceptCurrentConsents: vi.fn(),
+  appDataGet: vi.fn(),
+  appDataPut: vi.fn(),
   completeIntakePrecheckProfileDynamoDb: vi.fn(),
-  createDynamoDbAppDataRepository: vi.fn(() => ({ kind: "repo" })),
+  createDynamoDbAppDataRepository: vi.fn(),
   createDynamoDbMdiIntakeRepository: vi.fn(() => ({ kind: "mdi-repo" })),
   createDynamoDbMdiPatientRepository: vi.fn(() => ({ kind: "mdi-patient-repo" })),
   createMdiHttpIntakeGateway: vi.fn(() => ({ kind: "mdi-gateway" })),
@@ -112,6 +114,16 @@ describe("intake and onboarding API route boundary", () => {
       ok: true,
       value: { tableName: "apoth-staging-app" },
     });
+    mocks.appDataGet.mockResolvedValue({ ok: true, value: null });
+    mocks.appDataPut.mockResolvedValue({
+      ok: true,
+      value: { recordType: "onboardingTreatmentSelection" },
+    });
+    mocks.createDynamoDbAppDataRepository.mockReturnValue({
+      get: mocks.appDataGet,
+      kind: "repo",
+      put: mocks.appDataPut,
+    });
     mocks.getServerSession.mockResolvedValue({
       ok: true,
       value: { user: { cognitoSub: "cognito-sub-route" } },
@@ -126,6 +138,7 @@ describe("intake and onboarding API route boundary", () => {
     mocks.resolveMdiQuestionnaireForTreatment.mockReturnValue({
       ok: true,
       questionnaireId: "mdi_questionnaire_route",
+      treatment: "weight",
     });
     mocks.resolveMdiQuestionnaireId.mockReturnValue("mdi_questionnaire_route");
   });
@@ -161,7 +174,7 @@ describe("intake and onboarding API route boundary", () => {
     });
     expect(mocks.resolveOnboardingStartRedirect).toHaveBeenCalledWith(expect.objectContaining({
       pathname: "/get-started",
-      repository: { kind: "repo" },
+      repository: expect.objectContaining({ kind: "repo" }),
       token: "valid-token",
     }));
   });
@@ -257,7 +270,7 @@ describe("intake and onboarding API route boundary", () => {
     });
     expect(mocks.acceptCurrentConsents).toHaveBeenCalledWith(expect.objectContaining({
       acknowledgements: { terms_current: "accepted" },
-      repository: { kind: "repo" },
+      repository: expect.objectContaining({ kind: "repo" }),
       token: "valid-token",
     }));
   });
@@ -481,7 +494,7 @@ describe("intake and onboarding API route boundary", () => {
     expect(JSON.stringify(body)).not.toContain("weight");
     expect(JSON.stringify(body)).not.toContain("34");
     expect(mocks.completeIntakePrecheckProfileDynamoDb).toHaveBeenCalledWith(
-      { kind: "repo" },
+      expect.objectContaining({ kind: "repo" }),
       expect.objectContaining({
         cognitoSub: "cognito-sub-route",
         residencyState: "IL",
@@ -582,6 +595,14 @@ describe("intake and onboarding API route boundary", () => {
     expect(JSON.stringify(body)).not.toMatch(/PATIENT_NAME_SENTINEL|patient@example\.test|60601/);
     expect(response.headers.get("set-cookie")).toContain("__Host-apoth_mdi_questionnaire=");
     expect(mocks.resolveMdiQuestionnaireForTreatment).toHaveBeenCalledWith("weight", expect.any(Object));
+    expect(mocks.appDataPut).toHaveBeenCalledWith(
+      expect.objectContaining({
+        questionnaireId: "mdi_questionnaire_route",
+        recordType: "onboardingTreatmentSelection",
+        treatment: "weight",
+      }),
+      { ifNotExists: true },
+    );
     expect(mocks.createMdiPatientLinkage).toHaveBeenCalledWith(
       {
         cognitoSub: "cognito-sub-route",
@@ -673,6 +694,29 @@ describe("intake and onboarding API route boundary", () => {
         submissionId: "mdi_submission_opaque",
       },
     });
+    mocks.appDataGet.mockImplementation(async (key: { sk?: string }) => {
+      if (key.sk === "MDI#QUESTIONNAIRE_SELECTION") {
+        return {
+          ok: true,
+          value: {
+            cognitoSub: "cognito-sub-route",
+            questionnaireId: "mdi_questionnaire_route",
+            recordType: "onboardingTreatmentSelection",
+            treatment: "weight",
+          },
+        };
+      }
+      if (key.sk?.startsWith("CONSENT#compounded_medication_disclosure#")) {
+        return { ok: true, value: null };
+      }
+      if (key.sk?.startsWith("CONSENT#")) {
+        return {
+          ok: true,
+          value: { recordType: "consentEvidence" },
+        };
+      }
+      return { ok: true, value: null };
+    });
     const { POST } = await import("../mdi/submit/route");
 
     const response = await POST(request("https://apoth.test/api/onboarding/mdi/submit", {
@@ -707,6 +751,7 @@ describe("intake and onboarding API route boundary", () => {
         mdiCaseId: "mdi_case_route",
         mdiPatientId: "mdi_patient_route",
       },
+      redirect: "/onboarding/consent?gate=medication",
       status: "submitted",
     });
     expect(JSON.stringify(body)).not.toContain("ANSWER_VALUE_SENTINEL");

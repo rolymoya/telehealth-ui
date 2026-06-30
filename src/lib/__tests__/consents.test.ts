@@ -5,6 +5,7 @@ import {
   evaluateMdiConsentRequirements,
   evaluatePrecheckConsentRequirements,
   requiredConsentsBeforeMdi,
+  requiredConsentsBeforeBillingOrPrescribing,
   requiredConsentsForGate,
   requiredConsentsForCurrentOnboarding,
   requiredConsentsForMdi,
@@ -39,6 +40,20 @@ describe("consent gate classification", () => {
 
   it("keeps medication disclosure out of the pre-MDI gate set", () => {
     expect(requiredConsentsBeforeMdi().map((consent) => consent.consentKind))
+      .toEqual(["privacy_notice", "platform_terms", "telehealth_consent"]);
+  });
+
+  it("adds only applicable medication disclosure before billing or prescribing", () => {
+    expect(requiredConsentsBeforeBillingOrPrescribing({ treatment: "weight" })
+      .map((consent) => consent.consentKind))
+      .toEqual([
+        "privacy_notice",
+        "platform_terms",
+        "telehealth_consent",
+        "compounded_medication_disclosure",
+      ]);
+    expect(requiredConsentsBeforeBillingOrPrescribing({ treatment: "hair" })
+      .map((consent) => consent.consentKind))
       .toEqual(["privacy_notice", "platform_terms", "telehealth_consent"]);
   });
 

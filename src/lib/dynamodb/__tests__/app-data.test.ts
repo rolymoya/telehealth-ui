@@ -5,6 +5,7 @@ import {
   createMdiCaseCreateAttemptRecord,
   createMdiPatientCreateAttemptRecord,
   createInMemoryAppDataRepository,
+  createOnboardingTreatmentSelectionRecord,
   linkMdiCaseIfAbsent,
   createMdiPatientLinkageIfAbsent,
   createPatientProfileRecord,
@@ -21,6 +22,7 @@ import {
   getMdiCaseCreateAttempt,
   getMdiPatientCreateAttempt,
   getMdiLinkage,
+  getOnboardingTreatmentSelection,
   getPatientProfile,
   getStripeLinkage,
   listMdiCaseStatusReconciliationItems,
@@ -39,6 +41,7 @@ import {
   recordConsentEvidence,
   recordCurrentMdiCaseStatusEvidence,
   recordEvidenceEvent,
+  recordOnboardingTreatmentSelection,
   transitionOnboardingStatus,
   upsertPatientProfile,
   validateAppDataRecord,
@@ -110,6 +113,48 @@ describe("DynamoDB app-data helpers", () => {
     })).toEqual(consent);
     expect(mdi.ok && getMdiLinkage(repository, "cognito-sub-001")).toEqual(mdi);
     expect(stripe.ok && getStripeLinkage(repository, "cognito-sub-001")).toEqual(stripe);
+  });
+
+  it("stores only the minimal onboarding treatment/questionnaire selection pointer", () => {
+    const repository = createInMemoryAppDataRepository();
+
+    const selection = recordOnboardingTreatmentSelection(repository, {
+      cognitoSub: "cognito-sub-001",
+      now,
+      questionnaireId: "mdi_questionnaire_00000000-0000-4000-8000-000000000001",
+      treatment: "weight",
+    });
+
+    expect(selection).toMatchObject({
+      ok: true,
+      value: {
+        cognitoSub: "cognito-sub-001",
+        questionnaireId: "mdi_questionnaire_00000000-0000-4000-8000-000000000001",
+        recordType: "onboardingTreatmentSelection",
+        treatment: "weight",
+      },
+    });
+    expect(getOnboardingTreatmentSelection(repository, "cognito-sub-001"))
+      .toEqual(selection);
+    expect(JSON.stringify(selection)).not.toMatch(
+      /answer|diagnosis|symptom|medication|email|stripe|casePayload/i,
+    );
+
+    expect(recordOnboardingTreatmentSelection(repository, {
+      cognitoSub: "cognito-sub-001",
+      now: "2026-06-04T18:05:00.000Z",
+      questionnaireId: "mdi_questionnaire_00000000-0000-4000-8000-000000000001",
+      treatment: "weight",
+    })).toEqual(selection);
+    expect(recordOnboardingTreatmentSelection(repository, {
+      cognitoSub: "cognito-sub-001",
+      now: "2026-06-04T18:10:00.000Z",
+      questionnaireId: "mdi_questionnaire_hair",
+      treatment: "hair",
+    })).toMatchObject({
+      ok: false,
+      error: { kind: "validation_failed" },
+    });
   });
 
   it("accepts bounded scheduled-job operational heartbeat records", () => {

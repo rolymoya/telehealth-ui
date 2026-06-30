@@ -4,6 +4,8 @@ import {
   type AuthTokenVerifier,
   type CognitoAuthConfig,
 } from "@/lib/auth";
+import { evaluateBillingDisclosureGate } from "@/lib/billing-disclosure-gate";
+import { requiredConsentsBeforeMdi } from "@/lib/consents";
 import type {
   AppDataResult,
 } from "@/lib/dynamodb/app-data";
@@ -50,18 +52,60 @@ export async function evaluateProtectedRouteAccess(input: {
   const snapshot = await readOnboardingGateSnapshotAsync(input.repository, {
     cognitoSub: session.value.user.cognitoSub,
     consentVersion: input.consentVersion,
+    requiredConsents: requiredConsentsBeforeMdi(),
   });
   if (!snapshot.ok) {
     return snapshot;
   }
 
+  const decision = decideProtectedRouteAccess({
+    authenticated: true,
+    pathname: input.pathname,
+    search: input.search,
+    snapshot: snapshot.value,
+  });
+  if (decision.decision !== "allow" || !requiresBillingDisclosureGate(input.pathname)) {
+    return {
+      ok: true,
+      value: decision,
+    };
+  }
+
+  const disclosureGate = await evaluateBillingDisclosureGate(input.repository, {
+    cognitoSub: session.value.user.cognitoSub,
+  });
+  if (disclosureGate.status === "storage_unavailable") {
+    return {
+      ok: false,
+      error: {
+        kind: "validation_failed",
+        message: "Billing disclosure gate is unavailable",
+      },
+    };
+  }
+  if (disclosureGate.status !== "ok") {
+    return {
+      ok: true,
+      value: {
+        decision: "redirect",
+        destination: "/onboarding/consent?gate=medication",
+        reason: "onboarding_step_required",
+      },
+    };
+  }
+
   return {
     ok: true,
-    value: decideProtectedRouteAccess({
-      authenticated: true,
-      pathname: input.pathname,
-      search: input.search,
-      snapshot: snapshot.value,
-    }),
+    value: decision,
   };
+}
+
+function requiresBillingDisclosureGate(pathname: string) {
+  const path = pathname.trim().split(/[?#]/, 1)[0] || "/";
+  return path === "/billing" ||
+    path.startsWith("/billing/") ||
+    path === "/dashboard" ||
+    path.startsWith("/dashboard/") ||
+    path === "/account" ||
+    path.startsWith("/account/");
 }

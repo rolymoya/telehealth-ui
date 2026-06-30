@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   consentAcknowledgementFieldName,
   currentRequiredConsents,
+  requiredConsentsBeforeMdi,
+  requiredMedicationDisclosureConsents,
 } from "../../shared/consents";
 
 const sendMock = vi.hoisted(() => vi.fn());
@@ -100,10 +102,11 @@ describe("consent lambda handler", () => {
     )?.[0].input as {
       TransactItems: Array<{ Put: { Item: Record<string, { S?: string }> } }>;
     };
-    expect(transaction.TransactItems).toHaveLength(currentRequiredConsents.length);
+    expect(transaction.TransactItems).toHaveLength(requiredConsentsBeforeMdi().length);
     expect(JSON.stringify(transaction)).toContain("consentEvidence");
     expect(JSON.stringify(transaction)).not.toContain("emergency");
     expect(JSON.stringify(transaction)).not.toContain("weight");
+    expect(JSON.stringify(transaction)).not.toContain("compounded_medication_disclosure");
 
     const profilePut = sendMock.mock.calls.find(([command]) =>
       command.kind === "PutItem"
@@ -233,6 +236,95 @@ describe("consent lambda handler", () => {
       command.kind === "TransactWriteItems"
     )).toBe(false);
   });
+
+  it("does not record medication disclosure before MDI submission and case linkage", async () => {
+    const { acceptHandler } = await import("../src/lambda/consent.js");
+    sendMock.mockImplementation(async (command) => {
+      const input = command.input as { Key?: { sk?: { S?: string } } };
+      if (command.kind === "GetItem" && input.Key?.sk?.S === "PROFILE") {
+        return {
+          Item: {
+            onboardingStatus: { S: "intake_ready" },
+            recordType: { S: "patientProfile" },
+          },
+        };
+      }
+      return {};
+    });
+
+    const response = await acceptHandler(event({
+      body: JSON.stringify({
+        acknowledgements: acceptedAcks(requiredMedicationDisclosureConsents({ treatment: "weight" })),
+        gate: "post_questionnaire_medication",
+      }),
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      destination: "/onboarding/mdi",
+      status: "consent_recorded",
+    });
+    expect(sendMock.mock.calls.some(([command]) =>
+      command.kind === "TransactWriteItems"
+    )).toBe(false);
+  });
+
+  it("records only applicable medication disclosure after MDI submission and case linkage", async () => {
+    const { acceptHandler } = await import("../src/lambda/consent.js");
+    sendMock.mockImplementation(async (command) => {
+      const input = command.input as { Key?: { sk?: { S?: string } } };
+      if (command.kind === "GetItem" && input.Key?.sk?.S === "PROFILE") {
+        return {
+          Item: {
+            onboardingStatus: { S: "mdi_submitted" },
+            recordType: { S: "patientProfile" },
+          },
+        };
+      }
+      if (command.kind === "GetItem" && input.Key?.sk?.S === "MDI#LINKAGE") {
+        return {
+          Item: {
+            mdiCaseId: { S: "mdi_case_consent_lambda_001" },
+            mdiPatientId: { S: "mdi_patient_consent_lambda_001" },
+            recordType: { S: "mdiLinkage" },
+          },
+        };
+      }
+      if (command.kind === "GetItem" && input.Key?.sk?.S === "MDI#QUESTIONNAIRE_SELECTION") {
+        return {
+          Item: {
+            questionnaireId: { S: "mdi_questionnaire_weight" },
+            recordType: { S: "onboardingTreatmentSelection" },
+            treatment: { S: "weight" },
+          },
+        };
+      }
+      return {};
+    });
+
+    const response = await acceptHandler(event({
+      body: JSON.stringify({
+        acknowledgements: acceptedAcks(requiredMedicationDisclosureConsents({ treatment: "weight" })),
+        gate: "post_questionnaire_medication",
+      }),
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      destination: "/onboarding/mdi",
+      status: "consent_recorded",
+    });
+    const transaction = sendMock.mock.calls.find(([command]) =>
+      command.kind === "TransactWriteItems"
+    )?.[0].input as {
+      TransactItems: Array<{ Put: { Item: Record<string, { S?: string }> } }>;
+    };
+    expect(transaction.TransactItems).toHaveLength(1);
+    expect(JSON.stringify(transaction)).toContain("compounded_medication_disclosure");
+    expect(JSON.stringify(transaction)).not.toContain("platform_terms");
+    expect(JSON.stringify(transaction)).not.toContain("telehealth_consent");
+    expect(JSON.stringify(transaction)).not.toMatch(/answer|diagnosis|symptom/i);
+  });
 });
 
 function event(options: {
@@ -251,9 +343,9 @@ function event(options: {
   };
 }
 
-function acceptedAcks() {
+function acceptedAcks(requiredConsents = currentRequiredConsents) {
   return Object.fromEntries(
-    currentRequiredConsents.map((consent) => [
+    requiredConsents.map((consent) => [
       consentAcknowledgementFieldName(consent),
       "accepted",
     ]),

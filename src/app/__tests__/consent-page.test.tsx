@@ -1,17 +1,40 @@
 import { render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ConsentPage from "@/app/onboarding/consent/page";
-import { currentRequiredConsents } from "@/lib/consents";
+import {
+  requiredConsentsBeforeMdi,
+  requiredMedicationDisclosureConsents,
+} from "@/lib/consents";
+
+const mocks = vi.hoisted(() => ({
+  resolveConsentDocumentsForDisplay: vi.fn(),
+}));
+
+vi.mock("@/lib/consent-acceptance", () => ({
+  resolveConsentDocumentsForDisplay: mocks.resolveConsentDocumentsForDisplay,
+}));
+
+beforeEach(() => {
+  mocks.resolveConsentDocumentsForDisplay.mockResolvedValue({
+    ok: true,
+    value: {
+      gate: "pre_mdi",
+      requiredConsents: requiredConsentsBeforeMdi(),
+    },
+  });
+});
 
 afterEach(() => {
   window.history.replaceState({}, "", "/");
+  vi.clearAllMocks();
 });
 
 describe("consent page", () => {
-  it("renders current required consent versions with required acknowledgements", () => {
-    render(<ConsentPage />);
+  it("renders current required consent versions with required acknowledgements", async () => {
+    render(await ConsentPage());
 
-    for (const consent of currentRequiredConsents) {
+    const requiredConsents = requiredConsentsBeforeMdi();
+    for (const consent of requiredConsents) {
       expect(screen.getByText(consent.label)).toBeInTheDocument();
       expect(screen.getByText(consent.version)).toBeInTheDocument();
       expect(
@@ -21,17 +44,38 @@ describe("consent page", () => {
       ).toBeRequired();
     }
     const documentLinks = screen.getAllByRole("link", { name: "Open document" });
-    expect(documentLinks).toHaveLength(currentRequiredConsents.length);
+    expect(documentLinks).toHaveLength(requiredConsents.length);
     documentLinks.forEach((link, index) => {
       expect(link).toHaveAttribute(
         "href",
-        currentRequiredConsents[index]?.documentPath,
+        requiredConsents[index]?.documentPath,
       );
     });
+    expect(screen.getByRole("button", { name: "Accept and continue" }))
+      .toBeInTheDocument();
+  });
+
+  it("renders medication disclosure acknowledgements on the medication gate", async () => {
+    window.history.replaceState({}, "", "/onboarding/consent?gate=medication");
+    mocks.resolveConsentDocumentsForDisplay.mockResolvedValue({
+      ok: true,
+      value: {
+        gate: "post_questionnaire_medication",
+        requiredConsents: requiredMedicationDisclosureConsents({ treatment: "weight" }),
+      },
+    });
+
+    render(await ConsentPage({
+      searchParams: { gate: "medication" },
+    }));
+
+    const requiredConsents = requiredMedicationDisclosureConsents({ treatment: "weight" });
+    for (const consent of requiredConsents) {
+      expect(screen.getByText(consent.label)).toBeInTheDocument();
+      expect(screen.getByText(consent.version)).toBeInTheDocument();
+    }
     expect(screen.getAllByText(/not FDA-approved/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/not Ozempic, Wegovy, Mounjaro, or Zepbound/i))
-      .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Accept and continue" }))
       .toBeInTheDocument();
   });
 
@@ -42,7 +86,7 @@ describe("consent page", () => {
       "/onboarding/consent?error=acceptance_failed",
     );
 
-    render(<ConsentPage />);
+    render(await ConsentPage());
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "We could not record consent.",

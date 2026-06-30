@@ -5,13 +5,19 @@ import {
   type PaymentMethodStripeClient,
 } from "@/lib/billing-payment-method";
 import {
+  requiredConsentsBeforeBillingOrPrescribing,
+} from "@/lib/consents";
+import {
   createInMemoryAppDataRepository,
   createPatientProfileRecord,
   getStripeLinkage,
   linkMdiPatientCase,
   linkStripeCustomer,
+  recordCurrentConsentAcceptance,
   recordCurrentMdiCaseStatusEvidence,
+  recordOnboardingTreatmentSelection,
 } from "@/lib/dynamodb/app-data";
+import type { LaunchOfferingSlug } from "../../../shared/intake/precheck";
 
 const cognitoSub = "cognito-sub-paymentmethod";
 const mdiPatientId = "mdi_patient_paymentmethod_001";
@@ -89,7 +95,7 @@ describe("payment method collection preparation", () => {
   });
 
   it("does not create charges or active billing for clinically declined cases", async () => {
-    const repository = seededRepository("clinical_review");
+    const repository = seededRepository("clinical_review", { billingConsent: false });
     seedCaseStatus(repository, "declined");
     const stripe = stripeMock();
 
@@ -111,7 +117,7 @@ describe("payment method collection preparation", () => {
 
   it("keeps existing deferred Stripe linkage non-active when MDI later declines", async () => {
     for (const billingStatus of ["payment_method_pending", "payment_method_collected"] as const) {
-      const repository = seededRepository("clinical_review");
+      const repository = seededRepository("clinical_review", { billingConsent: false });
       expect(linkStripeCustomer(repository, {
         billingStatus,
         cognitoSub,
@@ -156,6 +162,26 @@ describe("payment method collection preparation", () => {
       stripe,
       urls: returnUrls,
     })).resolves.toEqual({ ok: false, code: "payment_not_ready" });
+
+    expectNoStripeMutation(stripe);
+    expect(getStripeLinkage(repository, cognitoSub)).toEqual({
+      ok: true,
+      value: null,
+    });
+  });
+
+  it("does not create Stripe customer or Checkout session before medication disclosure", async () => {
+    const repository = seededRepository("clinical_review", { billingConsent: false });
+    const stripe = stripeMock();
+
+    await expect(preparePaymentMethodCollection({
+      cognitoSub,
+      now,
+      repository: createInMemoryPaymentMethodCollectionRepository(repository),
+      stage: "staging",
+      stripe,
+      urls: returnUrls,
+    })).resolves.toEqual({ ok: false, code: "medication_disclosure_required" });
 
     expectNoStripeMutation(stripe);
     expect(getStripeLinkage(repository, cognitoSub)).toEqual({
@@ -230,6 +256,10 @@ describe("payment method collection preparation", () => {
 
 function seededRepository(
   onboardingStatus: Parameters<typeof createPatientProfileRecord>[0]["onboardingStatus"],
+  options: {
+    billingConsent?: boolean;
+    treatment?: LaunchOfferingSlug;
+  } = {},
 ) {
   const repository = createInMemoryAppDataRepository([
     createPatientProfileRecord({
@@ -245,7 +275,28 @@ function seededRepository(
     mdiPatientId,
     now,
   }).ok).toBe(true);
+  if (options.billingConsent !== false) {
+    seedBillingDisclosure(repository, options.treatment ?? "weight");
+  }
   return repository;
+}
+
+function seedBillingDisclosure(
+  repository: ReturnType<typeof createInMemoryAppDataRepository>,
+  treatment: LaunchOfferingSlug,
+) {
+  expect(recordOnboardingTreatmentSelection(repository, {
+    cognitoSub,
+    now,
+    questionnaireId: `mdi_questionnaire_${treatment.replace(/-/g, "_")}`,
+    treatment,
+  }).ok).toBe(true);
+  expect(recordCurrentConsentAcceptance(repository, {
+    acceptedAt: now,
+    cognitoSub,
+    now,
+    requiredConsents: requiredConsentsBeforeBillingOrPrescribing({ treatment }),
+  }).ok).toBe(true);
 }
 
 function seedCaseStatus(

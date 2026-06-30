@@ -6,7 +6,8 @@ import {
   resolveAppDataRepository,
   verifyJsonMutation,
 } from "@/app/api/_shared/onboarding";
-import { currentConsentVersion } from "@/lib/consents";
+import { evaluateBillingDisclosureGate } from "@/lib/billing-disclosure-gate";
+import { currentConsentVersion, requiredConsentsBeforeMdi } from "@/lib/consents";
 import {
   mdiQuestionnaireContextCookieName,
   readMdiQuestionnaireContextCookie,
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
   const snapshot = await readOnboardingGateSnapshotAsync(repository.value, {
     cognitoSub: session.value.session.user.cognitoSub,
     consentVersion: currentConsentVersion,
+    requiredConsents: requiredConsentsBeforeMdi(),
   });
   if (!snapshot.ok) {
     return noStoreJson({ code: "provider_unavailable" }, 503);
@@ -79,8 +81,20 @@ export async function POST(request: NextRequest) {
     return noStoreJson(mdiErrorBody(result.error.code), result.error.status);
   }
 
+  const disclosureGate = await evaluateBillingDisclosureGate(repository.value, {
+    cognitoSub: session.value.session.user.cognitoSub,
+  });
+  if (disclosureGate.status === "storage_unavailable") {
+    return noStoreJson({ code: "provider_unavailable" }, 503);
+  }
+
   return noStoreJson({
     linkage: result.value.linkage,
+    ...(disclosureGate.status === "medication_disclosure_required"
+      ? { redirect: "/onboarding/consent?gate=medication" }
+      : disclosureGate.status === "treatment_selection_required"
+        ? { redirect: "/onboarding/mdi" }
+        : {}),
     status: result.value.status,
   });
 }

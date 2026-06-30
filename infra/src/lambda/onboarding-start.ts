@@ -10,8 +10,8 @@ import {
   patientAccessCookieName,
 } from "../../../shared/auth/session-cookie";
 import {
+  requiredConsentsBeforeBillingOrPrescribing,
   requiredConsentsBeforeMdi,
-  requiredConsentsForCurrentOnboarding,
 } from "../../../shared/consents";
 import {
   anonymousPrecheckContextCookieName,
@@ -468,18 +468,21 @@ async function destinationForStart(
   if (destination === "/onboarding/consent") {
     return destination;
   }
-  return await hasRequiredConsentForDestination(cognitoSub, destination)
+  if (!await hasRequiredConsent(cognitoSub, requiredConsentsBeforeMdi())) {
+    return "/onboarding/consent";
+  }
+  if (destination !== "/billing" && destination !== "/dashboard") {
+    return destination;
+  }
+  return await hasBillingDisclosureConsent(cognitoSub)
     ? destination
-    : "/onboarding/consent";
+    : "/onboarding/consent?gate=medication";
 }
 
-async function hasRequiredConsentForDestination(
+async function hasRequiredConsent(
   cognitoSub: string,
-  destination: string,
+  requiredConsents: ReturnType<typeof requiredConsentsBeforeMdi>,
 ) {
-  const requiredConsents = destination === "/billing" || destination === "/dashboard"
-    ? requiredConsentsForCurrentOnboarding()
-    : requiredConsentsBeforeMdi();
   for (const consent of requiredConsents) {
     const response = await ddb.send(new GetItemCommand({
       ConsistentRead: true,
@@ -491,6 +494,28 @@ async function hasRequiredConsentForDestination(
     }
   }
   return true;
+}
+
+async function hasBillingDisclosureConsent(cognitoSub: string) {
+  const selection = await ddb.send(new GetItemCommand({
+    ConsistentRead: true,
+    Key: treatmentSelectionKey(cognitoSub),
+    TableName: requiredEnv("APP_TABLE_NAME"),
+  }));
+  const treatment = selection.Item?.recordType?.S === "onboardingTreatmentSelection"
+    ? selection.Item.treatment?.S
+    : undefined;
+  if (
+    treatment !== "weight" &&
+    treatment !== "hair" &&
+    treatment !== "sexual-health"
+  ) {
+    return false;
+  }
+  return hasRequiredConsent(
+    cognitoSub,
+    requiredConsentsBeforeBillingOrPrescribing({ treatment }),
+  );
 }
 
 function createDefaultProfile(): PatientProfile {
@@ -535,6 +560,13 @@ function anonymousPrecheckConsumptionKey(nonceHash: string) {
   return {
     pk: { S: `ANON_PRECHECK#${nonceHash}` },
     sk: { S: "CONSUMED" },
+  };
+}
+
+function treatmentSelectionKey(cognitoSub: string) {
+  return {
+    pk: { S: `PATIENT#${cognitoSub}` },
+    sk: { S: "MDI#QUESTIONNAIRE_SELECTION" },
   };
 }
 

@@ -26,6 +26,10 @@ import {
   linkStripeCustomerDynamoDb,
 } from "@/lib/dynamodb/app-data-dynamodb";
 import {
+  evaluateBillingDisclosureGate,
+  type BillingDisclosureGateRepository,
+} from "@/lib/billing-disclosure-gate";
+import {
   createPaymentMethodSetupCheckoutParams,
   createStripeCustomerParams,
 } from "@/lib/stripe";
@@ -54,12 +58,13 @@ export type PaymentMethodCollectionResult =
         | "billing_closed"
         | "clinical_declined"
         | "invalid_stripe_metadata"
+        | "medication_disclosure_required"
         | "payment_not_ready"
         | "storage_unavailable"
         | "stripe_unavailable";
     };
 
-export type PaymentMethodCollectionRepository = {
+export type PaymentMethodCollectionRepository = BillingDisclosureGateRepository & {
   getMdiCaseStatusMirror(mdiCaseId: string):
     Promise<AppDataResult<MdiCaseStatusMirrorRecord | null>>;
   getMdiLinkage(cognitoSub: string): Promise<AppDataResult<MdiLinkageRecord | null>>;
@@ -90,6 +95,9 @@ export function createInMemoryPaymentMethodCollectionRepository(
   repository: AppDataRepository,
 ): PaymentMethodCollectionRepository {
   return {
+    async get(key) {
+      return repository.get(key);
+    },
     async getMdiCaseStatusMirror(mdiCaseId) {
       const record = repository.get(mdiCaseStatusMirrorKey(mdiCaseId));
       if (!record.ok || !record.value) {
@@ -119,6 +127,9 @@ export function createDynamoDbPaymentMethodCollectionRepository(
   repository: Pick<DynamoDbAppDataRepository, "get" | "transactWrite">,
 ): PaymentMethodCollectionRepository {
   return {
+    async get(key) {
+      return repository.get(key);
+    },
     async getMdiCaseStatusMirror(mdiCaseId) {
       const record = await repository.get(mdiCaseStatusMirrorKey(mdiCaseId));
       if (!record.ok || !record.value) {
@@ -184,6 +195,16 @@ export async function preparePaymentMethodCollection(input: {
   }
   if (mirror.value && isClinicallyClosedStatus(mirror.value.caseStatus)) {
     return { ok: false, code: "clinical_declined" };
+  }
+
+  const disclosureGate = await evaluateBillingDisclosureGate(input.repository, {
+    cognitoSub: input.cognitoSub,
+  });
+  if (disclosureGate.status === "storage_unavailable") {
+    return { ok: false, code: "storage_unavailable" };
+  }
+  if (disclosureGate.status !== "ok") {
+    return { ok: false, code: "medication_disclosure_required" };
   }
 
   const stripeLinkage = await input.repository.getStripeLinkage(input.cognitoSub);

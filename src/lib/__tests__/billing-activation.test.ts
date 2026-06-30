@@ -7,14 +7,20 @@ import {
   type BillingActivationStripeClient,
 } from "@/lib/billing-activation";
 import {
+  requiredConsentsBeforeBillingOrPrescribing,
+} from "@/lib/consents";
+import {
   createInMemoryAppDataRepository,
   createPatientProfileRecord,
   getStripeLinkage,
   linkMdiPatientCase,
   linkStripeCustomer,
   listEvidenceEventsForPatient,
+  recordCurrentConsentAcceptance,
   recordCurrentMdiCaseStatusEvidence,
+  recordOnboardingTreatmentSelection,
 } from "@/lib/dynamodb/app-data";
+import type { LaunchOfferingSlug } from "../../../shared/intake/precheck";
 
 const cognitoSub = "cognito-sub-billingactivation";
 const mdiPatientId = "mdi_patient_billingactivation_001";
@@ -112,6 +118,41 @@ describe("billing activation after MDI clinical unlock", () => {
         stripeSubscriptionId: "sub_opaque_001",
       },
     });
+  });
+
+  it("skips subscription creation before medication disclosure is current", async () => {
+    const repository = seededRepository({
+      billingConsent: false,
+      billingStatus: "payment_method_collected",
+      caseStatus: "billing_ready",
+    });
+    const stripe = stripeMock();
+
+    const result = await activateBillingAfterClinicalUnlock({
+      cognitoSub,
+      mdiCaseId,
+      now,
+      priceId,
+      repository: createInMemoryBillingActivationRepository(repository),
+      stage: "staging",
+      stripe,
+    });
+
+    expect(result).toEqual({ ok: true, status: "medication_disclosure_required" });
+    expect(stripe.subscriptions.create).not.toHaveBeenCalled();
+    expect(getStripeLinkage(repository, cognitoSub)).toMatchObject({
+      ok: true,
+      value: { billingStatus: "payment_method_collected" },
+    });
+    const evidence = listEvidenceEventsForPatient(repository, { cognitoSub, limit: 50 });
+    const events = evidence.ok ? evidence.value.items : [];
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventType: "stripe_billing_activation_skipped",
+        metadata: { reason_code: "treatment_selection_required" },
+        status: "skipped",
+      }),
+    ]));
   });
 
   it("does not create duplicate subscriptions when activation is retried", async () => {
@@ -573,8 +614,10 @@ describe("billing activation after MDI clinical unlock", () => {
 });
 
 function seededRepository(input: {
+  billingConsent?: boolean;
   billingStatus?: "payment_method_pending" | "payment_method_collected" | "active" | "past_due" | "cancel_pending" | "canceled";
   caseStatus?: "approved" | "billing_ready" | "declined";
+  treatment?: LaunchOfferingSlug;
 }) {
   const repository = createInMemoryAppDataRepository([
     createPatientProfileRecord({
@@ -633,7 +676,28 @@ function seededRepository(input: {
         : undefined,
     }).ok).toBe(true);
   }
+  if (input.billingConsent !== false) {
+    seedBillingDisclosure(repository, input.treatment ?? "weight");
+  }
   return repository;
+}
+
+function seedBillingDisclosure(
+  repository: ReturnType<typeof createInMemoryAppDataRepository>,
+  treatment: LaunchOfferingSlug,
+) {
+  expect(recordOnboardingTreatmentSelection(repository, {
+    cognitoSub,
+    now,
+    questionnaireId: `mdi_questionnaire_${treatment.replace(/-/g, "_")}`,
+    treatment,
+  }).ok).toBe(true);
+  expect(recordCurrentConsentAcceptance(repository, {
+    acceptedAt: now,
+    cognitoSub,
+    now,
+    requiredConsents: requiredConsentsBeforeBillingOrPrescribing({ treatment }),
+  }).ok).toBe(true);
 }
 
 function seedCaseStatus(

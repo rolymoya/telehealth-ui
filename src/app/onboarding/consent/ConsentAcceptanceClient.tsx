@@ -4,10 +4,17 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   consentAcknowledgementFieldName,
-  currentRequiredConsents,
+  type RequiredConsentDocument,
 } from "@/lib/consents";
+import { postConsentAcceptance } from "@/lib/consent-api-client";
 
-export function ConsentAcceptanceClient() {
+export function ConsentAcceptanceClient({
+  gate,
+  requiredConsents,
+}: {
+  gate: "pre_mdi" | "post_questionnaire_medication";
+  requiredConsents: readonly RequiredConsentDocument[];
+}) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -26,18 +33,16 @@ export function ConsentAcceptanceClient() {
     const form = new FormData(event.currentTarget);
     try {
       const acknowledgements = Object.fromEntries(
-        currentRequiredConsents.map((consent) => [
+        requiredConsents.map((consent) => [
           consentAcknowledgementFieldName(consent),
           form.get(consentAcknowledgementFieldName(consent)) === "accepted"
             ? "accepted"
             : "",
         ]),
       );
-      const response = await fetch("/api/onboarding/consent", {
-        body: JSON.stringify({ acknowledgements }),
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        method: "POST",
+      const response = await postConsentAcceptance({
+        acknowledgements,
+        gate,
       });
       const body = await readJsonBody(response);
 
@@ -77,7 +82,7 @@ export function ConsentAcceptanceClient() {
 
       <form className="mt-10 max-w-3xl" onSubmit={onSubmit}>
         <div className="space-y-5">
-          {currentRequiredConsents.map((consent) => (
+          {requiredConsents.map((consent) => (
             <fieldset
               className="border border-ash-line px-5 py-5"
               key={`${consent.consentKind}:${consent.version}`}

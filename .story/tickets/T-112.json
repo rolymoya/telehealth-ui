@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-108"
+  ],
+  "claimedBySession": "33f55611-0b07-47e0-9ba3-7c28653bd769",
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-29",
+  "description": "Move medication/compounded-medication disclosure to after successful MDI questionnaire submission and before billing, prescribing, or treatment acceptance. Make the requirement treatment-specific, versioned, and recorded as consent evidence without storing questionnaire answers locally. Ensure routes and Lambdas prevent billing/prescribing progression when the applicable medication disclosure is missing or stale.",
+  "id": "T-112",
+  "order": 200,
+  "parentTicket": "T-107",
+  "phase": "mdi-integration",
+  "status": "complete",
+  "title": "Gate post-questionnaire medication disclosure",
+  "type": "feature"
+}

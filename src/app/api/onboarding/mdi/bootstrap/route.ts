@@ -5,7 +5,7 @@ import {
   readPatientRouteSession,
   resolveAppDataRepository,
 } from "@/app/api/_shared/onboarding";
-import { currentConsentVersion } from "@/lib/consents";
+import { currentConsentVersion, requiredConsentsBeforeMdi } from "@/lib/consents";
 import {
   readMdiQuestionnaireContextCookie,
   mdiQuestionnaireContextCookieName,
@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
   const snapshot = await readOnboardingGateSnapshotAsync(repository.value, {
     cognitoSub: session.value.session.user.cognitoSub,
     consentVersion: currentConsentVersion,
+    requiredConsents: requiredConsentsBeforeMdi(),
   });
   if (!snapshot.ok) {
     return noStoreJson({ code: "provider_unavailable" }, 503);

@@ -2,13 +2,31 @@ import type { Metadata } from "next";
 import { Footer } from "@/components/Footer";
 import { Nav } from "@/components/Nav";
 import { ConsentAcceptanceClient } from "@/app/onboarding/consent/ConsentAcceptanceClient";
+import {
+  resolveConsentDocumentsForDisplay,
+  type ConsentAcceptanceGate,
+} from "@/lib/consent-acceptance";
+import { requiredConsentsBeforeMdi } from "@/lib/consents";
 
 export const metadata: Metadata = {
   title: "Consent · Apoth",
   description: "Review required Apoth onboarding consents.",
 };
 
-export default function ConsentPage() {
+type ConsentPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>> |
+    Record<string, string | string[] | undefined>;
+};
+
+export default async function ConsentPage({ searchParams }: ConsentPageProps = {}) {
+  const gate = consentGateFromSearchParams(await searchParams);
+  const display = await resolveConsentDocumentsForDisplay({ gate });
+  const requiredConsents = display.ok
+    ? display.value.requiredConsents
+    : gate === "pre_mdi"
+      ? requiredConsentsBeforeMdi()
+      : [];
+
   return (
     <>
       <Nav variant="light" />
@@ -26,10 +44,22 @@ export default function ConsentPage() {
             </p>
           </div>
 
-          <ConsentAcceptanceClient />
+          <ConsentAcceptanceClient gate={gate} requiredConsents={requiredConsents} />
         </section>
       </main>
       <Footer />
     </>
   );
+}
+
+function consentGateFromSearchParams(
+  params: Record<string, string | string[] | undefined> | undefined,
+): ConsentAcceptanceGate {
+  return paramValue(params?.gate) === "medication"
+    ? "post_questionnaire_medication"
+    : "pre_mdi";
+}
+
+function paramValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }

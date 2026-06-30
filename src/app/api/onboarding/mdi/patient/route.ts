@@ -5,7 +5,7 @@ import {
   resolveAppDataRepository,
   verifyJsonMutation,
 } from "@/app/api/_shared/onboarding";
-import { currentConsentVersion } from "@/lib/consents";
+import { currentConsentVersion, requiredConsentsBeforeMdi } from "@/lib/consents";
 import {
   createMdiQuestionnaireContextCookie,
   mdiQuestionnaireContextCookieName,
@@ -15,6 +15,7 @@ import { createMdiHttpPatientGateway } from "@/lib/mdi-patient-gateway";
 import { createMdiPatientLinkage } from "@/lib/mdi-patient";
 import { resolveMdiQuestionnaireForTreatment } from "@/lib/mdi-questionnaire-routing";
 import { readOnboardingGateSnapshotAsync } from "@/lib/onboarding-status";
+import { recordOnboardingTreatmentSelectionAsync } from "@/lib/onboarding-treatment-selection";
 import { isUsStateCode, normalizeUsStateCode } from "../../../../../../shared/intake/us-states";
 
 type MdiPatientProfile = {
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
   const snapshot = await readOnboardingGateSnapshotAsync(repository.value, {
     cognitoSub: session.value.session.user.cognitoSub,
     consentVersion: currentConsentVersion,
+    requiredConsents: requiredConsentsBeforeMdi(),
   });
   if (!snapshot.ok) {
     return noStoreJson({ code: "provider_unavailable" }, 503);
@@ -93,6 +95,16 @@ export async function POST(request: NextRequest) {
   );
   if (!result.ok) {
     return noStoreJson({ code: result.error.code }, publicPatientStatus(result.error.status));
+  }
+
+  const selection = await recordOnboardingTreatmentSelectionAsync(repository.value, {
+    cognitoSub: session.value.session.user.cognitoSub,
+    now: new Date().toISOString(),
+    questionnaireId: treatment.questionnaireId,
+    treatment: treatment.treatment,
+  });
+  if (!selection.ok) {
+    return noStoreJson({ code: "questionnaire_unavailable" }, 503);
   }
 
   const cookieValue = createMdiQuestionnaireContextCookie({

@@ -14,6 +14,7 @@ describe("MDI questionnaire routing", () => {
     expect(resolveMdiQuestionnaireForTreatment("weight", env)).toEqual({
       ok: true,
       questionnaireId: "mdi_questionnaire_weight",
+      treatment: "weight",
     });
   });
 
@@ -35,6 +36,7 @@ describe("MDI questionnaire routing", () => {
     })).toEqual({
       ok: true,
       questionnaireId: "mdi_questionnaire_launch",
+      treatment: "sexual-health",
     });
   });
 });

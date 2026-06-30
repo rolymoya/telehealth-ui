@@ -1,7 +1,7 @@
 import type { LaunchOfferingSlug } from "../../shared/intake/precheck";
 
 export type MdiQuestionnaireRouteResult =
-  | { ok: true; questionnaireId: string }
+  | { ok: true; questionnaireId: string; treatment: LaunchOfferingSlug }
   | {
       ok: false;
       code: "invalid_treatment" | "questionnaire_unavailable";
@@ -21,13 +21,13 @@ export function resolveMdiQuestionnaireForTreatment(
   if (mapping) {
     const mapped = mapping[normalized]?.trim();
     return mapped
-      ? { ok: true, questionnaireId: mapped }
+      ? { ok: true, questionnaireId: mapped, treatment: normalized }
       : { ok: false, code: "questionnaire_unavailable", status: 503 };
   }
 
   const fallback = env.APOTH_MDI_QUESTIONNAIRE_ID?.trim();
   return fallback
-    ? { ok: true, questionnaireId: fallback }
+    ? { ok: true, questionnaireId: fallback, treatment: normalized }
     : { ok: false, code: "questionnaire_unavailable", status: 503 };
 }
 

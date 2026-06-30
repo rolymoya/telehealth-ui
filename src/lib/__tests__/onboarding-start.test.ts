@@ -4,7 +4,10 @@ import {
   type AuthTokenVerifier,
   type CognitoAuthConfig,
 } from "@/lib/auth";
-import { requiredConsentsBeforeMdi } from "@/lib/consents";
+import {
+  requiredConsentsBeforeBillingOrPrescribing,
+  requiredConsentsBeforeMdi,
+} from "@/lib/consents";
 import {
   anonymousPrecheckConsumptionKey,
   createInMemoryAppDataRepository,
@@ -13,6 +16,7 @@ import {
   mdiLinkageKey,
   patientProfileKey,
   recordCurrentConsentAcceptance,
+  recordOnboardingTreatmentSelection,
   stripeLinkageKey,
 } from "@/lib/dynamodb/app-data";
 import {
@@ -258,7 +262,7 @@ describe("onboarding start route orchestration", () => {
     });
   });
 
-  it("requires full current consent before routing a billing-ready profile to billing", async () => {
+  it("routes a billing-ready profile to medication disclosure before billing", async () => {
     const repository = createInMemoryAppDataRepository();
     repository.put(createPatientProfileRecord({
       cognitoSub,
@@ -290,7 +294,50 @@ describe("onboarding start route orchestration", () => {
     ).resolves.toEqual({
       ok: true,
       value: {
-        destination: "/onboarding/consent",
+        destination: "/onboarding/consent?gate=medication",
+      },
+    });
+  });
+
+  it("routes a billing-ready profile to billing after applicable disclosure", async () => {
+    const repository = createInMemoryAppDataRepository();
+    repository.put(createPatientProfileRecord({
+      cognitoSub,
+      onboardingStatus: "billing_ready",
+      now: nowIso,
+      residencyState: "IL",
+    }));
+    expect(linkMdiPatientCase(repository, {
+      cognitoSub,
+      mdiCaseId: "mdi_case_001",
+      mdiPatientId: "mdi_patient_001",
+      now: nowIso,
+    })).toMatchObject({ ok: true });
+    expect(recordOnboardingTreatmentSelection(repository, {
+      cognitoSub,
+      now: nowIso,
+      questionnaireId: "mdi_questionnaire_weight",
+      treatment: "weight",
+    }).ok).toBe(true);
+    recordCurrentConsentAcceptance(repository, {
+      acceptedAt: nowIso,
+      cognitoSub,
+      now: nowIso,
+      requiredConsents: requiredConsentsBeforeBillingOrPrescribing({ treatment: "weight" }),
+    });
+
+    await expect(
+      resolveOnboardingStartRedirect({
+        config,
+        now,
+        repository,
+        token: "valid-token",
+        verifier: validVerifier(),
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        destination: "/billing",
       },
     });
   });

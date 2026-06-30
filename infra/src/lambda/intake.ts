@@ -6,7 +6,10 @@ import {
   UpdateItemCommand,
 } from "@aws-sdk/client-dynamodb";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
-import { requiredConsentsForCurrentOnboarding } from "../../../shared/consents";
+import {
+  requiredConsentsBeforeMdi,
+  requiredConsentsForCurrentOnboarding,
+} from "../../../shared/consents";
 import {
   anonymousPrecheckContextSetCookieHeader,
   createAnonymousPrecheckContext,
@@ -348,7 +351,7 @@ function verifier() {
 }
 
 async function hasCurrentConsent(cognitoSub: string) {
-  for (const consent of requiredConsentsForCurrentOnboarding()) {
+  for (const consent of requiredConsentsBeforeMdi()) {
     const response = await ddb.send(new GetItemCommand({
       ConsistentRead: true,
       Key: consentKey(cognitoSub, consent.consentKind, consent.version),

@@ -7,7 +7,13 @@ import {
   TransactWriteItemsCommand,
 } from "@aws-sdk/client-dynamodb";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
-import { requiredConsentsForCurrentOnboarding } from "../../../shared/consents";
+import {
+  requiredConsentsBeforeBillingOrPrescribing,
+  requiredConsentsBeforeMdi,
+  requiredConsentsForCurrentOnboarding,
+  type RequiredConsentDocument,
+} from "../../../shared/consents";
+import type { LaunchOfferingSlug } from "../../../shared/intake/precheck";
 import {
   parseCookieHeader,
   patientAccessCookieName,
@@ -70,7 +76,7 @@ export async function bootstrapHandler(event: ApiEvent): Promise<ApiResponse> {
     return json(401, { code: auth.code });
   }
 
-  const consent = await hasCurrentConsent(auth.session.cognitoSub);
+  const consent = await hasCurrentConsent(auth.session.cognitoSub, requiredConsentsBeforeMdi());
   if (!consent) {
     return json(403, {
       code: "consent_required",
@@ -109,7 +115,7 @@ export async function submitHandler(event: ApiEvent): Promise<ApiResponse> {
     return json(csrf.status, { code: csrf.code });
   }
 
-  const consent = await hasCurrentConsent(csrf.session.cognitoSub);
+  const consent = await hasCurrentConsent(csrf.session.cognitoSub, requiredConsentsBeforeMdi());
   if (!consent) {
     return json(403, {
       code: "consent_required",
@@ -138,7 +144,19 @@ export async function submitHandler(event: ApiEvent): Promise<ApiResponse> {
     return json(result.error.status, bodyForError(result.error.code));
   }
 
-  return json(200, result.value);
+  const disclosureGate = await billingDisclosureStatus(csrf.session.cognitoSub);
+  if (disclosureGate === "storage_unavailable") {
+    return json(503, { code: "provider_unavailable" });
+  }
+
+  return json(200, {
+    ...result.value,
+    ...(disclosureGate === "medication_disclosure_required"
+      ? { redirect: "/onboarding/consent?gate=medication" }
+      : disclosureGate === "treatment_selection_required"
+        ? { redirect: "/onboarding/mdi" }
+        : {}),
+  });
 }
 
 export async function patientHandler(event: ApiEvent): Promise<ApiResponse> {
@@ -147,7 +165,7 @@ export async function patientHandler(event: ApiEvent): Promise<ApiResponse> {
     return json(csrf.status, { code: csrf.code });
   }
 
-  const consent = await hasCurrentConsent(csrf.session.cognitoSub);
+  const consent = await hasCurrentConsent(csrf.session.cognitoSub, requiredConsentsBeforeMdi());
   if (!consent) {
     return json(403, {
       code: "consent_required",
@@ -191,6 +209,16 @@ export async function patientHandler(event: ApiEvent): Promise<ApiResponse> {
     if (!linked.ok) {
       return json(500, { code: "storage_failed" });
     }
+  }
+
+  const selected = await saveTreatmentSelection({
+    cognitoSub: csrf.session.cognitoSub,
+    now: new Date().toISOString(),
+    questionnaireId: questionnaire.questionnaireId,
+    treatment: questionnaire.treatment,
+  });
+  if (!selected.ok) {
+    return json(503, { code: "questionnaire_unavailable" });
   }
 
   const cookie = createQuestionnaireContextCookie({
@@ -958,8 +986,11 @@ function verifier() {
   });
 }
 
-async function hasCurrentConsent(cognitoSub: string) {
-  for (const consent of requiredConsentsForCurrentOnboarding()) {
+async function hasCurrentConsent(
+  cognitoSub: string,
+  requiredConsents: readonly RequiredConsentDocument[] = requiredConsentsForCurrentOnboarding(),
+) {
+  for (const consent of requiredConsents) {
     const response = await ddb.send(new GetItemCommand({
       ConsistentRead: true,
       Key: consentKey(cognitoSub, consent.consentKind, consent.version),
@@ -970,6 +1001,40 @@ async function hasCurrentConsent(cognitoSub: string) {
     }
   }
   return true;
+}
+
+async function billingDisclosureStatus(cognitoSub: string): Promise<
+  | "ok"
+  | "medication_disclosure_required"
+  | "treatment_selection_required"
+  | "storage_unavailable"
+> {
+  const selection = await ddb.send(new GetItemCommand({
+    ConsistentRead: true,
+    Key: treatmentSelectionKey(cognitoSub),
+    TableName: requiredEnv("APP_TABLE_NAME"),
+  }));
+  if (!selection.Item) {
+    return "treatment_selection_required";
+  }
+  if (selection.Item.recordType?.S !== "onboardingTreatmentSelection") {
+    return "storage_unavailable";
+  }
+  const treatment = selection.Item.treatment?.S;
+  if (
+    treatment !== "weight" &&
+    treatment !== "hair" &&
+    treatment !== "sexual-health"
+  ) {
+    return "treatment_selection_required";
+  }
+
+  return await hasCurrentConsent(
+      cognitoSub,
+      requiredConsentsBeforeBillingOrPrescribing({ treatment }),
+    )
+    ? "ok"
+    : "medication_disclosure_required";
 }
 
 async function getProfile(cognitoSub: string): Promise<PatientProfile | null> {
@@ -1080,23 +1145,68 @@ function parsePatientBody(body: string | null | undefined):
 }
 
 function resolveQuestionnaireForTreatment(treatment: string):
-  | { ok: true; questionnaireId: string }
+  | { ok: true; questionnaireId: string; treatment: LaunchOfferingSlug }
   | { ok: false; code: "invalid_treatment" | "questionnaire_unavailable"; status: number } {
   if (!["sexual-health", "hair", "weight"].includes(treatment)) {
     return { ok: false, code: "invalid_treatment", status: 400 };
   }
+  const normalized = treatment as LaunchOfferingSlug;
   const mapping = parseQuestionnaireMapping(process.env.APOTH_MDI_QUESTIONNAIRE_IDS);
   if (mapping) {
     const mapped = mapping[treatment];
     const questionnaireId = typeof mapped === "string" ? mapped.trim() : "";
     return questionnaireId
-      ? { ok: true, questionnaireId }
+      ? { ok: true, questionnaireId, treatment: normalized }
       : { ok: false, code: "questionnaire_unavailable", status: 503 };
   }
   const fallback = process.env.APOTH_MDI_QUESTIONNAIRE_ID?.trim();
   return fallback
-    ? { ok: true, questionnaireId: fallback }
+    ? { ok: true, questionnaireId: fallback, treatment: normalized }
     : { ok: false, code: "questionnaire_unavailable", status: 503 };
+}
+
+async function saveTreatmentSelection(input: {
+  cognitoSub: string;
+  now: string;
+  questionnaireId: string;
+  treatment: LaunchOfferingSlug;
+}): Promise<{ ok: true } | { ok: false }> {
+  const existing = await ddb.send(new GetItemCommand({
+    ConsistentRead: true,
+    Key: treatmentSelectionKey(input.cognitoSub),
+    TableName: requiredEnv("APP_TABLE_NAME"),
+  }));
+  if (existing.Item) {
+    return existing.Item.recordType?.S === "onboardingTreatmentSelection" &&
+        existing.Item.questionnaireId?.S === input.questionnaireId &&
+        existing.Item.treatment?.S === input.treatment
+      ? { ok: true }
+      : { ok: false };
+  }
+
+  try {
+    await ddb.send(new PutItemCommand({
+      ConditionExpression: "attribute_not_exists(#pk) AND attribute_not_exists(#sk)",
+      ExpressionAttributeNames: { "#pk": "pk", "#sk": "sk" },
+      Item: treatmentSelectionItem(input),
+      TableName: requiredEnv("APP_TABLE_NAME"),
+    }));
+    return { ok: true };
+  } catch (error) {
+    if (!isConditionalCheckFailed(error)) {
+      return { ok: false };
+    }
+    const reread = await ddb.send(new GetItemCommand({
+      ConsistentRead: true,
+      Key: treatmentSelectionKey(input.cognitoSub),
+      TableName: requiredEnv("APP_TABLE_NAME"),
+    }));
+    return reread.Item?.recordType?.S === "onboardingTreatmentSelection" &&
+        reread.Item.questionnaireId?.S === input.questionnaireId &&
+        reread.Item.treatment?.S === input.treatment
+      ? { ok: true }
+      : { ok: false };
+  }
 }
 
 async function saveMdiPatientLinkage(input: {
@@ -1312,6 +1422,13 @@ function mdiLinkageKey(cognitoSub: string) {
   };
 }
 
+function treatmentSelectionKey(cognitoSub: string) {
+  return {
+    pk: { S: `PATIENT#${cognitoSub}` },
+    sk: { S: "MDI#QUESTIONNAIRE_SELECTION" },
+  };
+}
+
 function mdiPatientReverseKey(mdiPatientId: string) {
   return {
     pk: { S: `MDI#PATIENT#${mdiPatientId}` },
@@ -1323,6 +1440,25 @@ function consentKey(cognitoSub: string, consentKind: string, version: string) {
   return {
     pk: { S: `PATIENT#${cognitoSub}` },
     sk: { S: `CONSENT#${consentKind}#${version}` },
+  };
+}
+
+function treatmentSelectionItem(input: {
+  cognitoSub: string;
+  now: string;
+  questionnaireId: string;
+  treatment: LaunchOfferingSlug;
+}): Record<string, AttributeValue> {
+  return {
+    ...treatmentSelectionKey(input.cognitoSub),
+    recordType: { S: "onboardingTreatmentSelection" },
+    schemaVersion: { N: "1" },
+    cognitoSub: { S: input.cognitoSub },
+    questionnaireId: { S: input.questionnaireId },
+    selectedAt: { S: input.now },
+    treatment: { S: input.treatment },
+    createdAt: { S: input.now },
+    updatedAt: { S: input.now },
   };
 }
 

@@ -185,6 +185,10 @@ export function MdiIntakeClient({
       });
       return;
     }
+    if (typeof body.redirect === "string") {
+      setRedirecting(body.redirect, navigate, setState);
+      return;
+    }
 
     setAnswers({});
     setState({ status: "submitted" });

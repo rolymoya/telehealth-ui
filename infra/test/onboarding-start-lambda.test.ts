@@ -170,6 +170,11 @@ describe("onboarding start lambda", () => {
       .mockResolvedValueOnce({})
       .mockResolvedValueOnce(consentEvidence())
       .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(treatmentSelection())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
       .mockResolvedValueOnce(consentEvidence());
 
     const response = await startHandler(event({
@@ -258,7 +263,7 @@ describe("onboarding start lambda", () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
-      destination: "/onboarding/consent",
+      destination: "/onboarding/consent?gate=medication",
       status: "ready",
     });
     expect(response.cookies?.[0]).toContain("Max-Age=0");
@@ -393,6 +398,10 @@ describe("onboarding start lambda", () => {
       .mockResolvedValueOnce(consentEvidence())
       .mockResolvedValueOnce(consentEvidence())
       .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(treatmentSelection())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
       .mockResolvedValueOnce(consentEvidence());
 
     const response = await startHandler(event());
@@ -470,6 +479,15 @@ function consentEvidence() {
   return {
     Item: {
       recordType: { S: "consentEvidence" },
+    },
+  };
+}
+
+function treatmentSelection() {
+  return {
+    Item: {
+      recordType: { S: "onboardingTreatmentSelection" },
+      treatment: { S: "weight" },
     },
   };
 }

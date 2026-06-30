@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
   const result = await acceptCurrentConsents({
     acknowledgements,
     config: config.value,
+    gate: consentGate(body?.gate),
     repository: repository.value,
     token,
   });
@@ -52,6 +53,12 @@ export async function POST(request: NextRequest) {
     destination: result.value.destination,
     status: "accepted",
   });
+}
+
+function consentGate(value: unknown) {
+  return value === "post_questionnaire_medication"
+    ? "post_questionnaire_medication"
+    : "pre_mdi";
 }
 
 function consentAcknowledgements(value: unknown) {

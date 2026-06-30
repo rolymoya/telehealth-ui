@@ -11,8 +11,8 @@ import { patientAccessCookieName } from "@/lib/auth/session-cookie";
 import {
   currentConsentVersion,
   requiredConsentsBeforeMdi,
-  requiredConsentsForCurrentOnboarding,
 } from "@/lib/consents";
+import { evaluateBillingDisclosureGate } from "@/lib/billing-disclosure-gate";
 import {
   createDynamoDbAppDataRepository,
   resolveDynamoDbAppDataConfig,
@@ -169,10 +169,19 @@ async function destinationWithBillingConsentGate(
   const snapshot = await readOnboardingGateSnapshotAsync(repository, {
     cognitoSub: input.cognitoSub,
     consentVersion: input.consentVersion,
-    requiredConsents: requiredConsentsForCurrentOnboarding(),
+    requiredConsents: requiredConsentsBeforeMdi(),
   });
   if (!snapshot.ok) {
     return snapshot;
+  }
+  const disclosureGate = await evaluateBillingDisclosureGate(repository, {
+    cognitoSub: input.cognitoSub,
+  });
+  if (disclosureGate.status === "storage_unavailable") {
+    return appDataErr("validation_failed", "Billing disclosure gate is unavailable");
+  }
+  if (disclosureGate.status !== "ok") {
+    return { ok: true, value: "/onboarding/consent?gate=medication" };
   }
 
   return {

@@ -9,19 +9,24 @@ import {
   createConsentEvidenceRecord,
   createPatientProfileRecord,
   getRequiredConsentEvidenceStatus,
+  linkMdiPatientCase,
   mdiLinkageKey,
   patientProfileKey,
   recordConsentEvidence,
+  recordOnboardingTreatmentSelection,
   stripeLinkageKey,
 } from "@/lib/dynamodb/app-data";
 import {
   acceptCurrentConsents,
   consentAcknowledgementFieldName,
   recordConsentAcceptanceForRequiredConsentsAsync,
+  resolveConsentDocumentsForDisplay,
   validateCurrentConsentAcknowledgements,
 } from "../consent-acceptance";
 import {
   currentRequiredConsents,
+  requiredConsentsBeforeMdi,
+  requiredMedicationDisclosureConsents,
   requiredConsentsForPrecheck,
 } from "../consents";
 
@@ -81,7 +86,10 @@ describe("consent acceptance", () => {
       },
     });
 
-    expect(getRequiredConsentEvidenceStatus(repository, { cognitoSub })).toMatchObject({
+    expect(getRequiredConsentEvidenceStatus(repository, {
+      cognitoSub,
+      requiredConsents: requiredConsentsBeforeMdi(),
+    })).toMatchObject({
       ok: true,
       value: {
         accepted: true,
@@ -167,7 +175,10 @@ describe("consent acceptance", () => {
       },
     });
     expect(racingRepository.transactWrite).toHaveBeenCalledOnce();
-    expect(getRequiredConsentEvidenceStatus(repository, { cognitoSub })).toMatchObject({
+    expect(getRequiredConsentEvidenceStatus(repository, {
+      cognitoSub,
+      requiredConsents: requiredConsentsBeforeMdi(),
+    })).toMatchObject({
       ok: true,
       value: {
         accepted: true,
@@ -264,6 +275,115 @@ describe("consent acceptance", () => {
       ok: true,
       value: {
         accepted: false,
+      },
+    });
+  });
+
+  it("does not record medication disclosure before MDI submission and case linkage", async () => {
+    const repository = createRepositoryWithProfile("intake_ready");
+
+    await expect(
+      acceptCurrentConsents({
+        acknowledgements: currentAcknowledgements(),
+        config,
+        gate: "post_questionnaire_medication",
+        now,
+        repository,
+        token: "valid-token",
+        verifier: validVerifier(),
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: { destination: "/onboarding/mdi" },
+    });
+
+    expect(getRequiredConsentEvidenceStatus(repository, {
+      cognitoSub,
+      requiredConsents: requiredMedicationDisclosureConsents({ treatment: "weight" }),
+    })).toMatchObject({
+      ok: true,
+      value: { accepted: false },
+    });
+  });
+
+  it("records only applicable medication disclosure after MDI submission and case linkage", async () => {
+    const repository = createRepositoryWithProfile("mdi_submitted");
+    await recordConsentAcceptanceForRequiredConsentsAsync(repository, {
+      acceptedAt: nowIso,
+      cognitoSub,
+      now: nowIso,
+      requiredConsents: requiredConsentsBeforeMdi(),
+    });
+    expect(linkMdiPatientCase(repository, {
+      cognitoSub,
+      mdiCaseId: "mdi_case_consent_001",
+      mdiPatientId: "mdi_patient_consent_001",
+      now: nowIso,
+    }).ok).toBe(true);
+    expect(recordOnboardingTreatmentSelection(repository, {
+      cognitoSub,
+      now: nowIso,
+      questionnaireId: "mdi_questionnaire_weight",
+      treatment: "weight",
+    }).ok).toBe(true);
+
+    await expect(
+      acceptCurrentConsents({
+        acknowledgements: currentAcknowledgements(),
+        config,
+        gate: "post_questionnaire_medication",
+        now,
+        repository,
+        token: "valid-token",
+        verifier: validVerifier(),
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: { destination: "/onboarding/mdi" },
+    });
+
+    expect(getRequiredConsentEvidenceStatus(repository, {
+      cognitoSub,
+      requiredConsents: requiredMedicationDisclosureConsents({ treatment: "weight" }),
+    })).toMatchObject({
+      ok: true,
+      value: { accepted: true },
+    });
+  });
+
+  it("resolves medication disclosure display from the stored treatment selection", async () => {
+    const repository = createRepositoryWithProfile("mdi_submitted");
+    await recordConsentAcceptanceForRequiredConsentsAsync(repository, {
+      acceptedAt: nowIso,
+      cognitoSub,
+      now: nowIso,
+      requiredConsents: requiredConsentsBeforeMdi(),
+    });
+    expect(linkMdiPatientCase(repository, {
+      cognitoSub,
+      mdiCaseId: "mdi_case_consent_001",
+      mdiPatientId: "mdi_patient_consent_001",
+      now: nowIso,
+    }).ok).toBe(true);
+    expect(recordOnboardingTreatmentSelection(repository, {
+      cognitoSub,
+      now: nowIso,
+      questionnaireId: "mdi_questionnaire_weight",
+      treatment: "weight",
+    }).ok).toBe(true);
+
+    await expect(resolveConsentDocumentsForDisplay({
+      config,
+      gate: "post_questionnaire_medication",
+      now,
+      repository,
+      token: "valid-token",
+      verifier: validVerifier(),
+    })).resolves.toEqual({
+      ok: true,
+      value: {
+        gate: "post_questionnaire_medication",
+        requiredConsents: requiredMedicationDisclosureConsents({ treatment: "weight" }),
       },
     });
   });

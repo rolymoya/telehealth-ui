@@ -196,6 +196,18 @@ export const evidenceEventSchema = {
     metadata: { status: ["active"] },
     linkage: "stripe_subscription",
   },
+  stripe_billing_activation_skipped: {
+    category: "stripe_billing",
+    summaryCode: "STRIPE_BILLING_ACTIVATION_SKIPPED",
+    statuses: ["skipped"],
+    metadata: {
+      reason_code: [
+        "medication_disclosure_required",
+        "treatment_selection_required",
+      ],
+    },
+    linkage: "stripe_customer",
+  },
   stripe_billing_status_changed: {
     category: "stripe_billing",
     summaryCode: "STRIPE_BILLING_STATUS_CHANGED",

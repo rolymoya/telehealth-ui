@@ -8,7 +8,9 @@ import {
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import {
   consentAcknowledgementFieldName,
-  requiredConsentsForCurrentOnboarding,
+  requiredConsentsBeforeMdi,
+  requiredMedicationDisclosureConsents,
+  type RequiredConsentDocument,
 } from "../../../shared/consents";
 import {
   parseCookieHeader,
@@ -36,8 +38,10 @@ type AppRecord = {
   mdiCaseId?: string;
   mdiPatientId?: string;
   onboardingStatus?: string;
+  questionnaireId?: string;
   recordType?: string;
   residencyState?: string;
+  treatment?: string;
 };
 
 const ddb = new DynamoDBClient({});
@@ -53,12 +57,33 @@ export async function acceptHandler(event: ApiEvent): Promise<ApiResponse> {
     return json(401, { code: auth.code });
   }
 
-  const accepted = validateAcknowledgements(request.value);
+  const gate = consentGate(request.value.gate);
+  const consentGateResult = await resolveConsentAcceptanceGate(
+    auth.session.cognitoSub,
+    gate,
+  );
+  if (!consentGateResult.ok) {
+    return json(consentGateResult.status, { code: consentGateResult.code });
+  }
+  if (consentGateResult.destination) {
+    return json(200, {
+      destination: consentGateResult.destination,
+      status: "consent_recorded",
+    });
+  }
+
+  const accepted = validateAcknowledgements(
+    request.value,
+    consentGateResult.requiredConsents,
+  );
   if (!accepted) {
     return json(422, { code: "missing_required_consent" });
   }
 
-  const write = await recordCurrentConsentAcceptance(auth.session.cognitoSub);
+  const write = await recordCurrentConsentAcceptance(
+    auth.session.cognitoSub,
+    consentGateResult.requiredConsents,
+  );
   if (!write.ok) {
     return json(write.status, { code: write.code });
   }
@@ -199,7 +224,68 @@ async function verifyCookieSession(event: ApiEvent):
   }
 }
 
-function validateAcknowledgements(body: Record<string, unknown>) {
+type ConsentAcceptanceGate = "pre_mdi" | "post_questionnaire_medication";
+
+function consentGate(value: unknown): ConsentAcceptanceGate {
+  return value === "post_questionnaire_medication"
+    ? "post_questionnaire_medication"
+    : "pre_mdi";
+}
+
+async function resolveConsentAcceptanceGate(
+  cognitoSub: string,
+  gate: ConsentAcceptanceGate,
+): Promise<
+  | { ok: true; destination?: string; requiredConsents: readonly RequiredConsentDocument[] }
+  | { ok: false; code: string; status: number }
+> {
+  if (gate === "pre_mdi") {
+    return { ok: true, requiredConsents: requiredConsentsBeforeMdi() };
+  }
+
+  const profile = await readRecord(profileKey(cognitoSub));
+  if (profile?.recordType && profile.recordType !== "patientProfile") {
+    return { ok: false, code: "profile_key_conflict", status: 500 };
+  }
+  if (
+    !profile ||
+    (
+      profile.onboardingStatus !== "mdi_submitted" &&
+      profile.onboardingStatus !== "clinical_review" &&
+      profile.onboardingStatus !== "billing_ready"
+    )
+  ) {
+    return { ok: true, destination: "/onboarding/mdi", requiredConsents: [] };
+  }
+
+  const mdi = await readRecord(mdiLinkageKey(cognitoSub));
+  if (mdi?.recordType && mdi.recordType !== "mdiLinkage") {
+    return { ok: false, code: "mdi_linkage_key_conflict", status: 500 };
+  }
+  if (!mdi?.mdiPatientId || !mdi.mdiCaseId) {
+    return { ok: true, destination: "/onboarding/mdi", requiredConsents: [] };
+  }
+
+  const selection = await readRecord(treatmentSelectionKey(cognitoSub));
+  if (selection?.recordType && selection.recordType !== "onboardingTreatmentSelection") {
+    return { ok: false, code: "treatment_selection_key_conflict", status: 500 };
+  }
+  if (!isLaunchTreatment(selection?.treatment)) {
+    return { ok: true, destination: "/onboarding/mdi", requiredConsents: [] };
+  }
+
+  return {
+    ok: true,
+    requiredConsents: requiredMedicationDisclosureConsents({
+      treatment: selection.treatment,
+    }),
+  };
+}
+
+function validateAcknowledgements(
+  body: Record<string, unknown>,
+  requiredConsents: readonly RequiredConsentDocument[],
+) {
   const acknowledgements = body.acknowledgements;
   if (
     !acknowledgements ||
@@ -210,18 +296,21 @@ function validateAcknowledgements(body: Record<string, unknown>) {
   }
 
   const values = acknowledgements as Record<string, unknown>;
-  return requiredConsentsForCurrentOnboarding().every((consent) =>
+  return requiredConsents.every((consent) =>
     values[consentAcknowledgementFieldName(consent)] === "accepted" ||
     values[consentAcknowledgementFieldName(consent)] === true
   );
 }
 
-async function recordCurrentConsentAcceptance(cognitoSub: string):
+async function recordCurrentConsentAcceptance(
+  cognitoSub: string,
+  requiredConsents: readonly RequiredConsentDocument[],
+):
   Promise<{ ok: true } | { ok: false; code: string; status: number }> {
   const now = new Date().toISOString();
   const writes = [];
 
-  for (const consent of requiredConsentsForCurrentOnboarding()) {
+  for (const consent of requiredConsents) {
     const response = await ddb.send(new GetItemCommand({
       ConsistentRead: true,
       Key: consentKey(cognitoSub, consent.consentKind, consent.version),
@@ -262,7 +351,7 @@ async function recordCurrentConsentAcceptance(cognitoSub: string):
     return { ok: true };
   } catch (error) {
     if (isTransactionConflict(error)) {
-      return await hasCurrentConsent(cognitoSub)
+      return await hasCurrentConsent(cognitoSub, requiredConsents)
         ? { ok: true }
         : { ok: false, code: "consent_write_conflict", status: 409 };
     }
@@ -270,8 +359,11 @@ async function recordCurrentConsentAcceptance(cognitoSub: string):
   }
 }
 
-async function hasCurrentConsent(cognitoSub: string) {
-  for (const consent of requiredConsentsForCurrentOnboarding()) {
+async function hasCurrentConsent(
+  cognitoSub: string,
+  requiredConsents: readonly RequiredConsentDocument[],
+) {
+  for (const consent of requiredConsents) {
     const response = await ddb.send(new GetItemCommand({
       ConsistentRead: true,
       Key: consentKey(cognitoSub, consent.consentKind, consent.version),
@@ -329,12 +421,14 @@ async function readRecord(key: ReturnType<typeof profileKey>): Promise<AppRecord
   }
   return {
     billingStatus: response.Item.billingStatus?.S,
-    mdiCaseId: response.Item.mdiCaseId?.S,
-    mdiPatientId: response.Item.mdiPatientId?.S,
-    onboardingStatus: response.Item.onboardingStatus?.S,
-    recordType: response.Item.recordType?.S,
-    residencyState: response.Item.residencyState?.S,
-  };
+      mdiCaseId: response.Item.mdiCaseId?.S,
+      mdiPatientId: response.Item.mdiPatientId?.S,
+      onboardingStatus: response.Item.onboardingStatus?.S,
+      questionnaireId: response.Item.questionnaireId?.S,
+      recordType: response.Item.recordType?.S,
+      residencyState: response.Item.residencyState?.S,
+      treatment: response.Item.treatment?.S,
+    };
 }
 
 function verifier() {
@@ -407,11 +501,22 @@ function mdiLinkageKey(cognitoSub: string) {
   };
 }
 
+function treatmentSelectionKey(cognitoSub: string) {
+  return {
+    pk: { S: `PATIENT#${cognitoSub}` },
+    sk: { S: "MDI#QUESTIONNAIRE_SELECTION" },
+  };
+}
+
 function stripeLinkageKey(cognitoSub: string) {
   return {
     pk: { S: `PATIENT#${cognitoSub}` },
     sk: { S: "STRIPE#LINKAGE" },
   };
+}
+
+function isLaunchTreatment(value: unknown): value is "sexual-health" | "hair" | "weight" {
+  return value === "sexual-health" || value === "hair" || value === "weight";
 }
 
 function consentKey(cognitoSub: string, consentKind: string, version: string) {

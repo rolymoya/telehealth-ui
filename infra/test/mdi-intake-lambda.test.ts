@@ -204,7 +204,7 @@ describe("MDI intake lambda handlers", () => {
     });
     mockProfileAndConsent("intake_ready", {
       mdiPatientId: questionnaire.patientId,
-    });
+    }, { medicationDisclosure: false, treatment: "weight" });
 
     const response = await submitHandler(event({
       body: JSON.stringify({
@@ -233,6 +233,10 @@ describe("MDI intake lambda handlers", () => {
     }));
 
     expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      redirect: "/onboarding/consent?gate=medication",
+      status: "submitted",
+    });
     expect(JSON.stringify(createCase.mock.calls)).toContain("ANSWER_VALUE_SENTINEL");
     expect(createCase.mock.calls[0]?.[0]).toMatchObject({
       idempotencyKey: expect.stringMatching(/^mdi-case-[a-f0-9]{32}$/),
@@ -255,6 +259,41 @@ describe("MDI intake lambda handlers", () => {
     expect(JSON.stringify(transaction)).not.toContain("MDI#CASE#");
     expect(JSON.stringify(transaction)).not.toContain("ANSWER_VALUE_SENTINEL");
     expect(JSON.stringify(transaction)).not.toContain("QUESTION_TEXT_SENTINEL");
+  });
+
+  it("does not redirect to medication disclosure after submit for non-applicable treatment", async () => {
+    const { submitHandler, configureMdiIntakeLambdaForTests } = await import("../src/lambda/mdi-intake.js");
+    configureMdiIntakeLambdaForTests({ gateway: gateway() });
+    mockProfileAndConsent("intake_ready", {
+      mdiPatientId: questionnaire.patientId,
+    }, { treatment: "hair" });
+
+    const response = await submitHandler(event({
+      body: JSON.stringify({
+        casePayload: { case_questions: [] },
+        questionnaireId: questionnaire.questionnaireId,
+        responses: [
+          {
+            questionId: questionnaire.questions[0].questionId,
+            value: "ANSWER_VALUE_SENTINEL",
+          },
+        ],
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "x-apoth-csrf": csrfFor("valid-token"),
+      },
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      linkage: {
+        mdiCaseId: questionnaire.caseId,
+        mdiPatientId: questionnaire.patientId,
+      },
+      status: "submitted",
+    });
   });
 
   it("rejects ambiguous production submit responses before saving submitted status", async () => {
@@ -328,6 +367,56 @@ describe("MDI intake lambda handlers", () => {
     expect(sendMock.mock.calls.some(([command]) => command.kind === "TransactWriteItems"))
       .toBe(false);
     expect(response.body).not.toContain("ANSWER_VALUE_SENTINEL");
+  });
+
+  it("records treatment questionnaire selection during patient setup without storing answers", async () => {
+    const { patientHandler } = await import("../src/lambda/mdi-intake.js");
+    mockProfileAndConsent("intake_ready", {
+      mdiPatientId: questionnaire.patientId,
+    });
+
+    const response = await patientHandler(event({
+      body: JSON.stringify({
+        address1: "1 Example St",
+        city: "Chicago",
+        dateOfBirth: "1990-01-02",
+        email: "patient@example.test",
+        firstName: "PATIENT_NAME_SENTINEL",
+        lastName: "Example",
+        phoneNumber: "312-555-0101",
+        state: "IL",
+        treatment: "weight",
+        zipCode: "60601",
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "x-apoth-csrf": csrfFor("valid-token", "mdi-patient"),
+      },
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      redirect: "/onboarding/mdi",
+      status: "linked",
+    });
+    const selectionWrite = sendMock.mock.calls.find(([command]) => {
+      const input = command.input as {
+        Item?: { sk?: { S?: string } };
+      };
+      return command.kind === "PutItem" &&
+        input.Item?.sk?.S === "MDI#QUESTIONNAIRE_SELECTION";
+    })?.[0].input as {
+      Item?: Record<string, { S?: string }>;
+    };
+    expect(selectionWrite?.Item).toMatchObject({
+      questionnaireId: { S: questionnaire.questionnaireId },
+      recordType: { S: "onboardingTreatmentSelection" },
+      treatment: { S: "weight" },
+    });
+    expect(JSON.stringify(selectionWrite)).not.toMatch(
+      /PATIENT_NAME_SENTINEL|patient@example\.test|answer|diagnosis|symptom/i,
+    );
   });
 
   it("rejects tampered questionnaire IDs before claiming submission", async () => {
@@ -432,6 +521,10 @@ describe("MDI intake lambda handlers", () => {
 function mockProfileAndConsent(
   onboardingStatus: string,
   linkage?: { mdiPatientId: string; mdiCaseId?: string },
+  selection?: {
+    medicationDisclosure?: boolean;
+    treatment: "hair" | "sexual-health" | "weight";
+  },
 ) {
   sendMock.mockImplementation(async (command) => {
     const input = command.input as {
@@ -455,6 +548,24 @@ function mockProfileAndConsent(
           },
         }
         : {};
+    }
+    if (command.kind === "GetItem" && input.Key?.sk?.S === "MDI#QUESTIONNAIRE_SELECTION") {
+      return selection
+        ? {
+          Item: {
+            questionnaireId: { S: `mdi_questionnaire_${selection.treatment.replace(/-/g, "_")}` },
+            recordType: { S: "onboardingTreatmentSelection" },
+            treatment: { S: selection.treatment },
+          },
+        }
+        : {};
+    }
+    if (
+      command.kind === "GetItem" &&
+      selection?.medicationDisclosure === false &&
+      input.Key?.sk?.S?.includes("CONSENT#compounded_medication_disclosure#")
+    ) {
+      return {};
     }
     if (command.kind === "GetItem") {
       return { Item: { recordType: { S: "consentEvidence" } } };
@@ -500,9 +611,9 @@ function event(overrides: {
   };
 }
 
-function csrfFor(token: string) {
+function csrfFor(token: string, scope: "mdi-intake" | "mdi-patient" = "mdi-intake") {
   return createHash("sha256")
-    .update(`mdi-intake:${token}`)
+    .update(`${scope}:${token}`)
     .digest("base64url");
 }
 

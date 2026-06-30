@@ -143,6 +143,15 @@ export function requiredConsentsForCurrentOnboarding() {
   return currentRequiredConsents;
 }
 
+export function requiredConsentsBeforeBillingOrPrescribing(input: {
+  treatment?: unknown;
+} = {}) {
+  return [
+    ...requiredConsentsBeforeMdi(),
+    ...requiredMedicationDisclosureConsents(input),
+  ];
+}
+
 export function requiredMedicationDisclosureConsents(input: {
   treatment?: unknown;
 } = {}) {

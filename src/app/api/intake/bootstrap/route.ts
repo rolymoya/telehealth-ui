@@ -7,7 +7,7 @@ import {
   resolveAppDataRepository,
 } from "@/app/api/_shared/onboarding";
 import { resolveAppSigningSecret } from "@/lib/app-signing-secret";
-import { currentConsentVersion } from "@/lib/consents";
+import { currentConsentVersion, requiredConsentsBeforeMdi } from "@/lib/consents";
 import { readOnboardingGateSnapshotAsync } from "@/lib/onboarding-status";
 import {
   privacyNoticeGateCookieName,
@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
   const snapshot = await readOnboardingGateSnapshotAsync(repository.value, {
     cognitoSub: session.value.session.user.cognitoSub,
     consentVersion: currentConsentVersion,
+    requiredConsents: requiredConsentsBeforeMdi(),
   });
   if (!snapshot.ok) {
     return noStoreJson({ error: "intake_unavailable" }, 503);

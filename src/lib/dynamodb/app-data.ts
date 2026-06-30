@@ -3,10 +3,12 @@ import {
   currentRequiredConsents,
   evaluateConsentRequirements,
   isConsentKind,
+  isLaunchTreatment,
   type ConsentKind,
   type ConsentRequirementStatus,
   type RequiredConsentDocument,
 } from "@/lib/consents";
+import type { LaunchOfferingSlug } from "../../../shared/intake/precheck";
 import { isUsStateCode, type UsStateCode } from "../../../shared/intake/us-states";
 import {
   evidenceEventSchema,
@@ -91,6 +93,14 @@ export type AnonymousPrecheckConsumptionRecord = BaseRecord & {
   expiresAt: string;
   expiresAtEpochSeconds: number;
   nonceHash: string;
+};
+
+export type OnboardingTreatmentSelectionRecord = BaseRecord & {
+  recordType: "onboardingTreatmentSelection";
+  cognitoSub: string;
+  questionnaireId: string;
+  selectedAt: string;
+  treatment: LaunchOfferingSlug;
 };
 
 export type MdiLinkageRecord = BaseRecord & {
@@ -319,6 +329,7 @@ export type OperationalStatusRecord = BaseRecord & {
 export type AppDataRecord =
   | PatientProfileRecord
   | AnonymousPrecheckConsumptionRecord
+  | OnboardingTreatmentSelectionRecord
   | MdiLinkageRecord
   | MdiReverseLookupRecord
   | MdiPatientCreateAttemptRecord
@@ -420,6 +431,10 @@ export function mdiPatientCreateAttemptKey(cognitoSub: string): AppDataKey {
 
 export function mdiCaseCreateAttemptKey(cognitoSub: string): AppDataKey {
   return { pk: `PATIENT#${cognitoSub}`, sk: "MDI#CASE_CREATE" };
+}
+
+export function onboardingTreatmentSelectionKey(cognitoSub: string): AppDataKey {
+  return { pk: `PATIENT#${cognitoSub}`, sk: "MDI#QUESTIONNAIRE_SELECTION" };
 }
 
 export function stripeLinkageKey(cognitoSub: string): AppDataKey {
@@ -739,6 +754,25 @@ export function createAnonymousPrecheckConsumptionRecord(input: {
   };
 }
 
+export function createOnboardingTreatmentSelectionRecord(input: {
+  cognitoSub: string;
+  now: string;
+  questionnaireId: string;
+  treatment: LaunchOfferingSlug;
+}): OnboardingTreatmentSelectionRecord {
+  return {
+    ...onboardingTreatmentSelectionKey(input.cognitoSub),
+    recordType: "onboardingTreatmentSelection",
+    schemaVersion: 1,
+    cognitoSub: input.cognitoSub,
+    questionnaireId: input.questionnaireId,
+    selectedAt: input.now,
+    treatment: input.treatment,
+    createdAt: input.now,
+    updatedAt: input.now,
+  };
+}
+
 export function getPatientProfile(
   repository: AppDataRepository,
   cognitoSub: string,
@@ -751,6 +785,46 @@ export function getPatientProfile(
     return err("validation_failed", "Patient profile key contains another record type");
   }
   return ok(record.value);
+}
+
+export function getOnboardingTreatmentSelection(
+  repository: AppDataRepository,
+  cognitoSub: string,
+): AppDataResult<OnboardingTreatmentSelectionRecord | null> {
+  const record = repository.get(onboardingTreatmentSelectionKey(cognitoSub));
+  if (!record.ok || !record.value) {
+    return record as AppDataResult<OnboardingTreatmentSelectionRecord | null>;
+  }
+  if (record.value.recordType !== "onboardingTreatmentSelection") {
+    return err("validation_failed", "Treatment selection key contains another record type");
+  }
+  return ok(record.value);
+}
+
+export function recordOnboardingTreatmentSelection(
+  repository: AppDataRepository,
+  input: {
+    cognitoSub: string;
+    now: string;
+    questionnaireId: string;
+    treatment: LaunchOfferingSlug;
+  },
+): AppDataResult<OnboardingTreatmentSelectionRecord> {
+  const existing = getOnboardingTreatmentSelection(repository, input.cognitoSub);
+  if (!existing.ok) {
+    return existing;
+  }
+  const record = createOnboardingTreatmentSelectionRecord(input);
+  if (!existing.value) {
+    return repository.put(record, { ifNotExists: true });
+  }
+  if (
+    existing.value.treatment === record.treatment &&
+    existing.value.questionnaireId === record.questionnaireId
+  ) {
+    return ok(existing.value);
+  }
+  return err("validation_failed", "Treatment selection conflicts with existing questionnaire selection");
 }
 
 export function getMdiLinkage(
@@ -2326,6 +2400,15 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         keysMatch(record, anonymousPrecheckConsumptionKey(record.nonceHash))
         ? ok(record)
         : err("validation_failed", "Invalid anonymous precheck consumption record");
+    case "onboardingTreatmentSelection":
+      return typeof record.cognitoSub === "string" &&
+        isCognitoSub(record.cognitoSub) &&
+        isLaunchTreatment(record.treatment) &&
+        isMdiQuestionnaireId(record.questionnaireId) &&
+        isIsoTimestamp(record.selectedAt) &&
+        keysMatch(record, onboardingTreatmentSelectionKey(record.cognitoSub))
+        ? ok(record)
+        : err("validation_failed", "Invalid onboarding treatment selection record");
     case "mdiLinkage":
       return typeof record.cognitoSub === "string" &&
         typeof record.mdiPatientId === "string" &&
@@ -3074,6 +3157,10 @@ function isMdiSubmissionId(value: string) {
   return isSafeIdentifier(value, /^mdi_submission_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
 }
 
+function isMdiQuestionnaireId(value: string) {
+  return isSafeIdentifier(value, /^mdi_questionnaire_[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/);
+}
+
 function isStripeCustomerId(value: string) {
   return isSafeIdentifier(value, /^cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
 }
@@ -3202,6 +3289,10 @@ function isEvidenceEventId(record: EvidenceEventRecord) {
     case "stripe_billing_activated":
       return record.stripeSubscriptionId !== undefined &&
         record.eventId === `stripe:billing:${record.stripeSubscriptionId}:active`;
+    case "stripe_billing_activation_skipped":
+      return record.stripeCustomerId !== undefined &&
+        typeof record.metadata?.reason_code === "string" &&
+        record.eventId === `stripe:billing_activation:${record.stripeCustomerId}:${record.metadata.reason_code}`;
     case "mdi_cancellation_review_requested":
       return record.mdiCaseId !== undefined &&
         record.mdiPatientId !== undefined &&
@@ -3636,6 +3727,7 @@ const evidenceEventIdPatterns = [
   /^mdi:workflow_url:mdi_patient_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:file_upload|intro_video|messaging):req_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:payment-method:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:collected$/,
   /^stripe:billing:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:payment_method_pending|payment_method_collected|active|past_due|cancel_pending|canceled)$/,
+  /^stripe:billing_activation:cus_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:medication_disclosure_required|treatment_selection_required)$/,
   /^stripe:refund:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:charge_refunded|dispute|refund):[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:evt_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/,
   /^stripe:billing_reconcile:sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:(?:active_without_billing_ready|failed_payment_requires_review|local_mirror_stale|mdi_terminal_with_active_billing|missing_mdi_linkage|missing_stripe_linkage|stripe_already_canceled|stripe_cancel_pending|unpaired_stripe_subscription)$/,
   /^webhook:(?:stripe|mdi):(?:evt|mdi_evt)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*:[A-Z][A-Z0-9_]{1,79}(?::[a-z][a-z0-9_]{0,39})?$/,
@@ -3745,6 +3837,12 @@ const allowedFields: Record<string, Set<string>> = {
     "expiresAt",
     "expiresAtEpochSeconds",
     "nonceHash",
+  ),
+  onboardingTreatmentSelection: allow(
+    "cognitoSub",
+    "questionnaireId",
+    "selectedAt",
+    "treatment",
   ),
   mdiLinkage: allow("cognitoSub", "mdiPatientId", "mdiCaseId"),
   mdiReverseLookup: allow("cognitoSub", "pointerType", "mdiPatientId", "mdiCaseId"),
