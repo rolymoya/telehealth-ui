@@ -4,6 +4,7 @@ import {
   evaluateMedicationDisclosureConsentRequirements,
   evaluateMdiConsentRequirements,
   evaluatePrecheckConsentRequirements,
+  requiredConsentsBeforeMdi,
   requiredConsentsForGate,
   requiredConsentsForCurrentOnboarding,
   requiredConsentsForMdi,
@@ -34,6 +35,11 @@ describe("consent gate classification", () => {
   it("requires platform terms and telehealth consent before MDI", () => {
     expect(requiredConsentsForMdi().map((consent) => consent.consentKind))
       .toEqual(["platform_terms", "telehealth_consent"]);
+  });
+
+  it("keeps medication disclosure out of the pre-MDI gate set", () => {
+    expect(requiredConsentsBeforeMdi().map((consent) => consent.consentKind))
+      .toEqual(["privacy_notice", "platform_terms", "telehealth_consent"]);
   });
 
   it("requires compounded medication disclosure only for applicable launch treatments", () => {

@@ -141,6 +141,7 @@ export class ServerlessPlatformStack extends Stack {
       pointInTimeRecoverySpecification: {
         pointInTimeRecoveryEnabled: true,
       },
+      timeToLiveAttribute: "expiresAtEpochSeconds",
       deletionProtection: props.config.deletionProtection,
       removalPolicy: props.config.removalPolicy,
     });
@@ -935,11 +936,15 @@ exports.handler = async () => ({
         depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
         timeout: Duration.seconds(10),
         bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
           minify: true,
           sourceMap: false,
         },
         environment: {
           APP_TABLE_NAME: appTable.tableName,
+          APOTH_SECRET_APP_SIGNING_ID: secretName(props.config.stage, "appSigning"),
           APOTH_STAGE: props.config.stage,
           COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
           COGNITO_USER_POOL_ID: userPool.userPoolId,
@@ -951,7 +956,22 @@ exports.handler = async () => ({
         }),
       },
     );
-    appTable.grant(onboardingStartFunction, "dynamodb:GetItem", "dynamodb:PutItem");
+    appTable.grant(
+      onboardingStartFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:TransactWriteItems",
+    );
+    onboardingStartFunction.addToRolePolicy(new PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        this.formatArn({
+          service: "secretsmanager",
+          resource: "secret",
+          resourceName: `${secretName(props.config.stage, "appSigning")}*`,
+        }),
+      ],
+    }));
 
     api.addRoutes({
       path: "/api/onboarding/start",

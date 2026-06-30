@@ -45,6 +45,12 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Cognito::UserPool", 1);
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
     template.resourceCountIs("AWS::DynamoDB::Table", 1);
+    template.hasResourceProperties("AWS::DynamoDB::Table", {
+      TimeToLiveSpecification: {
+        AttributeName: "expiresAtEpochSeconds",
+        Enabled: true,
+      },
+    });
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
     template.resourceCountIs("AWS::Lambda::Function", 15);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
@@ -237,7 +243,7 @@ describe("ServerlessPlatformStack", () => {
     expect(policies).not.toContain("dynamodb:DeleteItem");
   });
 
-  it("creates profile-only onboarding start API lambda", () => {
+  it("creates profile-only onboarding start API lambda with anonymous bind signing", () => {
     const template = synthesizeTemplate();
 
     template.hasResourceProperties("AWS::Lambda::Function", {
@@ -247,6 +253,7 @@ describe("ServerlessPlatformStack", () => {
       Timeout: 10,
       Environment: {
         Variables: {
+          APOTH_SECRET_APP_SIGNING_ID: "/apoth/staging/app/signing",
           APOTH_STAGE: "staging",
           APP_TABLE_NAME: Match.anyValue(),
           COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
@@ -264,6 +271,12 @@ describe("ServerlessPlatformStack", () => {
     expect(JSON.stringify(startFunctionResource)).not.toMatch(
       /MDI|STRIPE|BILLING|PERSONA|KYC|QUESTIONNAIRE/i,
     );
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+    expect(policies).toContain("dynamodb:TransactWriteItems");
+    expect(policies).toContain("secretsmanager:GetSecretValue");
+    expect(policies).toContain("/apoth/staging/app/signing");
   });
 
   it("creates static auth session API lambdas for same-origin cookie management", () => {

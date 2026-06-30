@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-109"
+  ],
+  "claimedBySession": "33f55611-0b07-47e0-9ba3-7c28653bd769",
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-29",
+  "description": "After eligible anonymous precheck, route the user to sign up/sign in and bind the short-lived precheck context to the Cognito patient profile. On successful auth, create or update the minimal patient profile with onboardingStatus intake_ready and residencyState, then consume/rotate the anonymous context to prevent replay. Preserve existing authenticated users and stale/invalid context recovery back to /intake.",
+  "id": "T-110",
+  "order": 90,
+  "parentTicket": "T-107",
+  "phase": "auth",
+  "status": "complete",
+  "title": "Bind anonymous precheck after account creation",
+  "type": "feature"
+}

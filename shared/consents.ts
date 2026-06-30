@@ -132,6 +132,13 @@ export function requiredConsentsForMdi() {
   return requiredConsentsForGate("telehealth_and_platform_before_mdi");
 }
 
+export function requiredConsentsBeforeMdi() {
+  return [
+    ...requiredConsentsForPrecheck(),
+    ...requiredConsentsForMdi(),
+  ];
+}
+
 export function requiredConsentsForCurrentOnboarding() {
   return currentRequiredConsents;
 }

@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  anonymousPrecheckContextCookieName,
+  createAnonymousPrecheckContext,
+  type AppSigningSecret,
+} from "../../shared/intake/anonymous-precheck-context";
 
 const sendMock = vi.hoisted(() => vi.fn());
 const verifyMock = vi.hoisted(() => vi.fn());
@@ -21,6 +26,9 @@ vi.mock("@aws-sdk/client-dynamodb", () => {
     PutItemCommand: class extends Command {
       kind = "PutItem";
     },
+    TransactWriteItemsCommand: class extends Command {
+      kind = "TransactWriteItems";
+    },
   };
 });
 
@@ -36,6 +44,15 @@ describe("onboarding start lambda", () => {
   beforeEach(() => {
     sendMock.mockReset();
     verifyMock.mockReset();
+    process.env.APOTH_ALLOW_ENV_SECRET_PAYLOADS = "true";
+    process.env.APOTH_REQUIRED_SERVER_SECRETS = "appSigning";
+    process.env.APOTH_SECRET_APP_SIGNING_JSON = JSON.stringify({
+      apothStage: "staging",
+      schemaVersion: 1,
+      secretKind: "appSigning",
+      signingSecret: "lambda-start-signing-secret",
+    });
+    process.env.APOTH_STAGE = "staging";
     process.env.APP_TABLE_NAME = "apoth-staging-app";
     process.env.COGNITO_USER_POOL_CLIENT_ID = "client123456789012";
     process.env.COGNITO_USER_POOL_ID = "us-east-1_abc123";
@@ -108,6 +125,229 @@ describe("onboarding start lambda", () => {
     expectOnlyProfileAccess();
   });
 
+  it("binds a valid anonymous precheck context with only minimal profile data and stops at consent", async () => {
+    const { startHandler } = await import("../src/lambda/onboarding-start.js");
+    sendMock
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+
+    const response = await startHandler(event({
+      headers: {
+        cookie: [
+          "__Host-apoth_access=valid-token",
+          mintAnonymousPrecheckCookie(),
+        ].join("; "),
+      },
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      destination: "/onboarding/consent",
+      status: "ready",
+    });
+    expect(response.cookies?.[0]).toContain(`${anonymousPrecheckContextCookieName}=`);
+    expect(response.cookies?.[0]).toContain("Max-Age=0");
+
+    const transaction = sendMock.mock.calls.find(([command]) =>
+      command.kind === "TransactWriteItems"
+    )?.[0].input as { TransactItems: Array<Record<string, unknown>> };
+    expect(transaction.TransactItems).toHaveLength(2);
+    expect(JSON.stringify(transaction)).toContain("anonymousPrecheckConsumption");
+    expect(JSON.stringify(transaction)).toContain("intake_ready");
+    expect(JSON.stringify(transaction)).toContain("IL");
+    expect(JSON.stringify(transaction)).not.toMatch(
+      /weight|answer|questionnaire|emergency|contraindication|medication|mdi|stripe|billing/i,
+    );
+  });
+
+  it("routes anonymous precheck bind to MDI after pre-MDI consent evidence exists", async () => {
+    const { startHandler } = await import("../src/lambda/onboarding-start.js");
+    sendMock
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence());
+
+    const response = await startHandler(event({
+      headers: {
+        cookie: [
+          "__Host-apoth_access=valid-token",
+          mintAnonymousPrecheckCookie(),
+        ].join("; "),
+      },
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      destination: "/onboarding/mdi",
+      status: "ready",
+    });
+    expect(response.cookies?.[0]).toContain("Max-Age=0");
+    expect(sendMock).toHaveBeenCalledTimes(6);
+  });
+
+  it("only fills a missing intake-ready residency state when it is still absent", async () => {
+    const { startHandler } = await import("../src/lambda/onboarding-start.js");
+    sendMock
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({
+        Item: {
+          onboardingStatus: { S: "intake_ready" },
+          recordType: { S: "patientProfile" },
+        },
+      })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+
+    const response = await startHandler(event({
+      headers: {
+        cookie: [
+          "__Host-apoth_access=valid-token",
+          mintAnonymousPrecheckCookie(),
+        ].join("; "),
+      },
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      destination: "/onboarding/consent",
+      status: "ready",
+    });
+    const transaction = sendMock.mock.calls.find(([command]) =>
+      command.kind === "TransactWriteItems"
+    )?.[0].input as {
+      TransactItems: Array<{
+        Update?: { ConditionExpression?: string };
+      }>;
+    };
+    const update = transaction.TransactItems.find((item) => item.Update)?.Update;
+    expect(update?.ConditionExpression).toBe(
+      "#status = :expected AND attribute_not_exists(#residencyState)",
+    );
+  });
+
+  it("keeps anonymous billing-ready starts at consent until full consent evidence exists", async () => {
+    const { startHandler } = await import("../src/lambda/onboarding-start.js");
+    sendMock
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({
+        Item: {
+          onboardingStatus: { S: "billing_ready" },
+          recordType: { S: "patientProfile" },
+          residencyState: { S: "IL" },
+        },
+      })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce({});
+
+    const response = await startHandler(event({
+      headers: {
+        cookie: [
+          "__Host-apoth_access=valid-token",
+          mintAnonymousPrecheckCookie(),
+        ].join("; "),
+      },
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      destination: "/onboarding/consent",
+      status: "ready",
+    });
+    expect(response.cookies?.[0]).toContain("Max-Age=0");
+  });
+
+  it("routes cross-account anonymous precheck replay to consent before intake recovery", async () => {
+    const { startHandler } = await import("../src/lambda/onboarding-start.js");
+    sendMock
+      .mockResolvedValueOnce({
+        Item: {
+          cognitoSub: { S: "cognito-sub-otheraccount" },
+          recordType: { S: "anonymousPrecheckConsumption" },
+        },
+      })
+      .mockResolvedValueOnce({});
+
+    const response = await startHandler(event({
+      headers: {
+        cookie: [
+          "__Host-apoth_access=valid-token",
+          mintAnonymousPrecheckCookie(),
+        ].join("; "),
+      },
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      destination: "/onboarding/consent",
+      status: "ready",
+    });
+    expect(response.cookies?.[0]).toContain("Max-Age=0");
+    expect(sendMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails closed when a bind transaction cancels before consumption exists", async () => {
+    const { startHandler } = await import("../src/lambda/onboarding-start.js");
+    sendMock
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(namedError("TransactionCanceledException"))
+      .mockResolvedValueOnce({});
+
+    const response = await startHandler(event({
+      headers: {
+        cookie: [
+          "__Host-apoth_access=valid-token",
+          mintAnonymousPrecheckCookie(),
+        ].join("; "),
+      },
+    }));
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body)).toEqual({
+      code: "anonymous_precheck_bind_failed",
+    });
+    expect(response.cookies).toBeUndefined();
+  });
+
+  it.each([
+    [{ onboardingStatus: { S: "intake_ready" } }],
+    [
+      {
+        onboardingStatus: { S: "intake_ready" },
+        residencyState: { S: "IL" },
+      },
+    ],
+    [{ onboardingStatus: { S: "mdi_submitted" } }],
+    [{ onboardingStatus: { S: "clinical_review" } }],
+    [{ onboardingStatus: { S: "billing_ready" } }],
+  ])("routes profile status %# to consent when consent evidence is missing", async (profile) => {
+    const { startHandler } = await import("../src/lambda/onboarding-start.js");
+    sendMock
+      .mockResolvedValueOnce({
+        Item: {
+          ...profile,
+          recordType: { S: "patientProfile" },
+        },
+      })
+      .mockResolvedValueOnce({});
+
+    const response = await startHandler(event());
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      destination: "/onboarding/consent",
+      status: "ready",
+    });
+  });
+
   it.each([
     [{ onboardingStatus: { S: "intake_ready" } }, "/intake"],
     [
@@ -119,15 +359,18 @@ describe("onboarding start lambda", () => {
     ],
     [{ onboardingStatus: { S: "mdi_submitted" } }, "/onboarding/mdi"],
     [{ onboardingStatus: { S: "clinical_review" } }, "/onboarding/mdi"],
-    [{ onboardingStatus: { S: "billing_ready" } }, "/billing"],
-  ])("resumes from profile status %# without linkage reads", async (profile, destination) => {
+  ])("resumes from profile status %# after pre-MDI consent evidence exists", async (profile, destination) => {
     const { startHandler } = await import("../src/lambda/onboarding-start.js");
-    sendMock.mockResolvedValueOnce({
-      Item: {
-        ...profile,
-        recordType: { S: "patientProfile" },
-      },
-    });
+    sendMock
+      .mockResolvedValueOnce({
+        Item: {
+          ...profile,
+          recordType: { S: "patientProfile" },
+        },
+      })
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence());
 
     const response = await startHandler(event());
 
@@ -136,7 +379,29 @@ describe("onboarding start lambda", () => {
       destination,
       status: "ready",
     });
-    expectOnlyProfileAccess();
+  });
+
+  it("resumes billing after full current consent evidence exists", async () => {
+    const { startHandler } = await import("../src/lambda/onboarding-start.js");
+    sendMock
+      .mockResolvedValueOnce({
+        Item: {
+          onboardingStatus: { S: "billing_ready" },
+          recordType: { S: "patientProfile" },
+        },
+      })
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence())
+      .mockResolvedValueOnce(consentEvidence());
+
+    const response = await startHandler(event());
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      destination: "/billing",
+      status: "ready",
+    });
   });
 
   it("rereads the profile after a concurrent first-create conflict", async () => {
@@ -150,16 +415,16 @@ describe("onboarding start lambda", () => {
           recordType: { S: "patientProfile" },
           residencyState: { S: "CA" },
         },
-      });
+      })
+      .mockResolvedValueOnce({});
 
     const response = await startHandler(event());
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
-      destination: "/onboarding/mdi",
+      destination: "/onboarding/consent",
       status: "ready",
     });
-    expectOnlyProfileAccess();
   });
 });
 
@@ -199,4 +464,25 @@ function namedError(name: string) {
   const error = new Error(name);
   error.name = name;
   return error;
+}
+
+function consentEvidence() {
+  return {
+    Item: {
+      recordType: { S: "consentEvidence" },
+    },
+  };
+}
+
+function mintAnonymousPrecheckCookie() {
+  const secret: AppSigningSecret = {
+    signingSecret: "lambda-start-signing-secret",
+  };
+  const value = createAnonymousPrecheckContext({
+    nonce: "lambda-start-anonymous-precheck",
+    residencyState: "IL",
+    secret,
+    selectedTreatment: "weight",
+  });
+  return `${anonymousPrecheckContextCookieName}=${encodeURIComponent(value)}`;
 }

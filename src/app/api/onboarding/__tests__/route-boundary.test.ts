@@ -5,7 +5,11 @@ import {
   consentAcknowledgementFieldName,
   requiredConsentsForPrecheck,
 } from "@/lib/consents";
-import { anonymousPrecheckContextCookieName } from "../../../../../shared/intake/anonymous-precheck-context";
+import {
+  anonymousPrecheckContextCookieName,
+  createAnonymousPrecheckContext,
+  type AppSigningSecret,
+} from "../../../../../shared/intake/anonymous-precheck-context";
 
 const mocks = vi.hoisted(() => ({
   acceptCurrentConsents: vi.fn(),
@@ -160,6 +164,55 @@ describe("intake and onboarding API route boundary", () => {
       repository: { kind: "repo" },
       token: "valid-token",
     }));
+  });
+
+  it("passes a valid anonymous precheck context into authenticated onboarding start", async () => {
+    mocks.resolveOnboardingStartRedirect.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        clearAnonymousPrecheckContext: true,
+        destination: "/onboarding/consent",
+      },
+    });
+    const anonymousCookie = mintAnonymousPrecheckCookie();
+    const { GET } = await import("../start/route");
+
+    const response = await GET(request("https://apoth.test/api/onboarding/start", {
+      cookie: `apoth_patient_access=valid-token; ${anonymousCookie}`,
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain(
+      `${anonymousPrecheckContextCookieName}=`,
+    );
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(mocks.resolveOnboardingStartRedirect).toHaveBeenCalledWith(expect.objectContaining({
+      anonymousPrecheckContext: expect.objectContaining({
+        outcome: "eligible_for_intake",
+        residencyState: "IL",
+      }),
+      token: "valid-token",
+    }));
+  });
+
+  it("clears invalid anonymous precheck cookies without passing a bind context", async () => {
+    mocks.resolveOnboardingStartRedirect.mockResolvedValueOnce({
+      ok: true,
+      value: { destination: "/intake" },
+    });
+    const { GET } = await import("../start/route");
+
+    const response = await GET(request("https://apoth.test/api/onboarding/start", {
+      cookie: `apoth_patient_access=valid-token; ${anonymousPrecheckContextCookieName}=bad`,
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
+    expect(mocks.resolveOnboardingStartRedirect).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        anonymousPrecheckContext: expect.anything(),
+      }),
+    );
   });
 
   it("rejects consent writes from a foreign origin before auth or storage", async () => {
@@ -752,4 +805,17 @@ async function mintPrivacyNoticeCookie() {
 function privacyCookieValue(cookie: string) {
   const [, value] = cookie.split("=");
   return decodeURIComponent(value ?? "");
+}
+
+function mintAnonymousPrecheckCookie() {
+  const secret: AppSigningSecret = {
+    signingSecret: "route-boundary-signing-secret",
+  };
+  const value = createAnonymousPrecheckContext({
+    nonce: "route-boundary-anonymous-precheck",
+    residencyState: "IL",
+    secret,
+    selectedTreatment: "weight",
+  });
+  return `${anonymousPrecheckContextCookieName}=${encodeURIComponent(value)}`;
 }

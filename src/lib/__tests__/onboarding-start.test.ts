@@ -4,19 +4,29 @@ import {
   type AuthTokenVerifier,
   type CognitoAuthConfig,
 } from "@/lib/auth";
+import { requiredConsentsBeforeMdi } from "@/lib/consents";
 import {
+  anonymousPrecheckConsumptionKey,
   createInMemoryAppDataRepository,
   createPatientProfileRecord,
+  linkMdiPatientCase,
   mdiLinkageKey,
   patientProfileKey,
   recordCurrentConsentAcceptance,
   stripeLinkageKey,
 } from "@/lib/dynamodb/app-data";
 import {
+  bindAnonymousPrecheckContext,
   ensurePatientProfile,
   resolveOnboardingStartRedirect,
   type OnboardingStartRepository,
 } from "../onboarding-start";
+import {
+  anonymousPrecheckNonceHash,
+  createAnonymousPrecheckContext,
+  verifyAnonymousPrecheckContext,
+  type AppSigningSecret,
+} from "../../../shared/intake/anonymous-precheck-context";
 
 const now = new Date("2026-06-10T18:00:00.000Z");
 const nowIso = now.toISOString();
@@ -136,6 +146,12 @@ describe("onboarding start route orchestration", () => {
         }
         return backing.put(record);
       },
+      update(record, options) {
+        return backing.update(record, options);
+      },
+      transactWrite(operations) {
+        return backing.transactWrite(operations);
+      },
     };
 
     await expect(
@@ -172,6 +188,180 @@ describe("onboarding start route orchestration", () => {
       /answers|questionnaire|diagnosis|symptom|medication|mdiCaseId|stripeCustomerId|billing|persona|kyc/i,
     );
   });
+
+  it("binds a valid anonymous precheck context to the authenticated profile", async () => {
+    const repository = createInMemoryAppDataRepository();
+    const context = anonymousContext({ residencyState: "IL" });
+
+    await expect(
+      resolveOnboardingStartRedirect({
+        anonymousPrecheckContext: context,
+        config,
+        now,
+        repository,
+        token: "valid-token",
+        verifier: validVerifier(),
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        clearAnonymousPrecheckContext: true,
+        destination: "/onboarding/consent",
+      },
+    });
+
+    expect(repository.get(patientProfileKey(cognitoSub))).toMatchObject({
+      ok: true,
+      value: {
+        onboardingStatus: "intake_ready",
+        residencyState: "IL",
+      },
+    });
+    expect(repository.get(anonymousPrecheckConsumptionKey(
+      anonymousPrecheckNonceHash(context),
+    ))).toMatchObject({
+      ok: true,
+      value: {
+        cognitoSub,
+        nonceHash: anonymousPrecheckNonceHash(context),
+        recordType: "anonymousPrecheckConsumption",
+      },
+    });
+    expect(JSON.stringify(repository.get(patientProfileKey(cognitoSub))))
+      .not.toMatch(/weight|answer|questionnaire|emergency|contraindication|medication/i);
+  });
+
+  it("does not require medication disclosure before routing an anonymous bind to MDI", async () => {
+    const repository = createInMemoryAppDataRepository();
+    recordCurrentConsentAcceptance(repository, {
+      acceptedAt: nowIso,
+      cognitoSub,
+      now: nowIso,
+      requiredConsents: requiredConsentsBeforeMdi(),
+    });
+
+    await expect(
+      resolveOnboardingStartRedirect({
+        anonymousPrecheckContext: anonymousContext({ residencyState: "IL" }),
+        config,
+        now,
+        repository,
+        token: "valid-token",
+        verifier: validVerifier(),
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        clearAnonymousPrecheckContext: true,
+        destination: "/onboarding/mdi",
+      },
+    });
+  });
+
+  it("requires full current consent before routing a billing-ready profile to billing", async () => {
+    const repository = createInMemoryAppDataRepository();
+    repository.put(createPatientProfileRecord({
+      cognitoSub,
+      onboardingStatus: "billing_ready",
+      now: nowIso,
+      residencyState: "IL",
+    }));
+    expect(linkMdiPatientCase(repository, {
+      cognitoSub,
+      mdiCaseId: "mdi_case_001",
+      mdiPatientId: "mdi_patient_001",
+      now: nowIso,
+    })).toMatchObject({ ok: true });
+    recordCurrentConsentAcceptance(repository, {
+      acceptedAt: nowIso,
+      cognitoSub,
+      now: nowIso,
+      requiredConsents: requiredConsentsBeforeMdi(),
+    });
+
+    await expect(
+      resolveOnboardingStartRedirect({
+        config,
+        now,
+        repository,
+        token: "valid-token",
+        verifier: validVerifier(),
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      value: {
+        destination: "/onboarding/consent",
+      },
+    });
+  });
+
+  it("treats same-account anonymous context replay as idempotent after bind", async () => {
+    const repository = createInMemoryAppDataRepository();
+    const context = anonymousContext({ residencyState: "IL" });
+
+    await bindAnonymousPrecheckContext(repository, {
+      cognitoSub,
+      context,
+      now: nowIso,
+    });
+
+    await expect(bindAnonymousPrecheckContext(repository, {
+      cognitoSub,
+      context,
+      now: nowIso,
+    })).resolves.toEqual({ ok: true, value: {} });
+  });
+
+  it("rejects cross-account anonymous context replay without rewriting the profile", async () => {
+    const repository = createInMemoryAppDataRepository();
+    const context = anonymousContext({ residencyState: "IL" });
+    await bindAnonymousPrecheckContext(repository, {
+      cognitoSub: "cognito-sub-otheraccount",
+      context,
+      now: nowIso,
+    });
+
+    await expect(bindAnonymousPrecheckContext(repository, {
+      cognitoSub,
+      context,
+      now: nowIso,
+    })).resolves.toEqual({
+      ok: true,
+      value: { recoverAtIntake: true },
+    });
+    expect(repository.get(patientProfileKey(cognitoSub))).toEqual({
+      ok: true,
+      value: null,
+    });
+  });
+
+  it("uses a rotation-stable consumption key for previous-secret verification", () => {
+    const issued = createAnonymousPrecheckContext({
+      nonce: "stable-rotation-nonce",
+      now,
+      residencyState: "IL",
+      secret: { signingSecret: "previous-secret" },
+      selectedTreatment: "weight",
+    });
+    const rotatingSecret: AppSigningSecret = {
+      signingSecret: "current-secret",
+      signingSecretPrevious: "previous-secret",
+      signingSecretPreviousExpiresAt: "2026-06-10T18:10:00.000Z",
+    };
+
+    const verified = verifyAnonymousPrecheckContext({
+      now,
+      secret: rotatingSecret,
+      value: issued,
+    });
+
+    expect(verified.ok && anonymousPrecheckNonceHash(verified.payload)).toBe(
+      anonymousPrecheckNonceHash(anonymousContext({
+        nonce: "stable-rotation-nonce",
+        residencyState: "IL",
+      })),
+    );
+  });
 });
 
 function validVerifier(): AuthTokenVerifier {
@@ -187,4 +377,23 @@ function validVerifier(): AuthTokenVerifier {
       };
     },
   };
+}
+
+function anonymousContext(input: {
+  nonce?: string;
+  residencyState: "IL" | "CA";
+}) {
+  const secret: AppSigningSecret = { signingSecret: "anonymous-bind-secret" };
+  const value = createAnonymousPrecheckContext({
+    nonce: input.nonce ?? "anonymous-bind-nonce",
+    now,
+    residencyState: input.residencyState,
+    secret,
+    selectedTreatment: "weight",
+  });
+  const verified = verifyAnonymousPrecheckContext({ now, secret, value });
+  if (!verified.ok) {
+    throw new Error("Expected anonymous context to verify");
+  }
+  return verified.payload;
 }

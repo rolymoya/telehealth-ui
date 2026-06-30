@@ -1,4 +1,5 @@
 import {
+  createHash,
   createHmac,
   randomBytes,
   timingSafeEqual,
@@ -165,6 +166,16 @@ export function clearedAnonymousPrecheckContextCookieHeader() {
     name: anonymousPrecheckContextCookieName,
     value: "",
   });
+}
+
+export function anonymousPrecheckNonceHash(
+  payload: Pick<AnonymousPrecheckContextPayload, "nonce">,
+) {
+  return `sha256:${
+    createHash("sha256")
+      .update(`anonymous_precheck:${payload.nonce}`, "utf8")
+      .digest("hex")
+  }`;
 }
 
 function signPayload(payload: Record<string, unknown>, secret: string) {

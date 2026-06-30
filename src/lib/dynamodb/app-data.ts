@@ -84,6 +84,15 @@ export type PatientProfileRecord = BaseRecord & {
   residencyState?: UsStateCode;
 };
 
+export type AnonymousPrecheckConsumptionRecord = BaseRecord & {
+  recordType: "anonymousPrecheckConsumption";
+  cognitoSub: string;
+  consumedAt: string;
+  expiresAt: string;
+  expiresAtEpochSeconds: number;
+  nonceHash: string;
+};
+
 export type MdiLinkageRecord = BaseRecord & {
   recordType: "mdiLinkage";
   cognitoSub: string;
@@ -309,6 +318,7 @@ export type OperationalStatusRecord = BaseRecord & {
 
 export type AppDataRecord =
   | PatientProfileRecord
+  | AnonymousPrecheckConsumptionRecord
   | MdiLinkageRecord
   | MdiReverseLookupRecord
   | MdiPatientCreateAttemptRecord
@@ -456,6 +466,10 @@ export function webhookIdempotencyKey(
   eventId: string,
 ): AppDataKey {
   return { pk: `WEBHOOK#${provider}#EVENT#${eventId}`, sk: "CLAIM" };
+}
+
+export function anonymousPrecheckConsumptionKey(nonceHash: string): AppDataKey {
+  return { pk: `ANON_PRECHECK#${nonceHash}`, sk: "CONSUMED" };
 }
 
 export function evidenceEventKey(
@@ -702,6 +716,26 @@ export function createPatientProfileRecord(input: {
     ...(input.residencyState ? { residencyState: input.residencyState } : {}),
     createdAt: input.now,
     updatedAt: input.now,
+  };
+}
+
+export function createAnonymousPrecheckConsumptionRecord(input: {
+  cognitoSub: string;
+  consumedAt: string;
+  expiresAt: string;
+  nonceHash: string;
+}): AnonymousPrecheckConsumptionRecord {
+  return {
+    ...anonymousPrecheckConsumptionKey(input.nonceHash),
+    recordType: "anonymousPrecheckConsumption",
+    schemaVersion: 1,
+    cognitoSub: input.cognitoSub,
+    consumedAt: input.consumedAt,
+    expiresAt: input.expiresAt,
+    expiresAtEpochSeconds: Math.floor(Date.parse(input.expiresAt) / 1000),
+    nonceHash: input.nonceHash,
+    createdAt: input.consumedAt,
+    updatedAt: input.consumedAt,
   };
 }
 
@@ -2279,6 +2313,19 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         keysMatch(record, patientProfileKey(record.cognitoSub))
         ? ok(record)
         : err("validation_failed", "Invalid patient profile record");
+    case "anonymousPrecheckConsumption":
+      return typeof record.cognitoSub === "string" &&
+        isCognitoSub(record.cognitoSub) &&
+        isNonceHash(record.nonceHash) &&
+        isIsoTimestamp(record.consumedAt) &&
+        isIsoTimestamp(record.expiresAt) &&
+        typeof record.expiresAtEpochSeconds === "number" &&
+        Number.isInteger(record.expiresAtEpochSeconds) &&
+        record.expiresAtEpochSeconds > 0 &&
+        record.expiresAtEpochSeconds === Math.floor(Date.parse(record.expiresAt) / 1000) &&
+        keysMatch(record, anonymousPrecheckConsumptionKey(record.nonceHash))
+        ? ok(record)
+        : err("validation_failed", "Invalid anonymous precheck consumption record");
     case "mdiLinkage":
       return typeof record.cognitoSub === "string" &&
         typeof record.mdiPatientId === "string" &&
@@ -2954,6 +3001,10 @@ function optionalString(value: unknown) {
 function optionalHash(value: unknown) {
   return value === undefined ||
     (typeof value === "string" && /^sha256:[a-f0-9]{64}$/i.test(value));
+}
+
+function isNonceHash(value: unknown) {
+  return typeof value === "string" && /^sha256:[a-f0-9]{64}$/.test(value);
 }
 
 function isConsentVersion(value: string) {
@@ -3688,6 +3739,13 @@ const baseFields = [
 
 const allowedFields: Record<string, Set<string>> = {
   patientProfile: allow("cognitoSub", "onboardingStatus", "residencyState"),
+  anonymousPrecheckConsumption: allow(
+    "cognitoSub",
+    "consumedAt",
+    "expiresAt",
+    "expiresAtEpochSeconds",
+    "nonceHash",
+  ),
   mdiLinkage: allow("cognitoSub", "mdiPatientId", "mdiCaseId"),
   mdiReverseLookup: allow("cognitoSub", "pointerType", "mdiPatientId", "mdiCaseId"),
   mdiPatientCreateAttempt: allow(
