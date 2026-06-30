@@ -10,7 +10,10 @@ import {
   recordConsentEvidence,
   type AppDataRecord,
 } from "@/lib/dynamodb/app-data";
-import { currentRequiredConsents } from "@/lib/consents";
+import {
+  currentRequiredConsents,
+  requiredConsentsForPrecheck,
+} from "@/lib/consents";
 import { readOnboardingGateSnapshot } from "../onboarding-status";
 
 const now = "2026-06-09T15:00:00.000Z";
@@ -157,6 +160,46 @@ describe("onboarding status snapshot reads", () => {
       ok: true,
       value: {
         consentAccepted: false,
+      },
+    });
+  });
+
+  it("can evaluate a staged consent set without relaxing current onboarding", () => {
+    const repository = createInMemoryAppDataRepository();
+    const privacyNotice = currentRequiredConsents.find((consent) =>
+      consent.consentKind === "privacy_notice"
+    );
+    expect(privacyNotice).toBeDefined();
+    recordConsentEvidence(repository, {
+      acceptedAt: now,
+      cognitoSub,
+      consentKind: privacyNotice!.consentKind,
+      now,
+      version: privacyNotice!.version,
+    });
+
+    expect(
+      readOnboardingGateSnapshot(repository, {
+        cognitoSub,
+        consentVersion: "unused-compat-version",
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        consentAccepted: false,
+      },
+    });
+
+    expect(
+      readOnboardingGateSnapshot(repository, {
+        cognitoSub,
+        consentVersion: "unused-compat-version",
+        requiredConsents: requiredConsentsForPrecheck(),
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        consentAccepted: true,
       },
     });
   });

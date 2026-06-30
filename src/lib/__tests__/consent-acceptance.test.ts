@@ -17,9 +17,13 @@ import {
 import {
   acceptCurrentConsents,
   consentAcknowledgementFieldName,
+  recordConsentAcceptanceForRequiredConsentsAsync,
   validateCurrentConsentAcknowledgements,
 } from "../consent-acceptance";
-import { currentRequiredConsents } from "../consents";
+import {
+  currentRequiredConsents,
+  requiredConsentsForPrecheck,
+} from "../consents";
 
 const now = new Date("2026-06-10T19:00:00.000Z");
 const nowIso = now.toISOString();
@@ -199,6 +203,42 @@ describe("consent acceptance", () => {
         }),
       ]),
     );
+  });
+
+  it("can write a staged consent set without writing unrelated documents", async () => {
+    const repository = createRepositoryWithProfile("profile_pending");
+    const requiredConsents = requiredConsentsForPrecheck();
+
+    await expect(recordConsentAcceptanceForRequiredConsentsAsync(repository, {
+      acceptedAt: nowIso,
+      cognitoSub,
+      now: nowIso,
+      requiredConsents,
+    })).resolves.toMatchObject({
+      ok: true,
+      value: [
+        expect.objectContaining({
+          consentKind: "privacy_notice",
+        }),
+      ],
+    });
+
+    expect(getRequiredConsentEvidenceStatus(repository, {
+      cognitoSub,
+      requiredConsents,
+    })).toMatchObject({
+      ok: true,
+      value: {
+        accepted: true,
+      },
+    });
+    expect(getRequiredConsentEvidenceStatus(repository, { cognitoSub }))
+      .toMatchObject({
+        ok: true,
+        value: {
+          accepted: false,
+        },
+      });
   });
 
   it("does not write evidence for a bare authenticated post", async () => {

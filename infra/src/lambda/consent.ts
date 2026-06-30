@@ -8,7 +8,7 @@ import {
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import {
   consentAcknowledgementFieldName,
-  currentRequiredConsents,
+  requiredConsentsForCurrentOnboarding,
 } from "../../../shared/consents";
 import {
   parseCookieHeader,
@@ -210,7 +210,7 @@ function validateAcknowledgements(body: Record<string, unknown>) {
   }
 
   const values = acknowledgements as Record<string, unknown>;
-  return currentRequiredConsents.every((consent) =>
+  return requiredConsentsForCurrentOnboarding().every((consent) =>
     values[consentAcknowledgementFieldName(consent)] === "accepted" ||
     values[consentAcknowledgementFieldName(consent)] === true
   );
@@ -221,7 +221,7 @@ async function recordCurrentConsentAcceptance(cognitoSub: string):
   const now = new Date().toISOString();
   const writes = [];
 
-  for (const consent of currentRequiredConsents) {
+  for (const consent of requiredConsentsForCurrentOnboarding()) {
     const response = await ddb.send(new GetItemCommand({
       ConsistentRead: true,
       Key: consentKey(cognitoSub, consent.consentKind, consent.version),
@@ -271,7 +271,7 @@ async function recordCurrentConsentAcceptance(cognitoSub: string):
 }
 
 async function hasCurrentConsent(cognitoSub: string) {
-  for (const consent of currentRequiredConsents) {
+  for (const consent of requiredConsentsForCurrentOnboarding()) {
     const response = await ddb.send(new GetItemCommand({
       ConsistentRead: true,
       Key: consentKey(cognitoSub, consent.consentKind, consent.version),

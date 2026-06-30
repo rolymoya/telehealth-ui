@@ -6,7 +6,7 @@ import {
   UpdateItemCommand,
 } from "@aws-sdk/client-dynamodb";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
-import { currentRequiredConsents } from "../../../shared/consents";
+import { requiredConsentsForCurrentOnboarding } from "../../../shared/consents";
 import {
   screenIntakePrecheck,
   type IntakePrecheckFailure,
@@ -186,7 +186,7 @@ function verifier() {
 }
 
 async function hasCurrentConsent(cognitoSub: string) {
-  for (const consent of currentRequiredConsents) {
+  for (const consent of requiredConsentsForCurrentOnboarding()) {
     const response = await ddb.send(new GetItemCommand({
       ConsistentRead: true,
       Key: consentKey(cognitoSub, consent.consentKind, consent.version),

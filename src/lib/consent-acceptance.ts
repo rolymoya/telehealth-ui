@@ -12,6 +12,7 @@ import {
   consentAcknowledgementFieldName,
   currentConsentVersion,
   currentRequiredConsents,
+  requiredConsentsForCurrentOnboarding,
   type RequiredConsentDocument,
 } from "@/lib/consents";
 import {
@@ -113,10 +114,11 @@ export async function acceptCurrentConsents(input: {
 
   const repository = input.repository ?? createConsentAcceptanceRepository();
   const now = (input.now ?? new Date()).toISOString();
-  const write = await recordCurrentConsentAcceptanceAsync(repository, {
+  const write = await recordConsentAcceptanceForRequiredConsentsAsync(repository, {
     acceptedAt: now,
     cognitoSub: session.value.user.cognitoSub,
     now,
+    requiredConsents: requiredConsentsForCurrentOnboarding(),
   });
   if (!write.ok) {
     return write;
@@ -140,15 +142,17 @@ export async function acceptCurrentConsents(input: {
   };
 }
 
-async function recordCurrentConsentAcceptanceAsync(
+export async function recordConsentAcceptanceForRequiredConsentsAsync(
   repository: ConsentAcceptanceRepository,
   input: {
     acceptedAt: string;
     cognitoSub: string;
     now: string;
+    requiredConsents: readonly RequiredConsentDocument[];
   },
 ): Promise<AppDataResult<ConsentEvidenceRecord[]>> {
-  const records = currentRequiredConsents.map((consent) => createConsentEvidenceRecord({
+  const requiredConsents = input.requiredConsents;
+  const records = requiredConsents.map((consent) => createConsentEvidenceRecord({
     acceptedAt: input.acceptedAt,
     cognitoSub: input.cognitoSub,
     consentKind: consent.consentKind,
@@ -194,18 +198,25 @@ async function recordCurrentConsentAcceptanceAsync(
     return result;
   }
 
-  return readCurrentConsentEvidenceRecords(repository, input.cognitoSub);
+  return readCurrentConsentEvidenceRecords(repository, {
+    cognitoSub: input.cognitoSub,
+    requiredConsents,
+  });
 }
 
 async function readCurrentConsentEvidenceRecords(
   repository: ConsentAcceptanceRepository,
-  cognitoSub: string,
+  input: {
+    cognitoSub: string;
+    requiredConsents?: readonly RequiredConsentDocument[];
+  },
 ): Promise<AppDataResult<ConsentEvidenceRecord[]>> {
   const records: ConsentEvidenceRecord[] = [];
+  const requiredConsents = input.requiredConsents ?? requiredConsentsForCurrentOnboarding();
 
-  for (const consent of currentRequiredConsents) {
+  for (const consent of requiredConsents) {
     const existing = await repository.get(consentEvidenceKey(
-      cognitoSub,
+      input.cognitoSub,
       consent.consentKind,
       consent.version,
     ));

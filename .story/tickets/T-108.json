@@ -1,0 +1,14 @@
+{
+  "blockedBy": [],
+  "claimedBySession": "33f55611-0b07-47e0-9ba3-7c28653bd769",
+  "completedDate": "2026-06-29",
+  "createdDate": "2026-06-29",
+  "description": "Refactor the consent/disclosure definitions so each document has an explicit timing gate instead of participating in a single all-or-nothing currentRequiredConsents check. Proposed gates: privacy_notice_before_precheck, telehealth_and_platform_before_mdi, medication_disclosure_before_billing_or_prescribing. Include treatment applicability so compounded-medication disclosure is required only for treatment paths where it applies. Update shared helpers and route/Lambda gate helpers, but do not yet reorder the UI flow.",
+  "id": "T-108",
+  "order": 80,
+  "parentTicket": "T-107",
+  "phase": "intake-flow",
+  "status": "complete",
+  "title": "Classify disclosures by onboarding gate",
+  "type": "task"
+}

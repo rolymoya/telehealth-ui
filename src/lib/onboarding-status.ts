@@ -8,7 +8,10 @@ import {
   type AppDataRepository,
   type AppDataResult,
 } from "@/lib/dynamodb/app-data";
-import { currentRequiredConsents } from "@/lib/consents";
+import {
+  requiredConsentsForCurrentOnboarding,
+  type RequiredConsentDocument,
+} from "@/lib/consents";
 import { type OnboardingGateSnapshot } from "@/lib/onboarding-gates";
 
 export type AppDataReadRepository = {
@@ -22,6 +25,7 @@ export function readOnboardingGateSnapshot(
   input: {
     cognitoSub: string;
     consentVersion: string;
+    requiredConsents?: readonly RequiredConsentDocument[];
   },
 ): AppDataResult<OnboardingGateSnapshot> {
   const profile = repository.get(patientProfileKey(input.cognitoSub));
@@ -34,6 +38,7 @@ export function readOnboardingGateSnapshot(
 
   const consent = getRequiredConsentEvidenceStatus(repository, {
     cognitoSub: input.cognitoSub,
+    requiredConsents: input.requiredConsents,
   });
   if (!consent.ok) {
     return consent;
@@ -83,6 +88,7 @@ export async function readOnboardingGateSnapshotAsync(
   input: {
     cognitoSub: string;
     consentVersion: string;
+    requiredConsents?: readonly RequiredConsentDocument[];
   },
 ): Promise<AppDataResult<OnboardingGateSnapshot>> {
   const profile = await repository.get(patientProfileKey(input.cognitoSub));
@@ -95,6 +101,7 @@ export async function readOnboardingGateSnapshotAsync(
 
   const consentAccepted = await hasCurrentRequiredConsentEvidence(repository, {
     cognitoSub: input.cognitoSub,
+    requiredConsents: input.requiredConsents,
   });
   if (!consentAccepted.ok) {
     return consentAccepted;
@@ -141,9 +148,13 @@ export async function readOnboardingGateSnapshotAsync(
 
 async function hasCurrentRequiredConsentEvidence(
   repository: AppDataReadRepository,
-  input: { cognitoSub: string },
+  input: {
+    cognitoSub: string;
+    requiredConsents?: readonly RequiredConsentDocument[];
+  },
 ): Promise<AppDataResult<boolean>> {
-  for (const consent of currentRequiredConsents) {
+  const requiredConsents = input.requiredConsents ?? requiredConsentsForCurrentOnboarding();
+  for (const consent of requiredConsents) {
     const record = await repository.get(consentEvidenceKey(
       input.cognitoSub,
       consent.consentKind,
