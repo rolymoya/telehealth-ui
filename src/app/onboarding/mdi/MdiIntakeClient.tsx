@@ -66,7 +66,10 @@ export function MdiIntakeClient({
         setRedirecting(body.redirect, navigate, setState);
         return;
       }
-      if (response.status === 409 && body.code === "precheck_required") {
+      if (
+        response.status === 409 &&
+        (body.code === "precheck_required" || body.code === "patient_profile_required")
+      ) {
         setRedirecting("/intake", navigate, setState);
         return;
       }
@@ -168,7 +171,10 @@ export function MdiIntakeClient({
       setRedirecting(body.redirect, navigate, setState);
       return;
     }
-    if (response.status === 409 && body.code === "precheck_required") {
+    if (
+      response.status === 409 &&
+      (body.code === "precheck_required" || body.code === "patient_profile_required")
+    ) {
       setRedirecting("/intake", navigate, setState);
       return;
     }

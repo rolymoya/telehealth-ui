@@ -6,6 +6,10 @@ import {
   resolveAppDataRepository,
 } from "@/app/api/_shared/onboarding";
 import { currentConsentVersion } from "@/lib/consents";
+import {
+  readMdiQuestionnaireContextCookie,
+  mdiQuestionnaireContextCookieName,
+} from "@/lib/mdi-intake-context";
 import { createDynamoDbMdiIntakeRepository } from "@/lib/mdi-intake-dynamodb";
 import { createMdiHttpIntakeGateway } from "@/lib/mdi-intake-gateway";
 import { loadMdiIntake } from "@/lib/mdi-intake";
@@ -35,11 +39,25 @@ export async function GET(request: NextRequest) {
       redirect: "/onboarding/consent",
     }, 403);
   }
+  if (
+    snapshot.value.onboardingStatus === "intake_ready" &&
+    !snapshot.value.mdiPatientId
+  ) {
+    return noStoreJson({
+      code: "patient_profile_required",
+      redirect: "/intake",
+    }, 409);
+  }
 
   const result = await loadMdiIntake(
     { cognitoSub: session.value.session.user.cognitoSub },
     {
-      gateway: createMdiHttpIntakeGateway(),
+      gateway: createMdiHttpIntakeGateway({
+        questionnaireId: readMdiQuestionnaireContextCookie({
+          sessionToken: session.value.token,
+          value: request.cookies.get(mdiQuestionnaireContextCookieName)?.value,
+        }),
+      }),
       repository: createDynamoDbMdiIntakeRepository(repository.value),
     },
   );

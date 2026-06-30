@@ -32,6 +32,7 @@ type ApiEvent = {
 
 type ApiResponse = {
   body: string;
+  cookies?: string[];
   headers: Record<string, string>;
   statusCode: number;
 };
@@ -50,9 +51,12 @@ type MdiLinkage = {
   mdiCaseId?: string;
 };
 
+type MdiPatientPayload = Record<string, unknown>;
+
 let testGateway: MdiIntakeGateway | null = null;
 
 const ddb = new DynamoDBClient({});
+const mdiQuestionnaireContextCookieName = "__Host-apoth_mdi_questionnaire";
 
 export function configureMdiIntakeLambdaForTests(input: {
   gateway?: MdiIntakeGateway | null;
@@ -73,11 +77,19 @@ export async function bootstrapHandler(event: ApiEvent): Promise<ApiResponse> {
       redirect: "/onboarding/consent",
     });
   }
+  const profile = await getProfile(auth.session.cognitoSub);
+  const linkage = await getMdiLinkage(auth.session.cognitoSub);
+  if (profile?.onboardingStatus === "intake_ready" && !linkage?.mdiPatientId) {
+    return json(409, {
+      code: "patient_profile_required",
+      redirect: "/intake",
+    });
+  }
 
   const result = await loadMdiIntake(
     { cognitoSub: auth.session.cognitoSub },
     {
-      gateway: activeGateway(),
+      gateway: activeGateway(readMdiQuestionnaireContext(event, auth.session.token)),
       repository: dynamoRepository(),
     },
   );
@@ -86,13 +98,13 @@ export async function bootstrapHandler(event: ApiEvent): Promise<ApiResponse> {
   }
 
   return json(200, {
-    csrfToken: csrfTokenFor(auth.session.token),
+    csrfToken: csrfTokenFor("mdi-intake", auth.session.token),
     ...result.value,
   });
 }
 
 export async function submitHandler(event: ApiEvent): Promise<ApiResponse> {
-  const csrf = await verifyCsrf(event);
+  const csrf = await verifyCsrf(event, "mdi-intake");
   if (!csrf.ok) {
     return json(csrf.status, { code: csrf.code });
   }
@@ -116,7 +128,8 @@ export async function submitHandler(event: ApiEvent): Promise<ApiResponse> {
       ...parsed.value,
     },
     {
-      expectedQuestionnaireId: requiredEnv("APOTH_MDI_QUESTIONNAIRE_ID"),
+      expectedQuestionnaireId: readMdiQuestionnaireContext(event, csrf.session.token) ??
+        requiredEnv("APOTH_MDI_QUESTIONNAIRE_ID"),
       gateway: activeGateway(),
       repository: dynamoRepository(),
     },
@@ -128,11 +141,76 @@ export async function submitHandler(event: ApiEvent): Promise<ApiResponse> {
   return json(200, result.value);
 }
 
-function activeGateway(): MdiIntakeGateway {
-  return testGateway ?? productionMdiGateway();
+export async function patientHandler(event: ApiEvent): Promise<ApiResponse> {
+  const csrf = await verifyCsrf(event, "mdi-patient");
+  if (!csrf.ok) {
+    return json(csrf.status, { code: csrf.code });
+  }
+
+  const consent = await hasCurrentConsent(csrf.session.cognitoSub);
+  if (!consent) {
+    return json(403, {
+      code: "consent_required",
+      redirect: "/onboarding/consent",
+    });
+  }
+
+  const profile = await getProfile(csrf.session.cognitoSub);
+  if (profile?.onboardingStatus !== "intake_ready") {
+    return json(409, {
+      code: "precheck_required",
+      redirect: "/intake",
+    });
+  }
+
+  const parsed = parsePatientBody(event.body);
+  if (!parsed.ok) {
+    return json(400, { code: parsed.code });
+  }
+  const questionnaire = resolveQuestionnaireForTreatment(parsed.value.treatment);
+  if (!questionnaire.ok) {
+    return json(questionnaire.status, { code: questionnaire.code });
+  }
+
+  const existingLinkage = await getMdiLinkage(csrf.session.cognitoSub);
+  if (!existingLinkage?.mdiPatientId) {
+    const created = await createMdiPatient({
+      idempotencyKey: createMdiPatientIdempotencyKey(csrf.session.cognitoSub),
+      patient: parsed.value.patient,
+    });
+    if (!created.ok) {
+      return json(publicProviderStatus(created.status), { code: "provider_unavailable" });
+    }
+
+    const linked = await saveMdiPatientLinkage({
+      cognitoSub: csrf.session.cognitoSub,
+      idempotencyKey: createMdiPatientIdempotencyKey(csrf.session.cognitoSub),
+      mdiPatientId: created.mdiPatientId,
+      now: new Date().toISOString(),
+    });
+    if (!linked.ok) {
+      return json(500, { code: "storage_failed" });
+    }
+  }
+
+  const cookie = createQuestionnaireContextCookie({
+    questionnaireId: questionnaire.questionnaireId,
+    sessionToken: csrf.session.token,
+  });
+  return {
+    ...json(200, {
+      redirect: "/onboarding/mdi",
+      status: "linked",
+    }),
+    cookies: [cookie],
+  };
 }
 
-function productionMdiGateway(): MdiIntakeGateway {
+function activeGateway(questionnaireId?: string | null): MdiIntakeGateway {
+  return testGateway ?? productionMdiGateway(questionnaireId);
+}
+
+function productionMdiGateway(questionnaireIdOverride?: string | null): MdiIntakeGateway {
   return {
     async loadQuestionnaire(input) {
       if (!input.linkage?.mdiPatientId) {
@@ -143,7 +221,7 @@ function productionMdiGateway(): MdiIntakeGateway {
         );
       }
 
-      const questionnaireId = requiredEnv("APOTH_MDI_QUESTIONNAIRE_ID");
+      const questionnaireId = questionnaireIdOverride || requiredEnv("APOTH_MDI_QUESTIONNAIRE_ID");
       const questions = await requestMdi<unknown>({
         method: "GET",
         path: `/partner/questionnaires/${encodeURIComponent(questionnaireId)}/questions`,
@@ -304,6 +382,28 @@ async function getMdiAccessToken(): Promise<
       { retryable: true, status: 503 },
     );
   }
+}
+
+async function createMdiPatient(input: {
+  idempotencyKey: string;
+  patient: MdiPatientPayload;
+}): Promise<
+  | { ok: true; mdiPatientId: string }
+  | { ok: false; status: number }
+> {
+  const created = await requestMdi<unknown>({
+    body: input.patient,
+    idempotencyKey: input.idempotencyKey,
+    method: "POST",
+    path: "/partner/patients",
+  });
+  if (!created.ok) {
+    return { ok: false, status: created.error.status };
+  }
+  const parsed = parseMdiPatient(created.value);
+  return parsed.ok
+    ? { ok: true, mdiPatientId: parsed.value.mdiPatientId }
+    : { ok: false, status: parsed.error.status };
 }
 
 async function loadMdiApiSecret(): Promise<
@@ -711,7 +811,92 @@ function parseMdiCase(payload: unknown): ReturnType<typeof mdiIntakeFailure> | {
   };
 }
 
-async function verifyCsrf(event: ApiEvent):
+function parseMdiPatient(payload: unknown): ReturnType<typeof mdiIntakeFailure> | {
+  ok: true;
+  value: { mdiPatientId: string };
+} {
+  if (!isRecord(payload)) {
+    return mdiIntakeFailure(
+      "provider_unavailable",
+      "MDI patient response was invalid",
+      { retryable: false, status: 502 },
+    );
+  }
+
+  const mdiPatientId = payload.patient_id ?? payload.patientId ?? payload.id;
+  if (typeof mdiPatientId !== "string" || !mdiPatientId.trim()) {
+    return mdiIntakeFailure(
+      "provider_unavailable",
+      "MDI patient response fields were invalid",
+      { retryable: false, status: 502 },
+    );
+  }
+
+  return {
+    ok: true,
+    value: { mdiPatientId: canonicalMdiId("mdi_patient", mdiPatientId) },
+  };
+}
+
+function readMdiQuestionnaireContext(event: ApiEvent, sessionToken: string) {
+  const value = parseCookieHeader(cookieHeader(event)).get(mdiQuestionnaireContextCookieName);
+  if (!value || !sessionToken) {
+    return null;
+  }
+  const [rawQuestionnaireId, signature, ...extra] = value.split(".");
+  if (!rawQuestionnaireId || !signature || extra.length > 0) {
+    return null;
+  }
+  let questionnaireId = "";
+  try {
+    questionnaireId = decodeURIComponent(rawQuestionnaireId);
+  } catch {
+    return null;
+  }
+  return signature === questionnaireContextSignature(questionnaireId, sessionToken)
+    ? questionnaireId
+    : null;
+}
+
+function createQuestionnaireContextCookie(input: {
+  questionnaireId: string;
+  sessionToken: string;
+}) {
+  const value = [
+    encodeURIComponent(input.questionnaireId),
+    questionnaireContextSignature(input.questionnaireId, input.sessionToken),
+  ].join(".");
+  return [
+    `${mdiQuestionnaireContextCookieName}=${value}`,
+    "Path=/",
+    `Max-Age=${30 * 60}`,
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+  ].join("; ");
+}
+
+function questionnaireContextSignature(questionnaireId: string, sessionToken: string) {
+  return createHash("sha256")
+    .update(`mdi-questionnaire:${questionnaireId}:${sessionToken}`)
+    .digest("base64url");
+}
+
+function createMdiPatientIdempotencyKey(cognitoSub: string) {
+  return `mdi-patient-${createHash("sha256")
+    .update(`mdi-patient:${cognitoSub}`)
+    .digest("hex")
+    .slice(0, 32)}`;
+}
+
+function canonicalMdiId(prefix: "mdi_patient" | "mdi_case", value: string) {
+  const trimmed = value.trim();
+  return trimmed.startsWith(`${prefix}_`)
+    ? trimmed
+    : `${prefix}_${trimmed.replace(/[^A-Za-z0-9]/g, "")}`;
+}
+
+async function verifyCsrf(event: ApiEvent, scope: "mdi-intake" | "mdi-patient"):
   Promise<
     | { ok: true; session: VerifiedSession }
     | { ok: false; code: string; status: number }
@@ -730,7 +915,7 @@ async function verifyCsrf(event: ApiEvent):
   }
 
   const csrfHeader = header(event, "x-apoth-csrf");
-  if (!csrfHeader || csrfHeader !== csrfTokenFor(auth.session.token)) {
+  if (!csrfHeader || csrfHeader !== csrfTokenFor(scope, auth.session.token)) {
     return { ok: false, code: "invalid_csrf", status: 403 };
   }
 
@@ -826,6 +1011,145 @@ async function getMdiLinkage(cognitoSub: string): Promise<MdiLinkage | null> {
   };
 }
 
+function parsePatientBody(body: string | null | undefined):
+  | {
+      ok: true;
+      value: {
+        patient: MdiPatientPayload;
+        treatment: string;
+      };
+    }
+  | { ok: false; code: string } {
+  try {
+    const parsed = body ? JSON.parse(body) : null;
+    if (!isRecord(parsed)) {
+      return { ok: false, code: "invalid_input" };
+    }
+
+    const firstName = boundedText(parsed.firstName, 1, 80);
+    const lastName = boundedText(parsed.lastName, 1, 80);
+    const dateOfBirth = dateOnly(parsed.dateOfBirth);
+    const email = emailAddress(parsed.email);
+    const phoneNumber = phone(parsed.phoneNumber);
+    const address = boundedText(parsed.address1, 1, 120);
+    const address2 = boundedText(parsed.address2, 0, 120);
+    const city = boundedText(parsed.city, 1, 80);
+    const state = stateCode(parsed.state);
+    const zipCode = zip(parsed.zipCode);
+    const treatment = boundedText(parsed.treatment, 1, 40);
+    const gender = optionalInteger(parsed.gender, 0, 9);
+
+    if (!firstName) return { ok: false, code: "missing_first_name" };
+    if (!lastName) return { ok: false, code: "missing_last_name" };
+    if (!dateOfBirth) return { ok: false, code: "invalid_date_of_birth" };
+    if (!email) return { ok: false, code: "invalid_email" };
+    if (!phoneNumber) return { ok: false, code: "invalid_phone" };
+    if (!address) return { ok: false, code: "missing_address" };
+    if (!city) return { ok: false, code: "missing_city" };
+    if (!state) return { ok: false, code: "invalid_state" };
+    if (!zipCode) return { ok: false, code: "invalid_zip" };
+    if (!treatment) return { ok: false, code: "invalid_treatment" };
+
+    return {
+      ok: true,
+      value: {
+        patient: {
+          address: {
+            address,
+            ...(address2 ? { address2 } : {}),
+            city_name: city,
+            state_name: state,
+            zip_code: zipCode,
+          },
+          date_of_birth: dateOfBirth,
+          email,
+          first_name: firstName,
+          ...(gender === null ? {} : { gender }),
+          is_email_enabled: true,
+          is_sms_enabled: false,
+          last_name: lastName,
+          phone_number: phoneNumber,
+          phone_type: 1,
+        },
+        treatment,
+      },
+    };
+  } catch {
+    return { ok: false, code: "invalid_input" };
+  }
+}
+
+function resolveQuestionnaireForTreatment(treatment: string):
+  | { ok: true; questionnaireId: string }
+  | { ok: false; code: "invalid_treatment" | "questionnaire_unavailable"; status: number } {
+  if (!["sexual-health", "hair", "weight"].includes(treatment)) {
+    return { ok: false, code: "invalid_treatment", status: 400 };
+  }
+  const mapping = parseQuestionnaireMapping(process.env.APOTH_MDI_QUESTIONNAIRE_IDS);
+  if (mapping) {
+    const mapped = mapping[treatment];
+    const questionnaireId = typeof mapped === "string" ? mapped.trim() : "";
+    return questionnaireId
+      ? { ok: true, questionnaireId }
+      : { ok: false, code: "questionnaire_unavailable", status: 503 };
+  }
+  const fallback = process.env.APOTH_MDI_QUESTIONNAIRE_ID?.trim();
+  return fallback
+    ? { ok: true, questionnaireId: fallback }
+    : { ok: false, code: "questionnaire_unavailable", status: 503 };
+}
+
+async function saveMdiPatientLinkage(input: {
+  cognitoSub: string;
+  idempotencyKey: string;
+  mdiPatientId: string;
+  now: string;
+}): Promise<{ ok: true } | { ok: false }> {
+  try {
+    await ddb.send(new TransactWriteItemsCommand({
+      TransactItems: [
+        {
+          Put: {
+            ConditionExpression: "attribute_not_exists(#pk) AND attribute_not_exists(#sk)",
+            ExpressionAttributeNames: { "#pk": "pk", "#sk": "sk" },
+            Item: mdiPatientOnlyLinkageItem(input),
+            TableName: requiredEnv("APP_TABLE_NAME"),
+          },
+        },
+        {
+          Put: {
+            ConditionExpression: "attribute_not_exists(#pk) AND attribute_not_exists(#sk)",
+            ExpressionAttributeNames: { "#pk": "pk", "#sk": "sk" },
+            Item: mdiPatientReverseItem(input),
+            TableName: requiredEnv("APP_TABLE_NAME"),
+          },
+        },
+        {
+          Put: {
+            Item: mdiPatientCreateAttemptItem({
+              attempts: 1,
+              cognitoSub: input.cognitoSub,
+              idempotencyKey: input.idempotencyKey,
+              linkedAt: input.now,
+              mdiPatientId: input.mdiPatientId,
+              now: input.now,
+              status: "linked",
+            }),
+            TableName: requiredEnv("APP_TABLE_NAME"),
+          },
+        },
+      ],
+    }));
+    return { ok: true };
+  } catch (error) {
+    if (isConditionalCheckFailed(error)) {
+      const existing = await getMdiLinkage(input.cognitoSub);
+      return existing?.mdiPatientId ? { ok: true } : { ok: false };
+    }
+    return { ok: false };
+  }
+}
+
 function parseSubmissionBody(body: string | null | undefined):
   | {
       ok: true;
@@ -878,10 +1202,87 @@ function bodyForError(code: string) {
   };
 }
 
-function csrfTokenFor(token: string) {
+function csrfTokenFor(scope: "mdi-intake" | "mdi-patient", token: string) {
   return createHash("sha256")
-    .update(`mdi-intake:${token}`)
+    .update(`${scope}:${token}`)
     .digest("base64url");
+}
+
+function boundedText(value: unknown, min: number, max: number) {
+  const text = stringValue(value);
+  if (text.length < min || text.length > max) {
+    return null;
+  }
+  return text;
+}
+
+function dateOnly(value: unknown) {
+  const text = stringValue(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return null;
+  }
+  const parsed = new Date(`${text}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? null : text;
+}
+
+function emailAddress(value: unknown) {
+  const text = stringValue(value).toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) && text.length <= 254
+    ? text
+    : null;
+}
+
+function optionalInteger(value: unknown, min: number, max: number) {
+  const text = stringValue(value);
+  if (!text) {
+    return null;
+  }
+  if (!/^\d+$/.test(text)) {
+    return null;
+  }
+  const parsed = Number(text);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max
+    ? parsed
+    : null;
+}
+
+function phone(value: unknown) {
+  const text = stringValue(value);
+  return /^[+0-9().\-\s]{7,24}$/.test(text) ? text : null;
+}
+
+function stateCode(value: unknown) {
+  const text = stringValue(value).toUpperCase();
+  return /^[A-Z]{2}$/.test(text) ? text : null;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function zip(value: unknown) {
+  const text = stringValue(value);
+  return /^\d{5}(?:-\d{4})?$/.test(text) ? text : null;
+}
+
+function parseQuestionnaireMapping(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function publicProviderStatus(status: number) {
+  if (status === 429 || status === 418 || status >= 500) {
+    return 503;
+  }
+  return 502;
 }
 
 function toOnboardingStatus(value: string | undefined): MdiIntakeStatus | undefined {
@@ -911,10 +1312,50 @@ function mdiLinkageKey(cognitoSub: string) {
   };
 }
 
+function mdiPatientReverseKey(mdiPatientId: string) {
+  return {
+    pk: { S: `MDI#PATIENT#${mdiPatientId}` },
+    sk: { S: "LOOKUP" },
+  };
+}
+
 function consentKey(cognitoSub: string, consentKind: string, version: string) {
   return {
     pk: { S: `PATIENT#${cognitoSub}` },
     sk: { S: `CONSENT#${consentKind}#${version}` },
+  };
+}
+
+function mdiPatientOnlyLinkageItem(input: {
+  cognitoSub: string;
+  mdiPatientId: string;
+  now: string;
+}): Record<string, AttributeValue> {
+  return {
+    ...mdiLinkageKey(input.cognitoSub),
+    cognitoSub: { S: input.cognitoSub },
+    createdAt: { S: input.now },
+    mdiPatientId: { S: input.mdiPatientId },
+    recordType: { S: "mdiLinkage" },
+    schemaVersion: { N: "1" },
+    updatedAt: { S: input.now },
+  };
+}
+
+function mdiPatientReverseItem(input: {
+  cognitoSub: string;
+  mdiPatientId: string;
+  now: string;
+}): Record<string, AttributeValue> {
+  return {
+    ...mdiPatientReverseKey(input.mdiPatientId),
+    cognitoSub: { S: input.cognitoSub },
+    createdAt: { S: input.now },
+    mdiPatientId: { S: input.mdiPatientId },
+    pointerType: { S: "patient" },
+    recordType: { S: "mdiReverseLookup" },
+    schemaVersion: { N: "1" },
+    updatedAt: { S: input.now },
   };
 }
 
@@ -954,6 +1395,52 @@ type MdiCaseCreateAttempt = {
   mdiCaseId?: string;
   mdiPatientId?: string;
 };
+
+type MdiPatientCreateAttemptStatus =
+  | "claiming"
+  | "provider_retryable_failure"
+  | "provider_terminal_failure"
+  | "storage_retryable_failure"
+  | "linked";
+
+function mdiPatientCreateAttemptKey(cognitoSub: string) {
+  return {
+    pk: { S: `PATIENT#${cognitoSub}` },
+    sk: { S: "MDI#PATIENT_CREATE" },
+  };
+}
+
+function mdiPatientCreateAttemptItem(input: {
+  attempts: number;
+  cognitoSub: string;
+  idempotencyKey: string;
+  now: string;
+  status: MdiPatientCreateAttemptStatus;
+  claimExpiresAt?: string;
+  lastAttemptAt?: string;
+  linkedAt?: string;
+  mdiPatientId?: string;
+  providerStatus?: number;
+  retryAfterSeconds?: number;
+}): Record<string, AttributeValue> {
+  return withoutUndefined({
+    ...mdiPatientCreateAttemptKey(input.cognitoSub),
+    attempts: { N: String(input.attempts) },
+    claimExpiresAt: input.claimExpiresAt ? { S: input.claimExpiresAt } : undefined,
+    cognitoSub: { S: input.cognitoSub },
+    createdAt: { S: input.now },
+    idempotencyKey: { S: input.idempotencyKey },
+    lastAttemptAt: input.lastAttemptAt ? { S: input.lastAttemptAt } : undefined,
+    linkedAt: input.linkedAt ? { S: input.linkedAt } : undefined,
+    mdiPatientId: input.mdiPatientId ? { S: input.mdiPatientId } : undefined,
+    providerStatus: input.providerStatus ? { N: String(input.providerStatus) } : undefined,
+    recordType: { S: "mdiPatientCreateAttempt" },
+    retryAfterSeconds: input.retryAfterSeconds ? { N: String(input.retryAfterSeconds) } : undefined,
+    schemaVersion: { N: "1" },
+    status: { S: input.status },
+    updatedAt: { S: input.now },
+  });
+}
 
 function mdiCaseCreateAttemptKey(cognitoSub: string) {
   return {

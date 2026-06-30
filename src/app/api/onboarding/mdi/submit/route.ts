@@ -7,6 +7,10 @@ import {
   verifyJsonMutation,
 } from "@/app/api/_shared/onboarding";
 import { currentConsentVersion } from "@/lib/consents";
+import {
+  mdiQuestionnaireContextCookieName,
+  readMdiQuestionnaireContextCookie,
+} from "@/lib/mdi-intake-context";
 import { createDynamoDbMdiIntakeRepository } from "@/lib/mdi-intake-dynamodb";
 import {
   createMdiHttpIntakeGateway,
@@ -47,7 +51,10 @@ export async function POST(request: NextRequest) {
     }, 403);
   }
 
-  const expectedQuestionnaireId = resolveMdiQuestionnaireId(process.env);
+  const expectedQuestionnaireId = readMdiQuestionnaireContextCookie({
+    sessionToken: session.value.token,
+    value: request.cookies.get(mdiQuestionnaireContextCookieName)?.value,
+  }) ?? resolveMdiQuestionnaireId(process.env);
   if (!expectedQuestionnaireId) {
     return noStoreJson({ code: "provider_unavailable" }, 503);
   }

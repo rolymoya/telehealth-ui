@@ -46,7 +46,7 @@ describe("ServerlessPlatformStack", () => {
     template.resourceCountIs("AWS::Cognito::UserPoolClient", 1);
     template.resourceCountIs("AWS::DynamoDB::Table", 1);
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 13);
+    template.resourceCountIs("AWS::Lambda::Function", 14);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
@@ -108,6 +108,11 @@ describe("ServerlessPlatformStack", () => {
 
     template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
       RouteKey: "GET /api/onboarding/mdi/bootstrap",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "POST /api/onboarding/mdi/patient",
       AuthorizationType: "NONE",
     });
 
@@ -176,6 +181,7 @@ describe("ServerlessPlatformStack", () => {
 
     for (const [functionName, handler] of [
       ["apoth-staging-mdi-intake-bootstrap", "index.bootstrapHandler"],
+      ["apoth-staging-mdi-patient", "index.patientHandler"],
       ["apoth-staging-mdi-intake-submit", "index.submitHandler"],
     ]) {
       template.hasResourceProperties("AWS::Lambda::Function", {
@@ -838,6 +844,7 @@ describe("ServerlessPlatformStack", () => {
       "/aws/lambda/apoth-staging-intake-bootstrap",
       "/aws/lambda/apoth-staging-intake-precheck",
       "/aws/lambda/apoth-staging-scheduled-heartbeat",
+      "/aws/lambda/apoth-staging-mdi-patient",
       "/aws/lambda/apoth-staging-mdi-case-reconciliation",
       "/aws/lambda/apoth-staging-stripe-mdi-billing-reconciliation",
       "/aws/apigateway/apoth-staging-api-access",

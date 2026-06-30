@@ -15,6 +15,7 @@ import {
 export function createMdiHttpIntakeGateway(input: {
   clientOptions?: MdiClientOptions;
   env?: Record<string, string | undefined>;
+  questionnaireId?: string | null;
 } = {}): MdiIntakeGateway {
   const env = input.env ?? process.env;
   const clientOptions = input.clientOptions ?? {};
@@ -29,7 +30,7 @@ export function createMdiHttpIntakeGateway(input: {
         );
       }
 
-      const questionnaireId = resolveMdiQuestionnaireId(env);
+      const questionnaireId = input.questionnaireId?.trim() || resolveMdiQuestionnaireId(env);
       if (!questionnaireId) {
         return mdiIntakeFailure(
           "provider_unavailable",

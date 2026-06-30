@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
 
   return noStoreJson({
     csrfToken: csrfTokenFor("intake-precheck", session.value.token),
+    mdiPatientCsrfToken: csrfTokenFor("mdi-patient", session.value.token),
+    mdiPatientLinked: Boolean(snapshot.value.mdiPatientId),
     ...(snapshot.value.onboardingStatus
       ? {
           profile: {

@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import {
+  csrfTokenFor,
   noStoreJson,
   readJsonObject,
   resolveAppDataRepository,
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
   }
 
   return noStoreJson({
+    mdiPatientCsrfToken: csrfTokenFor("mdi-patient", session.value.token),
     profile: {
       onboardingStatus: profile.value.onboardingStatus,
       ...(profile.value.residencyState

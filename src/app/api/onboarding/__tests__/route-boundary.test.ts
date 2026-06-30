@@ -7,12 +7,16 @@ const mocks = vi.hoisted(() => ({
   completeIntakePrecheckProfileDynamoDb: vi.fn(),
   createDynamoDbAppDataRepository: vi.fn(() => ({ kind: "repo" })),
   createDynamoDbMdiIntakeRepository: vi.fn(() => ({ kind: "mdi-repo" })),
+  createDynamoDbMdiPatientRepository: vi.fn(() => ({ kind: "mdi-patient-repo" })),
   createMdiHttpIntakeGateway: vi.fn(() => ({ kind: "mdi-gateway" })),
+  createMdiHttpPatientGateway: vi.fn(() => ({ kind: "mdi-patient-gateway" })),
+  createMdiPatientLinkage: vi.fn(),
   getServerSession: vi.fn(),
   loadMdiIntake: vi.fn(),
   readOnboardingGateSnapshotAsync: vi.fn(),
   resolveCognitoAuthConfig: vi.fn(),
   resolveDynamoDbAppDataConfig: vi.fn(),
+  resolveMdiQuestionnaireForTreatment: vi.fn(),
   resolveMdiQuestionnaireId: vi.fn(),
   resolveOnboardingStartRedirect: vi.fn(),
   submitMdiIntake: vi.fn(),
@@ -49,9 +53,25 @@ vi.mock("@/lib/mdi-intake-dynamodb", () => ({
   createDynamoDbMdiIntakeRepository: mocks.createDynamoDbMdiIntakeRepository,
 }));
 
+vi.mock("@/lib/mdi-patient", () => ({
+  createMdiPatientLinkage: mocks.createMdiPatientLinkage,
+}));
+
+vi.mock("@/lib/mdi-patient-dynamodb", () => ({
+  createDynamoDbMdiPatientRepository: mocks.createDynamoDbMdiPatientRepository,
+}));
+
+vi.mock("@/lib/mdi-patient-gateway", () => ({
+  createMdiHttpPatientGateway: mocks.createMdiHttpPatientGateway,
+}));
+
 vi.mock("@/lib/mdi-intake-gateway", () => ({
   createMdiHttpIntakeGateway: mocks.createMdiHttpIntakeGateway,
   resolveMdiQuestionnaireId: mocks.resolveMdiQuestionnaireId,
+}));
+
+vi.mock("@/lib/mdi-questionnaire-routing", () => ({
+  resolveMdiQuestionnaireForTreatment: mocks.resolveMdiQuestionnaireForTreatment,
 }));
 
 vi.mock("@/lib/onboarding-start", () => ({
@@ -84,6 +104,10 @@ describe("intake and onboarding API route boundary", () => {
         consentAccepted: true,
         onboardingStatus: "profile_pending",
       },
+    });
+    mocks.resolveMdiQuestionnaireForTreatment.mockReturnValue({
+      ok: true,
+      questionnaireId: "mdi_questionnaire_route",
     });
     mocks.resolveMdiQuestionnaireId.mockReturnValue("mdi_questionnaire_route");
   });
@@ -198,6 +222,7 @@ describe("intake and onboarding API route boundary", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body).toEqual({
+      mdiPatientCsrfToken: csrfFor("mdi-patient"),
       profile: {
         onboardingStatus: "intake_ready",
         residencyState: "IL",
@@ -260,6 +285,99 @@ describe("intake and onboarding API route boundary", () => {
     const body = await response.json();
     expect(body).toEqual({ code: "provider_unavailable" });
     expect(JSON.stringify(body)).not.toMatch(/payload|question|answer/i);
+  });
+
+  it("creates MDI patient linkage from transient demographics before questionnaire bootstrap", async () => {
+    mocks.readOnboardingGateSnapshotAsync.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        consentAccepted: true,
+        onboardingStatus: "intake_ready",
+      },
+    });
+    mocks.createMdiPatientLinkage.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        mdiPatientId: "mdi_patient_route",
+        status: "linked",
+      },
+    });
+    const { POST } = await import("../mdi/patient/route");
+
+    const response = await POST(request("https://apoth.test/api/onboarding/mdi/patient", {
+      body: {
+        address1: "1 Example St",
+        city: "Chicago",
+        dateOfBirth: "1990-01-02",
+        email: "patient@example.test",
+        firstName: "PATIENT_NAME_SENTINEL",
+        gender: "2",
+        lastName: "Example",
+        phoneNumber: "312-555-0101",
+        state: "IL",
+        treatment: "weight",
+        zipCode: "60601",
+      },
+      cookie: true,
+      csrfScope: "mdi-patient",
+      method: "POST",
+      origin: "https://apoth.test",
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      redirect: "/onboarding/mdi",
+      status: "linked",
+    });
+    expect(JSON.stringify(body)).not.toMatch(/PATIENT_NAME_SENTINEL|patient@example\.test|60601/);
+    expect(response.headers.get("set-cookie")).toContain("__Host-apoth_mdi_questionnaire=");
+    expect(mocks.resolveMdiQuestionnaireForTreatment).toHaveBeenCalledWith("weight", expect.any(Object));
+    expect(mocks.createMdiPatientLinkage).toHaveBeenCalledWith(
+      {
+        cognitoSub: "cognito-sub-route",
+        patient: expect.objectContaining({
+          date_of_birth: "1990-01-02",
+          email: "patient@example.test",
+          first_name: "PATIENT_NAME_SENTINEL",
+          last_name: "Example",
+        }),
+      },
+      expect.objectContaining({
+        gateway: { kind: "mdi-patient-gateway" },
+        repository: { kind: "mdi-patient-repo" },
+      }),
+    );
+  });
+
+  it("fails closed before MDI patient creation when treatment has no questionnaire mapping", async () => {
+    mocks.readOnboardingGateSnapshotAsync.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        consentAccepted: true,
+        onboardingStatus: "intake_ready",
+      },
+    });
+    mocks.resolveMdiQuestionnaireForTreatment.mockReturnValueOnce({
+      ok: false,
+      code: "questionnaire_unavailable",
+      status: 503,
+    });
+    const { POST } = await import("../mdi/patient/route");
+
+    const response = await POST(request("https://apoth.test/api/onboarding/mdi/patient", {
+      body: {
+        treatment: "weight",
+      },
+      cookie: true,
+      csrfScope: "mdi-patient",
+      method: "POST",
+      origin: "https://apoth.test",
+    }));
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ code: "questionnaire_unavailable" });
+    expect(mocks.createMdiPatientLinkage).not.toHaveBeenCalled();
   });
 
   it("bootstraps MDI with a CSRF token and no workflow URLs", async () => {

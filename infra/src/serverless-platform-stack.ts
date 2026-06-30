@@ -783,7 +783,45 @@ exports.handler = async () => ({
       "dynamodb:PutItem",
       "dynamodb:TransactWriteItems",
     );
-    for (const fn of [mdiIntakeBootstrapFunction, mdiIntakeSubmitFunction]) {
+
+    const mdiPatientFunction = new NodejsFunction(
+      this,
+      "MdiPatientFunction",
+      {
+        functionName: `apoth-${props.config.stage}-mdi-patient`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "patientHandler",
+        entry: path.join(__dirname, "lambda", "mdi-intake.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_MDI_QUESTIONNAIRE_ID: props.config.mdiQuestionnaireId,
+          APOTH_STAGE: props.config.stage,
+          APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "MdiPatientFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-mdi-patient`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      mdiPatientFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:TransactWriteItems",
+    );
+
+    for (const fn of [mdiIntakeBootstrapFunction, mdiIntakeSubmitFunction, mdiPatientFunction]) {
       fn.addToRolePolicy(new PolicyStatement({
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
@@ -802,6 +840,15 @@ exports.handler = async () => ({
       integration: new HttpLambdaIntegration(
         "MdiIntakeBootstrapIntegration",
         mdiIntakeBootstrapFunction,
+      ),
+    });
+
+    api.addRoutes({
+      path: "/api/onboarding/mdi/patient",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "MdiPatientIntegration",
+        mdiPatientFunction,
       ),
     });
 
@@ -1062,6 +1109,7 @@ function handler(event) {
       intakePrecheckFunction,
       mdiIntakeBootstrapFunction,
       mdiIntakeSubmitFunction,
+      mdiPatientFunction,
       consentAcceptanceFunction,
     ]) {
       fn.addEnvironment("APOTH_ALLOWED_ORIGINS", runtimeAllowedOrigins);

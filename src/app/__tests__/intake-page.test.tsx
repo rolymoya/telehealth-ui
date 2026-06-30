@@ -38,7 +38,16 @@ describe("intake page", () => {
       if (String(input) === "/api/intake/bootstrap") {
         return jsonResponse({ csrfToken: "csrf_123", status: "ready_for_precheck" });
       }
-      return jsonResponse({ status: "ready_for_mdi_intake" });
+      if (String(input) === "/api/intake/precheck") {
+        return jsonResponse({
+          mdiPatientCsrfToken: "csrf_mdi_patient",
+          status: "ready_for_mdi_intake",
+        });
+      }
+      return jsonResponse({
+        redirect: "/onboarding/mdi",
+        status: "linked",
+      });
     });
 
     render(
@@ -80,10 +89,48 @@ describe("intake page", () => {
       state: "IL",
     });
     expect(String(precheckCall?.[0])).not.toContain("weight");
+    expect(await screen.findByRole("heading", {
+      name: /add patient details for the clinical handoff/i,
+    })).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("First name"), "Pat");
+    await user.type(screen.getByLabelText("Last name"), "Example");
+    await user.type(screen.getByLabelText("Date of birth"), "1990-01-02");
+    await user.type(screen.getByLabelText("Email"), "patient@example.test");
+    await user.type(screen.getByLabelText("Phone"), "312-555-0101");
+    await user.selectOptions(screen.getByLabelText(/Clinical profile sex/i), "2");
+    await user.type(screen.getByLabelText("Address"), "1 Example St");
+    await user.type(screen.getByLabelText("City"), "Chicago");
+    await user.selectOptions(screen.getByLabelText("State"), "IL");
+    await user.type(screen.getByLabelText("ZIP code"), "60601");
+    expect(screen.getByLabelText(/Care category/i)).toHaveValue("weight");
+    await user.click(screen.getByRole("button", { name: /continue to clinical intake/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/onboarding/mdi/patient", expect.objectContaining({
+        credentials: "include",
+        headers: {
+          "content-type": "application/json",
+          "x-apoth-csrf": "csrf_mdi_patient",
+        },
+        method: "POST",
+      }));
+    });
+    const patientCall = fetchMock.mock.calls.find(
+      ([url]) => String(url) === "/api/onboarding/mdi/patient",
+    );
+    expect(JSON.parse(String(patientCall?.[1]?.body))).toMatchObject({
+      dateOfBirth: "1990-01-02",
+      email: "patient@example.test",
+      firstName: "Pat",
+      lastName: "Example",
+      treatment: "weight",
+    });
     expect(navigate).toHaveBeenCalledWith("/onboarding/mdi");
     expect(window.localStorage.getItem("age")).toBeNull();
     expect(window.localStorage.getItem("offering")).toBeNull();
     expect(window.localStorage.getItem("state")).toBeNull();
+    expect(window.localStorage.getItem("patient@example.test")).toBeNull();
   });
 
   it("allows a bootstrap retry without retaining form values", async () => {
@@ -114,10 +161,37 @@ describe("intake page", () => {
     expect(window.localStorage.getItem("state")).toBeNull();
   });
 
-  it("redirects already precheck-complete patients to the MDI step during bootstrap", async () => {
+  it("redirects already linked precheck-complete patients to the MDI step during bootstrap", async () => {
     const navigate = vi.fn();
     const fetchMock = vi.fn(async () => jsonResponse({
       csrfToken: "csrf_123",
+      profile: {
+        onboardingStatus: "intake_ready",
+        residencyState: "IL",
+      },
+      mdiPatientLinked: true,
+      status: "ready_for_precheck",
+    }));
+
+    render(
+      <IntakePrecheckClient
+        fetchImpl={fetchMock as typeof fetch}
+        navigate={navigate}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("/onboarding/mdi");
+    });
+    expect(screen.queryByLabelText(/State of residence/i)).not.toBeInTheDocument();
+  });
+
+  it("opens patient profile for precheck-complete patients without MDI linkage", async () => {
+    const navigate = vi.fn();
+    const fetchMock = vi.fn(async () => jsonResponse({
+      csrfToken: "csrf_123",
+      mdiPatientCsrfToken: "csrf_mdi_patient",
+      mdiPatientLinked: false,
       profile: {
         onboardingStatus: "intake_ready",
         residencyState: "IL",
@@ -132,9 +206,10 @@ describe("intake page", () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith("/onboarding/mdi");
-    });
+    expect(await screen.findByRole("heading", {
+      name: /add patient details for the clinical handoff/i,
+    })).toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalledWith("/onboarding/mdi");
     expect(screen.queryByLabelText(/State of residence/i)).not.toBeInTheDocument();
   });
 

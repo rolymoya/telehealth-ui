@@ -57,7 +57,12 @@ test.describe("intake, consent, eligibility, and MDI no-retention flow", () => {
         status: "ready_for_precheck",
       }),
       "POST /api/intake/precheck": () => jsonApi({
+        mdiPatientCsrfToken: "csrf_mdi_patient_e2e",
         status: "ready_for_mdi_intake",
+      }),
+      "POST /api/onboarding/mdi/patient": () => jsonApi({
+        redirect: "/onboarding/mdi",
+        status: "linked",
       }),
       "GET /api/onboarding/mdi/bootstrap": () => jsonApi({
         csrfToken: "csrf_mdi_e2e",
@@ -111,6 +116,22 @@ test.describe("intake, consent, eligibility, and MDI no-retention flow", () => {
     await page.locator('input[name="emergencySymptoms"][value="no"]').check();
     await page.locator('input[name="blockingContraindication"][value="no"]').check();
     await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(
+      page.getByRole("heading", { name: "Add patient details for the clinical handoff." }),
+    ).toBeVisible();
+    await page.getByLabel("First name").fill("Synthetic");
+    await page.getByLabel("Last name").fill("Patient");
+    await page.getByLabel("Date of birth").fill("1990-01-02");
+    await page.getByLabel("Email").fill("synthetic.patient@example.test");
+    await page.getByLabel("Phone").fill("312-555-0101");
+    await page.getByLabel("Clinical profile sex").selectOption("2");
+    await page.getByLabel("Address", { exact: true }).fill("1 Synthetic Way");
+    await page.getByLabel("City").fill("Chicago");
+    await page.getByLabel("State", { exact: true }).selectOption("IL");
+    await page.getByLabel("ZIP code").fill("60601");
+    await expect(page.getByLabel("Care category")).toHaveValue("weight");
+    await page.getByRole("button", { name: "Continue to clinical intake" }).click();
 
     await expect(page).toHaveURL(/\/onboarding\/mdi$/);
     await expect(
