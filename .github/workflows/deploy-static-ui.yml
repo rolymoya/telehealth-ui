@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -131,6 +134,24 @@ jobs:
           test -f dist/patient-app/patient-index.html
           test -d dist/patient-app/patient-assets
 
+      - name: Back up current deployed static UI
+        id: backup
+        run: |
+          set -euo pipefail
+          rollback_root="${RUNNER_TEMP}/apoth-static-ui-rollback"
+          rm -rf "${rollback_root}"
+          mkdir -p "${rollback_root}/marketing" "${rollback_root}/patient"
+
+          aws s3 sync "s3://${STATIC_BUCKET_NAME}/" "${rollback_root}/marketing/" \
+            --only-show-errors
+          aws s3 sync "s3://${PATIENT_APP_BUCKET_NAME}/" "${rollback_root}/patient/" \
+            --only-show-errors
+
+          {
+            echo "ROLLBACK_ROOT=${rollback_root}"
+          } >>"${GITHUB_ENV}"
+          echo "ready=true" >>"${GITHUB_OUTPUT}"
+
       - name: Sync marketing artifact to S3
         run: |
           aws s3 sync out/ "s3://${STATIC_BUCKET_NAME}/" \
@@ -184,3 +205,41 @@ jobs:
           fi
           cat /tmp/apoth-api-smoke.json
           exit 1
+
+      - name: Run Playwright E2E against CloudFront
+        run: |
+          PLAYWRIGHT_MARKETING_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
+          PLAYWRIGHT_PATIENT_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
+            npm run test:e2e -- --workers=2
+
+      - name: Roll back static UI deployment
+        if: failure() && steps.backup.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          aws s3 sync "${ROLLBACK_ROOT}/marketing/" "s3://${STATIC_BUCKET_NAME}/" \
+            --delete \
+            --only-show-errors
+          aws s3 sync "${ROLLBACK_ROOT}/patient/" "s3://${PATIENT_APP_BUCKET_NAME}/" \
+            --delete \
+            --only-show-errors
+
+          rollback_invalidation_id="$(aws cloudfront create-invalidation \
+            --distribution-id "${STATIC_DISTRIBUTION_ID}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${STATIC_DISTRIBUTION_ID}" \
+            --id "${rollback_invalidation_id}"
+
+          echo "Rolled back static UI buckets to the pre-deploy snapshot."
+
+      - name: Upload Playwright artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-deploy-playwright-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

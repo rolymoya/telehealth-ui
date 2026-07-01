@@ -103,7 +103,7 @@ test("session clear endpoint expires the HttpOnly access cookie", async ({ reque
   expect(setCookie).toContain("Max-Age=0");
   expect(setCookie).toContain("Path=/");
   expect(setCookie).toContain("HttpOnly");
-  expect(setCookie).toContain("SameSite=lax");
+  expect(setCookie.toLowerCase()).toContain("samesite=lax");
 });
 
 test("sign-out UI clears a browser session and restores protected-route gating", async ({

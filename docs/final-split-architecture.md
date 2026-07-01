@@ -98,3 +98,9 @@ CloudFront routes `/api/*` to API Gateway, patient paths and
 marketing static bucket. Patient SPA routes rewrite to `patient-index.html`
 instead of `index.html` so CloudFront cache entries cannot collide with the
 marketing homepage.
+
+The deploy workflow snapshots the current marketing and patient S3 buckets
+before upload. After sync and CloudFront invalidation, it runs route smoke tests
+and Playwright E2E against the deployed CloudFront URL. If verification fails,
+the workflow restores both buckets from the pre-deploy snapshot and invalidates
+CloudFront again.
