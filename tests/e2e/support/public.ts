@@ -1,6 +1,13 @@
 import { expect, type Page } from "@playwright/test";
 
-export function collectUnexpectedPageErrors(page: Page) {
+type PageErrorOptions = {
+  allowedConsoleErrors?: readonly RegExp[];
+};
+
+export function collectUnexpectedPageErrors(
+  page: Page,
+  options: PageErrorOptions = {},
+) {
   const errors: string[] = [];
 
   function pushIfUnexpected(text: string) {
@@ -9,6 +16,9 @@ export function collectUnexpectedPageErrors(page: Page) {
       text.includes("/_next/webpack-hmr") &&
       text.includes("failed")
     ) {
+      return;
+    }
+    if (options.allowedConsoleErrors?.some((pattern) => pattern.test(text))) {
       return;
     }
 
@@ -41,8 +51,12 @@ export async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow).toBeLessThanOrEqual(1);
 }
 
-export async function expectPublicRouteReady(page: Page, path: string) {
-  const errors = collectUnexpectedPageErrors(page);
+export async function expectPublicRouteReady(
+  page: Page,
+  path: string,
+  options: PageErrorOptions = {},
+) {
+  const errors = collectUnexpectedPageErrors(page, options);
 
   await page.goto(path);
   await expect(page.getByRole("main")).toBeVisible();

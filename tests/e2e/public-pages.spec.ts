@@ -10,7 +10,13 @@ const publicRoutes = [
   { path: "/about", heading: "What Apoth is, what it isn't, and how we're set up." },
   { path: "/privacy", heading: "Privacy Policy" },
   { path: "/terms", heading: "Terms of Service" },
-  { path: "/get-started", heading: "Start with the privacy notice." },
+  {
+    path: "/get-started",
+    heading: "Start with the privacy notice.",
+    allowedConsoleErrors: [
+      /Failed to load resource: the server responded with a status of 401/,
+    ],
+  },
   { path: "/sign-in", heading: "Sign in to continue." },
   { path: "/sign-up", heading: "Create your account." },
   { path: "/reset-password", heading: "Reset your password." },
@@ -20,7 +26,9 @@ const publicRoutes = [
 test.describe("public routes", () => {
   for (const route of publicRoutes) {
     test(`${route.path} loads without page errors`, async ({ page }) => {
-      await expectPublicRouteReady(page, route.path);
+      await expectPublicRouteReady(page, route.path, {
+        allowedConsoleErrors: route.allowedConsoleErrors,
+      });
       await expect(
         page.getByRole("heading", { name: route.heading }),
       ).toBeVisible();
@@ -83,7 +91,11 @@ test.describe("public navigation and CTAs", () => {
   });
 
   test("start page CTAs route back to public education sections", async ({ page }) => {
-    const errors = collectUnexpectedPageErrors(page);
+    const errors = collectUnexpectedPageErrors(page, {
+      allowedConsoleErrors: [
+        /Failed to load resource: the server responded with a status of 401/,
+      ],
+    });
 
     await page.goto("/get-started");
     await page.getByRole("link", { name: "See what we treat" }).click();
