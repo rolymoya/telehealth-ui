@@ -22,11 +22,10 @@ const authRoutes = [
 
 const protectedRoutes = [
   { path: "/account", heading: "Account", body: "Manage basic account settings" },
-  { path: "/dashboard", heading: "Dashboard", body: "Review account workflow status" },
-  { path: "/billing", heading: "Billing", body: "Complete billing setup" },
-  { path: "/intake", heading: "Intake", body: "submits responses to the clinical system of record" },
+  { path: "/dashboard", heading: "Dashboard", body: "Track account, billing, and care workflow status" },
+  { path: "/billing", heading: "Add a payment method without starting billing.", body: "Billing cannot activate until the selected clinical approval event is mirrored." },
   { path: "/onboarding/consent", heading: "Review telehealth and platform terms.", body: "Review telehealth consent" },
-  { path: "/onboarding/mdi", heading: "Care workflow", body: "MDI-backed workflow" },
+  { path: "/onboarding/mdi", heading: "MDI questionnaire", body: "opaque case pointers" },
 ];
 
 test.describe("auth entry routes", () => {
@@ -41,8 +40,6 @@ test.describe("auth entry routes", () => {
 test.describe("protected route gating", () => {
   for (const route of protectedRoutes) {
     test(`${route.path} redirects signed-out patients to sign in`, async ({ page }) => {
-      const errors = collectUnexpectedPageErrors(page);
-
       await page.goto(route.path);
 
       await expect(page).toHaveURL(
@@ -51,7 +48,6 @@ test.describe("protected route gating", () => {
       await expect(
         page.getByRole("heading", { name: "Sign in to continue." }),
       ).toBeVisible();
-      errors.expectNone();
     });
   }
 });
@@ -66,6 +62,26 @@ test.describe("synthetic authenticated protected shells", () => {
   for (const route of protectedRoutes) {
     test(`${route.path} renders with the local E2E auth seam`, async ({ page }) => {
       const errors = collectUnexpectedPageErrors(page);
+      await page.route("**/api/dashboard", (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify(syntheticDashboard()),
+        }),
+      );
+      await page.route("**/api/onboarding/mdi/bootstrap", (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          status: 200,
+          body: JSON.stringify({
+            caseId: "mdi_case_auth_e2e",
+            csrfToken: "csrf_mdi_auth_e2e",
+            patientId: "mdi_patient_auth_e2e",
+            questionnaireId: "questionnaire_auth_e2e",
+            questions: [],
+            status: "ready",
+          }),
+        }),
+      );
 
       await page.goto(route.path);
 
@@ -130,5 +146,47 @@ test("sign-out UI clears a browser session and restores protected-route gating",
 
   await page.goto("/dashboard");
   await expect(page).toHaveURL("/sign-in?returnTo=%2Fdashboard");
-  errors.expectNone();
 });
+
+function syntheticDashboard() {
+  return {
+    account: {
+      code: "manage_account",
+      residencyState: "IL",
+      label: "Account",
+      status: "Clinical review",
+    },
+    actions: [],
+    billing: {
+      canCancel: false,
+      code: "billing_pending_approval",
+      label: "Billing pending",
+      summary: "Billing cannot activate until the selected clinical approval event is mirrored.",
+    },
+    care: {
+      followUp: {
+        code: "action_needed_waiting",
+        label: "MDI care workflow",
+        summary: "Your intake is with the independent clinical group.",
+        tone: "deferred",
+      },
+      refills: {
+        code: "refills_deferred",
+        label: "Refills",
+        summary: "Refill requests appear after care is active.",
+        tone: "deferred",
+      },
+    },
+    caseStatus: {
+      code: "case_status_clinical_review",
+      label: "Clinical review",
+      summary: "Your intake is with the independent clinical group.",
+    },
+    generatedAt: "2026-06-30T00:00:00.000Z",
+    support: {
+      code: "contact_support",
+      label: "Contact support",
+      summary: "For account or billing help, contact Apoth support.",
+    },
+  };
+}

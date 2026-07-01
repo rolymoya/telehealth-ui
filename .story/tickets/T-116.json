@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-115"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Port the behavior from src/app/api/dashboard/route.ts into a deployed Lambda route. The Vite/static patient app needs GET /api/dashboard to refresh the patient dashboard after load. Scope: verify Cognito session from the patient access cookie; load the dashboard view model via loadPatientDashboard and the DynamoDB app data repository; return 401 authentication_required for missing/invalid sessions; return 503 dashboard_unavailable for config/storage/provider failures; set Cache-Control: no-store/private; avoid PHI leakage in logs and responses. Wire the route in CDK as GET /api/dashboard and grant only required DynamoDB permissions. Acceptance criteria: live API route no longer returns 404; handler tests cover unauthenticated, repository unavailable, and successful dashboard cases; frontend dashboard refresh works against API Gateway.",
+  "id": "T-116",
+  "order": 210,
+  "parentTicket": "T-114",
+  "phase": "mdi-integration",
+  "status": "complete",
+  "title": "Add Lambda/API Gateway route for GET /api/dashboard",
+  "type": "task"
+}

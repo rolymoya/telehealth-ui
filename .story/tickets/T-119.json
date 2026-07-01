@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-115"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Port src/app/api/billing/subscription/cancel/route.ts into a deployed Lambda route. Scope: enforce browser mutation protection using same-origin and preferably a CSRF header/token compatible with the Vite patient app; verify Cognito patient session; resolve Stripe secret; call cancelPatientSubscriptionAtPeriodEnd through the billing activation repository; return subscription_not_active for inactive accounts and billing_unavailable for retryable provider/storage failures; set no-store headers. The initial MDI cancellation action may remain the current unsupported/deferred action unless a separate clinical cancellation integration is introduced. Wire POST /api/billing/subscription/cancel in CDK with least-privilege DynamoDB and Secrets Manager access. Acceptance criteria: live route no longer returns 404; dashboard cancellation flow works against API Gateway; tests cover invalid origin/CSRF, unauthenticated, inactive subscription, provider/storage failure, and successful cancel-at-period-end.",
+  "id": "T-119",
+  "order": 80,
+  "parentTicket": "T-114",
+  "phase": "payments",
+  "status": "complete",
+  "title": "Add Lambda/API Gateway route for POST /api/billing/subscription/cancel",
+  "type": "task"
+}

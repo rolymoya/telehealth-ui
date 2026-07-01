@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Wordmark } from "./Icons";
 
 const productLinks = [
@@ -46,12 +45,12 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5">
               {productLinks.map((link) => (
                 <li key={link.href}>
-                  <Link
+                  <a
                     href={link.href}
                     className="text-[0.95rem] text-ink/85 transition-colors duration-200 hover:text-clay-deep"
                   >
                     {link.label}
-                  </Link>
+                  </a>
                 </li>
               ))}
             </ul>
@@ -62,12 +61,12 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5">
               {helpLinks.map((link) => (
                 <li key={link.href}>
-                  <Link
+                  <a
                     href={link.href}
                     className="text-[0.95rem] text-ink/85 transition-colors duration-200 hover:text-clay-deep"
                   >
                     {link.label}
-                  </Link>
+                  </a>
                 </li>
               ))}
             </ul>
@@ -78,12 +77,12 @@ export function Footer() {
             <ul className="mt-4 space-y-2.5">
               {legalLinks.map((link) => (
                 <li key={link.href}>
-                  <Link
+                  <a
                     href={link.href}
                     className="text-[0.95rem] text-ink/85 transition-colors duration-200 hover:text-clay-deep"
                   >
                     {link.label}
-                  </Link>
+                  </a>
                 </li>
               ))}
             </ul>

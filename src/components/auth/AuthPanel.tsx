@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type {
   FormEvent,
@@ -545,9 +544,9 @@ function SecondaryLink({
 }) {
   return (
     <p className="text-[1rem]">
-      <Link className="font-medium text-clay-deep hover:text-clay" href={href}>
+      <a className="font-medium text-clay-deep hover:text-clay" href={href}>
         {children}
-      </Link>
+      </a>
     </p>
   );
 }

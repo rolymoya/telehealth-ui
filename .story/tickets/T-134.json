@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-122",
+    "T-133"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Eliminate the confusing duplicate Next API route layer once API Gateway/Lambda parity is proven. Scope: remove src/app/api route handlers that are no longer production-relevant, or move any intentionally retained local-only test harness behind a clearly named non-production path. Update imports/tests so backend behavior is tested through Lambda handlers/shared domain logic, not NextRequest/NextResponse wrappers. Ensure static build/export does not compile misleading server route artifacts that developers might assume are deployed. Acceptance criteria: no production behavior depends on src/app/api; all browser /api/* calls are backed by API Gateway routes; docs explain that the patient app is static JS plus Lambda APIs; tests pass after deleting/quarantining the route layer.",
+  "id": "T-134",
+  "order": 120,
+  "parentTicket": "T-114",
+  "phase": "deploy",
+  "status": "complete",
+  "title": "Remove or quarantine src/app/api after Lambda parity is complete",
+  "type": "task"
+}

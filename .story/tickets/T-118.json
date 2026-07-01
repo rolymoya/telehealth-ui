@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-115"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Port src/app/api/billing/payment-method/route.ts into a deployed Lambda route. The patient app calls this to start a Stripe payment-method setup flow without creating a charge/subscription. Scope: verify Cognito session from cookie; resolve Stripe API secret; resolve return URLs from configured public site/app origin rather than Next request state; call preparePaymentMethodCollection using the DynamoDB billing repository and Stripe client; return existing statuses (checkout_session_created with checkoutUrl/session id, payment_method_already_collected, payment_not_ready, clinical_declined, billing_unavailable); ensure Stripe metadata uses only opaque IDs; set no-store headers. Wire POST /api/billing/payment-method in CDK with DynamoDB and Secrets Manager permissions. Acceptance criteria: live route no longer returns 404; unit tests cover unauthenticated, missing config, payment not ready, already collected, clinical declined, and checkout session created; no PHI is sent to Stripe metadata.",
+  "id": "T-118",
+  "order": 70,
+  "parentTicket": "T-114",
+  "phase": "payments",
+  "status": "complete",
+  "title": "Add Lambda/API Gateway route for POST /api/billing/payment-method",
+  "type": "task"
+}

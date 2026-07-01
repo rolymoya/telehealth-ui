@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-124",
+    "T-125"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Move the patient onboarding/intake flow from Next page routes into the Vite patient app. Scope: get-started, anonymous privacy notice acceptance, anonymous precheck, account handoff, telehealth/platform consent, patient demographics/MDI patient creation, treatment-specific questionnaire routing, MDI questionnaire bootstrap/render/submit, and post-questionnaire medication disclosure gate. Reuse existing client components and domain logic where portable, replacing next/link/navigation with router/client equivalents. Preserve thin-PHI posture: Apoth renders and submits questionnaire answers but does not persist them locally after submission to MDI. Acceptance criteria: staged anonymous-precheck to account to MDI flow passes in Vite; treatment-specific questionnaire selection is preserved; consent gates call Lambda/API Gateway only; route states and error states remain patient-safe.",
+  "id": "T-127",
+  "order": 110,
+  "parentTicket": "T-114",
+  "phase": "intake-flow",
+  "status": "complete",
+  "title": "Move get-started, intake, consent, and MDI onboarding pages to Vite app",
+  "type": "task"
+}

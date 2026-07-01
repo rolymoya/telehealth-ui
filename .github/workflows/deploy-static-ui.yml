@@ -76,6 +76,7 @@ jobs:
           }
 
           static_bucket_name="$(get_output StaticAssetsBucketName)"
+          patient_app_bucket_name="$(get_output PatientAppBucketName)"
           static_distribution_domain="$(get_output StaticWebDistributionDomainName)"
           static_distribution_id="$(get_output StaticWebDistributionId)"
           cognito_user_pool_id="$(get_output PatientUserPoolId)"
@@ -83,6 +84,7 @@ jobs:
 
           for name in \
             static_bucket_name \
+            patient_app_bucket_name \
             static_distribution_domain \
             static_distribution_id \
             cognito_user_pool_id \
@@ -96,28 +98,44 @@ jobs:
 
           {
             echo "STATIC_BUCKET_NAME=${static_bucket_name}"
+            echo "PATIENT_APP_BUCKET_NAME=${patient_app_bucket_name}"
             echo "STATIC_DISTRIBUTION_DOMAIN=${static_distribution_domain}"
             echo "STATIC_DISTRIBUTION_ID=${static_distribution_id}"
             echo "APOTH_STAGE=${APOTH_STAGE}"
             echo "NEXT_PUBLIC_COGNITO_REGION=${AWS_REGION}"
             echo "NEXT_PUBLIC_COGNITO_USER_POOL_ID=${cognito_user_pool_id}"
             echo "NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID=${cognito_user_pool_client_id}"
+            echo "VITE_COGNITO_REGION=${AWS_REGION}"
+            echo "VITE_COGNITO_USER_POOL_ID=${cognito_user_pool_id}"
+            echo "VITE_COGNITO_USER_POOL_CLIENT_ID=${cognito_user_pool_client_id}"
             echo "NEXT_PUBLIC_SITE_URL=https://${static_distribution_domain}"
           } >>"${GITHUB_ENV}"
 
-      - name: Build static artifact
+      - name: Build static artifacts
         run: npm run build:static
+
+      - name: Build patient app artifact
+        run: npm run patient:build
 
       - name: Verify static artifact routes
         run: |
           set -euo pipefail
           test -f out/index.html
-          test -f out/intake/index.html
-          test -f out/onboarding/mdi/index.html
+          test -f out/about/index.html
+          test -f out/privacy/index.html
+          test -f out/terms/index.html
+          test -f dist/patient-app/index.html
+          test -d dist/patient-app/patient-assets
 
-      - name: Sync static artifact to S3
+      - name: Sync marketing artifact to S3
         run: |
           aws s3 sync out/ "s3://${STATIC_BUCKET_NAME}/" \
+            --delete \
+            --only-show-errors
+
+      - name: Sync patient app artifact to S3
+        run: |
+          aws s3 sync dist/patient-app/ "s3://${PATIENT_APP_BUCKET_NAME}/" \
             --delete \
             --only-show-errors
 
@@ -144,15 +162,16 @@ jobs:
           base_url="https://${STATIC_DISTRIBUTION_DOMAIN}"
 
           curl --fail --silent --show-error "${base_url}/" >/dev/null
-          curl --fail --silent --show-error "${base_url}/intake" >/dev/null
+          curl --fail --silent --show-error "${base_url}/about" >/dev/null
+          curl --fail --silent --show-error "${base_url}/dashboard" >/dev/null
           curl --fail --silent --show-error "${base_url}/onboarding/mdi" >/dev/null
 
           api_status="$(curl --silent --show-error --output /tmp/apoth-api-smoke.json \
             --write-out '%{http_code}' \
             "${base_url}/api/intake/bootstrap")"
-          if [ "${api_status}" != "401" ]; then
-            echo "Expected /api/intake/bootstrap to route to API Gateway and return 401, got ${api_status}."
+          if [ "${api_status}" != "403" ]; then
+            echo "Expected /api/intake/bootstrap to route to API Gateway and return 403 before privacy acknowledgement, got ${api_status}."
             cat /tmp/apoth-api-smoke.json
             exit 1
           fi
-          grep -q '"code":"missing_session"' /tmp/apoth-api-smoke.json
+          grep -q '"code":"privacy_notice_required"' /tmp/apoth-api-smoke.json

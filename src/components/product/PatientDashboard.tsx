@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Footer } from "@/components/Footer";
 import { Nav } from "@/components/Nav";
 import type {
@@ -288,12 +287,12 @@ function SupportPanel({
       <p className="mt-3 text-[0.95rem] leading-6 text-ink/70">
         {dashboard.support.summary}
       </p>
-      <Link
+      <a
         href="/about#contact"
         className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full border border-ash-line px-5 py-2.5 text-[0.95rem] font-medium text-ink transition-colors duration-250 ease-out-quart hover:border-clay hover:text-clay-deep"
       >
         Contact support
-      </Link>
+      </a>
     </section>
   );
 }

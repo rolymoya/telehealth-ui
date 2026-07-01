@@ -1,0 +1,20 @@
+{
+  "blockedBy": [
+    "T-116",
+    "T-117",
+    "T-118",
+    "T-119",
+    "T-120",
+    "T-121"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Create a test gate proving the Lambda/API Gateway implementations cover the behavior currently represented by the remaining Next API routes. Scope: for dashboard, dashboard workflow redirects, billing payment-method, subscription cancel, Stripe webhook, and MDI webhook, compare expected public status codes/body shapes/redirects against existing Next route tests and domain invariants. Prefer handler-level Vitest coverage plus a small staging smoke check list for deployed routes. Include negative tests for auth, origin/CSRF, invalid signatures, oversize payloads, missing config, provider unavailable, and idempotent webhook replay. Acceptance criteria: route parity is documented; tests fail if an expected production API path is missing; static/Vite frontend can rely solely on API Gateway-backed routes.",
+  "id": "T-122",
+  "order": 100,
+  "parentTicket": "T-114",
+  "phase": "playwright-e2e",
+  "status": "complete",
+  "title": "Add route parity tests for Lambda replacements of remaining Next API routes",
+  "type": "task"
+}

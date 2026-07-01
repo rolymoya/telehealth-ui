@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Create reusable helpers for Lambda/API Gateway handlers that replace the duplicated Next route boundary helpers. Scope: parse cookies from API Gateway events; read the patient access cookie; verify Cognito access tokens; produce no-store JSON responses; enforce same-origin/CSRF checks for browser mutations; parse bounded JSON bodies; read raw webhook bodies with strict byte limits; normalize CORS/allowed-origin behavior for browser-facing APIs; return consistent public error codes without leaking provider/PHI details. This should support the dashboard, billing, and webhook Lambda work. Acceptance criteria: helpers have focused unit tests; existing Lambda handlers can adopt them incrementally; behavior matches current deployed conventions for auth/session errors, cache-control, and origin checks.",
+  "id": "T-115",
+  "order": 180,
+  "parentTicket": "T-114",
+  "phase": "infrastructure",
+  "status": "complete",
+  "title": "Add shared API Gateway Lambda request helpers for patient APIs",
+  "type": "task"
+}

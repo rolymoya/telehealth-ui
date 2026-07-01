@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-115"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Port src/app/api/webhooks/mdi/route.ts into a deployed vendor-facing Lambda endpoint. Scope: read raw request body with maxMdiWebhookPayloadBytes; require authorization and signature headers; verify MDI webhook signature before processing; call handleMdiWebhook with DynamoDB webhook-processing/idempotency repository, MDI mirror repository, and billing activation/cancellation hooks; resolve MDI and Stripe secrets only as needed; preserve idempotent processing and public error behavior. Wire POST /api/webhooks/mdi in CDK with least-privilege DynamoDB and Secrets Manager permissions. Acceptance criteria: live route exists; missing/invalid auth/signature fails; oversize payload fails; MDI fixture events process idempotently; billing activation/cancellation integration behavior matches existing Next route tests; no clinical questionnaire content is persisted in Apoth.",
+  "id": "T-121",
+  "order": 230,
+  "parentTicket": "T-114",
+  "phase": "mdi-integration",
+  "status": "complete",
+  "title": "Add MDI webhook Lambda for POST /api/webhooks/mdi",
+  "type": "task"
+}

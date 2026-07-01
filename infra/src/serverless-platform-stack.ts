@@ -1099,8 +1099,334 @@ exports.handler = async () => ({
       ),
     });
 
+    const dashboardFunction = new NodejsFunction(
+      this,
+      "PatientDashboardFunction",
+      {
+        functionName: `apoth-${props.config.stage}-patient-dashboard`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "dashboardHandler",
+        entry: path.join(__dirname, "lambda", "dashboard.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "PatientDashboardFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-patient-dashboard`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(dashboardFunction, "dynamodb:GetItem", "dynamodb:Query");
+
+    const dashboardWorkflowFunction = new NodejsFunction(
+      this,
+      "PatientDashboardWorkflowFunction",
+      {
+        functionName: `apoth-${props.config.stage}-patient-dashboard-workflow`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "workflowRedirectHandler",
+        entry: path.join(__dirname, "lambda", "dashboard.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "PatientDashboardWorkflowFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-patient-dashboard-workflow`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      dashboardWorkflowFunction,
+      "dynamodb:GetItem",
+      "dynamodb:TransactWriteItems",
+    );
+
+    api.addRoutes({
+      path: "/api/dashboard",
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        "PatientDashboardIntegration",
+        dashboardFunction,
+      ),
+    });
+
+    api.addRoutes({
+      path: "/api/dashboard/workflows/{workflow}",
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        "PatientDashboardWorkflowIntegration",
+        dashboardWorkflowFunction,
+      ),
+    });
+
+    const billingPaymentMethodFunction = new NodejsFunction(
+      this,
+      "BillingPaymentMethodFunction",
+      {
+        functionName: `apoth-${props.config.stage}-billing-payment-method`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "paymentMethodHandler",
+        entry: path.join(__dirname, "lambda", "billing.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_STAGE: props.config.stage,
+          APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+          NEXT_PUBLIC_SITE_URL: props.config.allowedOrigins[0] ?? "",
+        },
+        logGroup: new LogGroup(this, "BillingPaymentMethodFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-billing-payment-method`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      billingPaymentMethodFunction,
+      "dynamodb:GetItem",
+      "dynamodb:TransactWriteItems",
+    );
+
+    const billingSubscriptionCancelFunction = new NodejsFunction(
+      this,
+      "BillingSubscriptionCancelFunction",
+      {
+        functionName: `apoth-${props.config.stage}-billing-subscription-cancel`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "subscriptionCancelHandler",
+        entry: path.join(__dirname, "lambda", "billing.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_STAGE: props.config.stage,
+          APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "BillingSubscriptionCancelFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-billing-subscription-cancel`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      billingSubscriptionCancelFunction,
+      "dynamodb:GetItem",
+      "dynamodb:TransactWriteItems",
+    );
+
+    for (const fn of [billingPaymentMethodFunction, billingSubscriptionCancelFunction]) {
+      fn.addToRolePolicy(new PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          this.formatArn({
+            service: "secretsmanager",
+            resource: "secret",
+            resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
+          }),
+        ],
+      }));
+    }
+
+    api.addRoutes({
+      path: "/api/billing/payment-method",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "BillingPaymentMethodIntegration",
+        billingPaymentMethodFunction,
+      ),
+    });
+
+    api.addRoutes({
+      path: "/api/billing/subscription/cancel",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "BillingSubscriptionCancelIntegration",
+        billingSubscriptionCancelFunction,
+      ),
+    });
+
+    const stripeWebhookFunction = new NodejsFunction(
+      this,
+      "StripeWebhookFunction",
+      {
+        functionName: `apoth-${props.config.stage}-stripe-webhook`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "stripeWebhookHandler",
+        entry: path.join(__dirname, "lambda", "webhooks.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(30),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_STAGE: props.config.stage,
+          APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
+          APOTH_WEBHOOK_QUEUE_URL: webhookQueue.queueUrl,
+          STRIPE_RECURRING_PRICE_ID: process.env.STRIPE_RECURRING_PRICE_ID ??
+            "price_launch_placeholder",
+        },
+        logGroup: new LogGroup(this, "StripeWebhookFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-stripe-webhook`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      stripeWebhookFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:Query",
+      "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
+    );
+    webhookQueue.grantSendMessages(stripeWebhookFunction);
+    stripeWebhookFunction.addToRolePolicy(new PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        this.formatArn({
+          service: "secretsmanager",
+          resource: "secret",
+          resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
+        }),
+      ],
+    }));
+
+    const mdiWebhookFunction = new NodejsFunction(
+      this,
+      "MdiWebhookFunction",
+      {
+        functionName: `apoth-${props.config.stage}-mdi-webhook`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "mdiWebhookHandler",
+        entry: path.join(__dirname, "lambda", "webhooks.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(30),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_STAGE: props.config.stage,
+          APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
+          APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
+          STRIPE_RECURRING_PRICE_ID: process.env.STRIPE_RECURRING_PRICE_ID ??
+            "price_launch_placeholder",
+        },
+        logGroup: new LogGroup(this, "MdiWebhookFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-mdi-webhook`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      mdiWebhookFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:Query",
+      "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
+    );
+    mdiWebhookFunction.addToRolePolicy(new PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        this.formatArn({
+          service: "secretsmanager",
+          resource: "secret",
+          resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
+        }),
+        this.formatArn({
+          service: "secretsmanager",
+          resource: "secret",
+          resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
+        }),
+      ],
+    }));
+
+    api.addRoutes({
+      path: "/api/webhooks/stripe",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "StripeWebhookIntegration",
+        stripeWebhookFunction,
+      ),
+    });
+
+    api.addRoutes({
+      path: "/api/webhooks/mdi",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "MdiWebhookIntegration",
+        mdiWebhookFunction,
+      ),
+    });
+
     const staticAssetsBucket = new Bucket(this, "StaticAssetsBucket", {
       bucketName: `apoth-${props.config.stage}-static-assets`,
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+      encryption: BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      removalPolicy: props.config.removalPolicy,
+    });
+
+    const patientAppBucket = new Bucket(this, "PatientAppBucket", {
+      bucketName: `apoth-${props.config.stage}-patient-app`,
       blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
       encryption: BucketEncryption.S3_MANAGED,
       enforceSSL: true,
@@ -1119,19 +1445,8 @@ function handler(event) {
   var staticRoutes = {
     "/": true,
     "/about": true,
-    "/account": true,
-    "/billing": true,
-    "/dashboard": true,
-    "/get-started": true,
-    "/intake": true,
-    "/onboarding/consent": true,
-    "/onboarding/mdi": true,
     "/privacy": true,
-    "/reset-password": true,
-    "/sign-in": true,
-    "/sign-up": true,
     "/terms": true,
-    "/verify-email": true
   };
   if (uri.length > 1 && uri.endsWith("/")) {
     uri = uri.slice(0, -1);
@@ -1153,8 +1468,44 @@ function handler(event) {
       },
     );
 
+    const patientAppRouteFunction = new CloudFrontFunction(
+      this,
+      "PatientAppRouteFunction",
+      {
+        functionName: `apoth-${props.config.stage}-patient-app-routes`,
+        code: FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+  if (uri === "" || uri === "/") {
+    request.uri = "/index.html";
+    return request;
+  }
+  if (!uri.includes(".")) {
+    request.uri = "/index.html";
+  }
+  return request;
+}
+`),
+      },
+    );
+
+    const patientAppOrigin = S3BucketOrigin.withOriginAccessControl(patientAppBucket);
+    const patientAppBehavior = {
+      origin: patientAppOrigin,
+      allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+      cachePolicy: CachePolicy.CACHING_OPTIMIZED,
+      functionAssociations: [
+        {
+          eventType: FunctionEventType.VIEWER_REQUEST,
+          function: patientAppRouteFunction,
+        },
+      ],
+      viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+    };
+
     const staticWebDistribution = new Distribution(this, "StaticWebDistribution", {
-      comment: `Apoth ${props.config.stage} static web and same-origin API`,
+      comment: `Apoth ${props.config.stage} marketing, patient app, and same-origin API`,
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(staticAssetsBucket),
         allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
@@ -1180,6 +1531,24 @@ function handler(event) {
           originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         },
+        "account*": patientAppBehavior,
+        "billing*": patientAppBehavior,
+        "dashboard*": patientAppBehavior,
+        "get-started*": patientAppBehavior,
+        "intake*": patientAppBehavior,
+        "medication-management*": patientAppBehavior,
+        "onboarding/*": patientAppBehavior,
+        "patient-assets/*": {
+          origin: patientAppOrigin,
+          allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+          cachePolicy: CachePolicy.CACHING_OPTIMIZED,
+          viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        },
+        "reset-password*": patientAppBehavior,
+        "sign-in*": patientAppBehavior,
+        "sign-out*": patientAppBehavior,
+        "sign-up*": patientAppBehavior,
+        "verify-email*": patientAppBehavior,
       },
     });
 
@@ -1207,6 +1576,9 @@ function handler(event) {
     new CfnOutput(this, "ApiEndpoint", { value: api.apiEndpoint });
     new CfnOutput(this, "StaticAssetsBucketName", {
       value: staticAssetsBucket.bucketName,
+    });
+    new CfnOutput(this, "PatientAppBucketName", {
+      value: patientAppBucket.bucketName,
     });
     new CfnOutput(this, "StaticWebDistributionDomainName", {
       value: staticWebDistribution.distributionDomainName,

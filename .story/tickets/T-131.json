@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-123",
+    "T-124"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Configure local development so the Vite patient app can call relative /api/* paths without hard-coding staging URLs. Scope: add Vite dev server proxy options for API Gateway or local Lambda emulation; document required env vars; support cookies and same-origin mutation checks in local dev; avoid CORS drift between local and staging; provide a simple smoke command for local API connectivity. Acceptance criteria: running the Vite dev server lets onboarding/dashboard/billing calls use /api/*; auth session cookies work in local dev; README/runbook documents local options and known limitations.",
+  "id": "T-131",
+  "order": 100,
+  "parentTicket": "T-114",
+  "phase": "deploy",
+  "status": "complete",
+  "title": "Define local development proxy for Vite /api calls",
+  "type": "task"
+}

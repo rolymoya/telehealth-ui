@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-123"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Create a small client-side API layer for the Vite patient app so components do not hard-code fetch details everywhere. Scope: wrap relative /api/* calls for intake bootstrap/privacy/precheck, onboarding start/consent/MDI patient/bootstrap/submit, auth session, dashboard, workflow redirects, billing payment method, and subscription cancel; normalize JSON parsing and public error codes; support no-store/cache-busting where needed; include CSRF token propagation for protected mutations; keep opaque IDs only and avoid logging sensitive response data. Acceptance criteria: migrated components use the API client; tests cover successful and failing response shapes; API base remains relative for CloudFront and can be proxied locally.",
+  "id": "T-124",
+  "order": 70,
+  "parentTicket": "T-114",
+  "phase": "deploy",
+  "status": "complete",
+  "title": "Add Vite patient app API client layer for /api contracts",
+  "type": "task"
+}

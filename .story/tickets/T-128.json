@@ -1,0 +1,20 @@
+{
+  "blockedBy": [
+    "T-116",
+    "T-117",
+    "T-118",
+    "T-119",
+    "T-124",
+    "T-125"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Move post-onboarding patient product surfaces into the Vite app. Scope: dashboard, billing setup, account/profile shell, and medication/account management placeholders needed for the upcoming non-marketing patient dashboard. Use /api/dashboard, /api/dashboard/workflows/{workflow}, /api/billing/payment-method, and /api/billing/subscription/cancel for dynamic state/actions. Preserve current dashboard view model rendering and billing timing invariant: no charge or active subscription before clinical approval. Keep medication management as a shell backed by available MDI/Stripe/DynamoDB status rather than storing clinical content locally. Acceptance criteria: dashboard loads live API state after hydration; billing setup redirects to Stripe setup when eligible; cancellation action works; account/medication shells have complete safe loading/error/empty states; Playwright dashboard/billing flows pass against Vite.",
+  "id": "T-128",
+  "order": 240,
+  "parentTicket": "T-114",
+  "phase": "mdi-integration",
+  "status": "complete",
+  "title": "Move dashboard, billing, account, and medication-management shells to Vite app",
+  "type": "task"
+}

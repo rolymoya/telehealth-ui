@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
 type StartState =
@@ -125,12 +124,12 @@ function PrimaryLink({
   href: string;
 }) {
   return (
-    <Link
+    <a
       className="bg-clay-deep px-5 py-3 text-[1rem] font-medium text-cream transition-colors hover:bg-clay"
       href={href}
     >
       {children}
-    </Link>
+    </a>
   );
 }
 
@@ -142,12 +141,12 @@ function SecondaryLink({
   href: string;
 }) {
   return (
-    <Link
+    <a
       className="border border-clay-deep px-5 py-3 text-[1rem] font-medium text-clay-deep transition-colors hover:border-clay hover:text-clay"
       href={href}
     >
       {children}
-    </Link>
+    </a>
   );
 }
 
@@ -159,9 +158,9 @@ function SecondaryTextLink({
   href: string;
 }) {
   return (
-    <Link className="font-medium text-clay-deep hover:text-clay" href={href}>
+    <a className="font-medium text-clay-deep hover:text-clay" href={href}>
       {children}
-    </Link>
+    </a>
   );
 }
 

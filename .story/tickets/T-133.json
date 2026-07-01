@@ -1,0 +1,18 @@
+{
+  "blockedBy": [
+    "T-126",
+    "T-127",
+    "T-128",
+    "T-130"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Move browser coverage for patient product flows from the Next static app target to the Vite patient app target. Scope: update Playwright webServer/start commands, route mocks, static asset expectations, and smoke tests; preserve existing coverage for anonymous precheck, consent gates, MDI questionnaire flow, dashboard care workflows, billing timing, auth-protected pages, and public route behavior where applicable. Split marketing tests from patient-app tests if the deployment artifacts diverge. Acceptance criteria: E2E suite can run locally against Vite; CI artifacts still capture traces/screenshots on failure; tests verify representative deployed staging routes after the cutover.",
+  "id": "T-133",
+  "order": 110,
+  "parentTicket": "T-114",
+  "phase": "playwright-e2e",
+  "status": "complete",
+  "title": "Update Playwright E2E tests to run against Vite patient app",
+  "type": "task"
+}

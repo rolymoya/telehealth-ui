@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-115"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Port src/app/api/webhooks/stripe/route.ts into a deployed vendor-facing Lambda endpoint. Scope: read raw request body with maxStripeWebhookPayloadBytes; require and verify stripe-signature before processing; resolve Stripe API secret and webhook queue config; call handleStripeWebhook with DynamoDB webhook-processing/idempotency repository, Stripe mirror repository, SQS enqueue, and billing activation integration; preserve retry/idempotency behavior; return provider-appropriate status codes without leaking internal details. Wire POST /api/webhooks/stripe in CDK with raw payload handling, DynamoDB permissions, SQS send permissions, and Stripe secret access. Acceptance criteria: live route exists; invalid signature/missing signature fail; oversize payload fails; known webhook fixture succeeds/idempotently processes; alarms/metrics remain compatible with existing webhook lag/signature failure observability.",
+  "id": "T-120",
+  "order": 90,
+  "parentTicket": "T-114",
+  "phase": "payments",
+  "status": "complete",
+  "title": "Add Stripe webhook Lambda for POST /api/webhooks/stripe",
+  "type": "task"
+}

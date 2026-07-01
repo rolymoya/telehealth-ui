@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-125"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Move patient authentication surfaces from Next pages into the Vite patient app. Scope: sign-in, sign-up, reset-password, verify-email, and sign-out; preserve Cognito integration and secure session cookie exchange through /api/auth/session; preserve returnTo handling; keep copy and visual treatment consistent with current product UI; ensure static shell contains no patient-specific data. Acceptance criteria: auth pages work in Vite local dev; successful sign-in sets session through API Gateway/Lambda; sign-out clears session; existing AuthPanel tests or equivalents are migrated; E2E auth-protected route behavior passes against the Vite app.",
+  "id": "T-126",
+  "order": 110,
+  "parentTicket": "T-114",
+  "phase": "auth",
+  "status": "complete",
+  "title": "Move patient auth pages to Vite app",
+  "type": "task"
+}

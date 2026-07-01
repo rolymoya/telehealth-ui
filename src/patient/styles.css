@@ -1,0 +1,6 @@
+@import "../app/globals.css";
+
+:root {
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+}

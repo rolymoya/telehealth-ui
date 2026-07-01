@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Footer } from "@/components/Footer";
 import { Nav } from "@/components/Nav";
 
@@ -99,9 +98,9 @@ function ProductStateAction({
 
   if ("href" in action) {
     return (
-      <Link href={action.href} className={className}>
+      <a href={action.href} className={className}>
         {action.label}
-      </Link>
+      </a>
     );
   }
 

@@ -52,16 +52,16 @@ describe("ServerlessPlatformStack", () => {
       },
     });
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 15);
+    template.resourceCountIs("AWS::Lambda::Function", 21);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
     template.resourceCountIs("AWS::CloudWatch::Dashboard", 1);
     template.resourceCountIs("AWS::CloudFront::Distribution", 1);
-    template.resourceCountIs("AWS::CloudFront::Function", 1);
-    template.resourceCountIs("AWS::CloudFront::OriginAccessControl", 1);
+    template.resourceCountIs("AWS::CloudFront::Function", 2);
+    template.resourceCountIs("AWS::CloudFront::OriginAccessControl", 2);
     template.resourceCountIs("AWS::Events::Rule", 3);
-    template.resourceCountIs("AWS::S3::Bucket", 1);
+    template.resourceCountIs("AWS::S3::Bucket", 2);
     template.resourceCountIs("AWS::SQS::Queue", 2);
 
     const queues = Object.values(resources).filter(
@@ -151,6 +151,48 @@ describe("ServerlessPlatformStack", () => {
       RouteKey: "POST /api/onboarding/consent",
       AuthorizationType: "NONE",
     });
+
+    for (const routeKey of [
+      "GET /api/dashboard",
+      "GET /api/dashboard/workflows/{workflow}",
+      "POST /api/billing/payment-method",
+      "POST /api/billing/subscription/cancel",
+      "POST /api/webhooks/stripe",
+      "POST /api/webhooks/mdi",
+    ]) {
+      template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+        RouteKey: routeKey,
+        AuthorizationType: "NONE",
+      });
+    }
+  });
+
+  it("replaces the remaining Next patient API routes with Lambda integrations", () => {
+    const template = synthesizeTemplate();
+    const expectedRouteKeys = [
+      "POST /api/auth/session",
+      "POST /api/billing/payment-method",
+      "POST /api/billing/subscription/cancel",
+      "GET /api/dashboard",
+      "GET /api/dashboard/workflows/{workflow}",
+      "GET /api/intake/bootstrap",
+      "POST /api/intake/precheck",
+      "POST /api/intake/privacy-notice",
+      "POST /api/onboarding/consent",
+      "GET /api/onboarding/mdi/bootstrap",
+      "POST /api/onboarding/mdi/patient",
+      "POST /api/onboarding/mdi/submit",
+      "GET /api/onboarding/start",
+      "POST /api/webhooks/mdi",
+      "POST /api/webhooks/stripe",
+    ];
+
+    for (const routeKey of expectedRouteKeys) {
+      template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+        RouteKey: routeKey,
+        Target: Match.anyValue(),
+      });
+    }
   });
 
   it("creates cookie-verified intake API lambdas with bounded table access", () => {
@@ -329,6 +371,104 @@ describe("ServerlessPlatformStack", () => {
     expect(policies).not.toContain("dynamodb:DeleteItem");
   });
 
+  it("creates dashboard and billing API lambdas with bounded access", () => {
+    const template = synthesizeTemplate();
+
+    for (const [functionName, handler] of [
+      ["apoth-staging-patient-dashboard", "index.dashboardHandler"],
+      ["apoth-staging-patient-dashboard-workflow", "index.workflowRedirectHandler"],
+      ["apoth-staging-billing-payment-method", "index.paymentMethodHandler"],
+      ["apoth-staging-billing-subscription-cancel", "index.subscriptionCancelHandler"],
+    ]) {
+      template.hasResourceProperties("AWS::Lambda::Function", {
+        FunctionName: functionName,
+        Handler: handler,
+        Runtime: "nodejs20.x",
+        Timeout: 10,
+        Environment: {
+          Variables: Match.objectLike({
+            APOTH_STAGE: "staging",
+            APP_TABLE_NAME: Match.anyValue(),
+            COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
+            COGNITO_USER_POOL_ID: Match.anyValue(),
+          }),
+        },
+      });
+    }
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-billing-payment-method",
+      Environment: {
+        Variables: Match.objectLike({
+          APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
+          NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
+        }),
+      },
+    });
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-billing-subscription-cancel",
+      Environment: {
+        Variables: Match.objectLike({
+          APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
+        }),
+      },
+    });
+
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+    expect(policies).toContain("dynamodb:GetItem");
+    expect(policies).toContain("dynamodb:Query");
+    expect(policies).toContain("dynamodb:TransactWriteItems");
+    expect(policies).toContain("/apoth/staging/stripe/api");
+    expect(policies).not.toContain("dynamodb:DeleteItem");
+  });
+
+  it("creates Stripe and MDI webhook API lambdas with signature secrets and queue access", () => {
+    const template = synthesizeTemplate();
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-stripe-webhook",
+      Handler: "index.stripeWebhookHandler",
+      Runtime: "nodejs20.x",
+      Timeout: 30,
+      Environment: {
+        Variables: Match.objectLike({
+          APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
+          APOTH_STAGE: "staging",
+          APOTH_WEBHOOK_QUEUE_URL: Match.anyValue(),
+          APP_TABLE_NAME: Match.anyValue(),
+          STRIPE_RECURRING_PRICE_ID: Match.stringLikeRegexp("^price_"),
+        }),
+      },
+    });
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-mdi-webhook",
+      Handler: "index.mdiWebhookHandler",
+      Runtime: "nodejs20.x",
+      Timeout: 30,
+      Environment: {
+        Variables: Match.objectLike({
+          APOTH_SECRET_MDI_API_ID: "/apoth/staging/mdi/api",
+          APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
+          APOTH_STAGE: "staging",
+          APP_TABLE_NAME: Match.anyValue(),
+          STRIPE_RECURRING_PRICE_ID: Match.stringLikeRegexp("^price_"),
+        }),
+      },
+    });
+
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+    expect(policies).toContain("sqs:SendMessage");
+    expect(policies).toContain("/apoth/staging/mdi/api");
+    expect(policies).toContain("/apoth/staging/stripe/api");
+    expect(policies).toContain("dynamodb:UpdateItem");
+    expect(policies).not.toContain("dynamodb:DeleteItem");
+  });
+
   it("serves static assets and same-origin API paths through CloudFront", () => {
     const template = synthesizeTemplate();
     const resources = template.toJSON().Resources as Record<string, SynthResource>;
@@ -344,6 +484,15 @@ describe("ServerlessPlatformStack", () => {
           },
         ],
       },
+      PublicAccessBlockConfiguration: {
+        BlockPublicAcls: true,
+        BlockPublicPolicy: true,
+        IgnorePublicAcls: true,
+        RestrictPublicBuckets: true,
+      },
+    });
+    template.hasResourceProperties("AWS::S3::Bucket", {
+      BucketName: "apoth-staging-patient-app",
       PublicAccessBlockConfiguration: {
         BlockPublicAcls: true,
         BlockPublicPolicy: true,
@@ -377,6 +526,18 @@ describe("ServerlessPlatformStack", () => {
             PathPattern: "api/*",
             ViewerProtocolPolicy: "redirect-to-https",
           }),
+          Match.objectLike({
+            PathPattern: "dashboard*",
+            ViewerProtocolPolicy: "redirect-to-https",
+          }),
+          Match.objectLike({
+            PathPattern: "onboarding/*",
+            ViewerProtocolPolicy: "redirect-to-https",
+          }),
+          Match.objectLike({
+            PathPattern: "patient-assets/*",
+            ViewerProtocolPolicy: "redirect-to-https",
+          }),
         ]),
         CustomErrorResponses: Match.absent(),
       }),
@@ -399,9 +560,15 @@ describe("ServerlessPlatformStack", () => {
       FunctionCode: Match.stringLikeRegexp('/404\\.html'),
     });
     template.hasResourceProperties("AWS::CloudFront::Function", {
-      Name: "apoth-staging-static-clean-routes",
-      FunctionCode: Match.stringLikeRegexp('"/account"'),
+      Name: "apoth-staging-patient-app-routes",
+      FunctionCode: Match.stringLikeRegexp('/index\\.html'),
     });
+    const staticCleanFunction = Object.values(resources).find(
+      (resource) =>
+        resource.Type === "AWS::CloudFront::Function" &&
+        resource.Properties.Name === "apoth-staging-static-clean-routes",
+    );
+    expect(staticCleanFunction?.Properties.FunctionCode).not.toContain('"/account"');
   });
 
   it("allows runtime API posts from the generated static distribution origin", () => {

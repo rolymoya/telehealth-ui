@@ -1,0 +1,12 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-06-30",
+  "description": "Umbrella for the runtime split: keep public marketing/legal pages static-first while moving patient-facing product surfaces toward a plain React/Vite SPA backed by API Gateway/Lambda. This direction removes reliance on Next API routes and Next static-export behavior for authenticated/product flows. The target architecture is: marketing/static content served as static assets; patient app served as static JS/CSS/HTML; all request-specific/authenticated behavior enforced through API Gateway/Lambda; Cognito session cookies and API auth remain server-verified; Apoth continues to avoid storing MDI questionnaire answers locally. Acceptance criteria: missing Next-only API routes have Lambda equivalents; Vite patient app can call relative /api/* contracts; CloudFront routes app/static/API traffic intentionally; tests cover route parity; src/app/api is removed or clearly quarantined once no longer production-relevant.",
+  "id": "T-114",
+  "order": 60,
+  "phase": "deploy",
+  "status": "open",
+  "title": "Move patient-facing product app toward Vite SPA with Lambda-backed APIs",
+  "type": "feature"
+}

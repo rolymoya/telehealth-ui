@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-123"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Update infrastructure routing to support a split between static marketing/legal content, the Vite patient app, and API Gateway. Scope: decide same-domain paths versus app subdomain for staging/production; route /api/* to API Gateway with caching disabled; route patient app paths to the Vite static artifact with SPA fallback; keep marketing/legal pages static and SEO-friendly; ensure CloudFront functions/error responses do not break deep links; preserve allowed origins for Lambda CORS/session behavior. Acceptance criteria: CDK diff shows explicit origins/behaviors for API and patient app; deep links such as /intake, /onboarding/mdi, /dashboard work after refresh; /api/* never falls back to static HTML; staging smoke tests validate representative routes.",
+  "id": "T-129",
+  "order": 80,
+  "parentTicket": "T-114",
+  "phase": "deploy",
+  "status": "complete",
+  "title": "Update CDK CloudFront routing for marketing site, patient app, and API origins",
+  "type": "task"
+}

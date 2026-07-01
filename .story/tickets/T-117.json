@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-115"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Port src/app/api/dashboard/workflows/[workflow]/route.ts into API Gateway/Lambda so dashboard care workflow links work without Next. Scope: support GET /api/dashboard/workflows/{workflow}; allow only known workflow slugs such as messaging, file_upload, and intro_video; verify Cognito patient session; request the MDI embedded workflow URL through requestMdiWorkflowUrlDynamoDb; redirect with HTTP 303 to the provider URL on success; redirect to /dashboard?workflow=unavailable for invalid/failed workflow requests; avoid exposing vendor error details. Wire route in CDK, including a path parameter. Acceptance criteria: live route exists; invalid workflow redirects safely; valid mocked workflow redirects with 303; tests cover auth failure, invalid workflow, repository unavailable, and success.",
+  "id": "T-117",
+  "order": 220,
+  "parentTicket": "T-114",
+  "phase": "mdi-integration",
+  "status": "complete",
+  "title": "Add Lambda/API Gateway route for MDI dashboard workflow redirects",
+  "type": "task"
+}

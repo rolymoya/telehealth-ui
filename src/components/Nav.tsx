@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { navLinks } from "@/lib/data";
 import { Wordmark } from "./Icons";
 
@@ -24,25 +23,25 @@ export function Nav({ variant = "dark" }: NavProps) {
   return (
     <header className="relative z-10">
       <div className="mx-auto flex max-w-page items-center justify-between px-6 pt-7 md:px-10 md:pt-9">
-        <Link href="/" aria-label="Apoth home" className={wordmarkClass}>
+        <a href="/" aria-label="Apoth home" className={wordmarkClass}>
           <Wordmark />
-        </Link>
+        </a>
 
         <nav aria-label="Primary" className="hidden md:block">
           <ul className="flex items-center gap-9">
             {navLinks.map((link) => (
               <li key={link.href}>
-                <Link href={link.href} className={linkClass}>
+                <a href={link.href} className={linkClass}>
                   {link.label}
-                </Link>
+                </a>
               </li>
             ))}
           </ul>
         </nav>
 
-        <Link href="/get-started" className={ctaClass}>
+        <a href="/get-started" className={ctaClass}>
           Start a visit
-        </Link>
+        </a>
       </div>
     </header>
   );

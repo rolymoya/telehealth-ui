@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import {
   consentAcknowledgementFieldName,
@@ -116,12 +115,12 @@ export function ConsentAcceptanceClient({
                   : "Apoth platform document"}
               </p>
               <p className="mt-3">
-                <Link
+                <a
                   className="text-[1rem] font-medium text-clay-deep underline underline-offset-4"
                   href={consent.documentPath}
                 >
                   Open document
-                </Link>
+                </a>
               </p>
               {consent.consentKind === "compounded_medication_disclosure" ? (
                 <p className="mt-4 text-[1rem] text-ink/72">

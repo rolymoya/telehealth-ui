@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import Link from "next/link";
 import {
   consentAcknowledgementFieldName,
   requiredConsentsForPrecheck,
@@ -459,12 +458,12 @@ function PrivacyNoticeForm({
       <p className="mt-4 text-[1rem] text-ink/72">
         Version <span className="font-mono">{privacyNotice.version}</span>
         {" · "}
-        <Link
+        <a
           className="font-medium text-clay-deep underline underline-offset-4"
           href={privacyNotice.documentPath}
         >
           Open {privacyNotice.label.toLowerCase()}
-        </Link>
+        </a>
       </p>
       <label className="mt-5 flex gap-3 text-[1rem] leading-relaxed text-ink">
         <input
@@ -509,18 +508,18 @@ function AccountRequiredPanel() {
         your profile.
       </p>
       <div className="mt-6 flex flex-wrap gap-3">
-        <Link
+        <a
           className="rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors hover:bg-clay"
           href={signUpAfterPrecheckHref}
         >
           Create account
-        </Link>
-        <Link
+        </a>
+        <a
           className="rounded-full border border-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-clay-deep transition-colors hover:border-clay hover:text-clay"
           href={signInAfterPrecheckHref}
         >
           Sign in
-        </Link>
+        </a>
       </div>
     </section>
   );

@@ -9,19 +9,8 @@ const outputDir = path.join(projectRoot, "out");
 const requiredRoutes = [
   "/",
   "/about",
-  "/account",
-  "/billing",
-  "/dashboard",
-  "/get-started",
-  "/intake",
-  "/onboarding/consent",
-  "/onboarding/mdi",
   "/privacy",
-  "/reset-password",
-  "/sign-in",
-  "/sign-up",
   "/terms",
-  "/verify-email",
 ];
 
 rmSync(outputDir, { force: true, recursive: true });

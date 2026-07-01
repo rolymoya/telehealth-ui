@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-123",
+    "T-124"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Implement client-side routing/session behavior for the Vite patient app. Scope: define public, anonymous-intake, auth, onboarding, billing, dashboard, and account routes; integrate Cognito sign-in/sign-up/reset/verify flows using existing auth client logic where portable; call /api/auth/session to set/clear the secure patient session cookie after Cognito authentication; redirect unauthenticated protected pages to sign-in with returnTo; ensure visual route guards do not replace server-side API authorization; handle loading/error states without exposing PHI. Acceptance criteria: protected Vite routes render safe shells until API auth succeeds; sign-in/out/session behavior matches existing app flows; route guard tests cover unauthenticated and authenticated navigation.",
+  "id": "T-125",
+  "order": 100,
+  "parentTicket": "T-114",
+  "phase": "auth",
+  "status": "complete",
+  "title": "Add React Router route guards and patient session handling in Vite app",
+  "type": "task"
+}

@@ -2,8 +2,13 @@ import { randomUUID } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 
 const localBaseURL = "http://127.0.0.1:3000";
-const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
-const baseURL = externalBaseURL ?? localBaseURL;
+const localPatientBaseURL = "http://127.0.0.1:5173";
+const externalMarketingBaseURL =
+  process.env.PLAYWRIGHT_MARKETING_BASE_URL ?? process.env.PLAYWRIGHT_BASE_URL;
+const externalPatientBaseURL =
+  process.env.PLAYWRIGHT_PATIENT_BASE_URL ?? process.env.PLAYWRIGHT_BASE_URL;
+const marketingBaseURL = externalMarketingBaseURL ?? localBaseURL;
+const patientBaseURL = externalPatientBaseURL ?? localPatientBaseURL;
 const e2eAuthToken = process.env.APOTH_E2E_AUTH_TOKEN ?? `apoth-e2e-${randomUUID()}`;
 process.env.APOTH_E2E_AUTH_TOKEN = e2eAuthToken;
 const isCI = Boolean(process.env.CI);
@@ -24,28 +29,51 @@ export default defineConfig({
       ]
     : [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   use: {
-    baseURL,
     screenshot: { mode: "only-on-failure", fullPage: true },
     trace: "retain-on-failure",
     video: "on-first-retry",
   },
   projects: [
     {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      name: "public-chromium",
+      testMatch: [
+        /.*compliance-public\.spec\.ts/,
+        /.*public.*\.spec\.ts/,
+      ],
+      use: { ...devices["Desktop Chrome"], baseURL: marketingBaseURL },
+    },
+    {
+      name: "patient-chromium",
+      testIgnore: [
+        /.*compliance-public\.spec\.ts/,
+        /.*public.*\.spec\.ts/,
+      ],
+      use: { ...devices["Desktop Chrome"], baseURL: patientBaseURL },
     },
   ],
-  webServer: externalBaseURL
+  webServer: externalMarketingBaseURL || externalPatientBaseURL
     ? undefined
-    : {
-        command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
-        env: {
-          ...process.env,
-          APOTH_E2E_AUTH_ENABLED: "1",
-          APOTH_E2E_AUTH_TOKEN: e2eAuthToken,
+    : [
+        {
+          command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
+          env: {
+            ...process.env,
+            APOTH_E2E_AUTH_ENABLED: "1",
+            APOTH_E2E_AUTH_TOKEN: e2eAuthToken,
+          },
+          reuseExistingServer,
+          timeout: 120_000,
+          url: localBaseURL,
         },
-        reuseExistingServer,
-        timeout: 120_000,
-        url: localBaseURL,
-      },
+        {
+          command: "npm run patient:dev -- --host 127.0.0.1",
+          env: {
+            ...process.env,
+            VITE_PATIENT_API_PROXY_TARGET: localBaseURL,
+          },
+          reuseExistingServer,
+          timeout: 120_000,
+          url: localPatientBaseURL,
+        },
+      ],
 });

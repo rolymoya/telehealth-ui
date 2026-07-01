@@ -1,0 +1,18 @@
+{
+  "blockedBy": [
+    "T-129",
+    "T-130",
+    "T-134",
+    "T-135"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Write the architecture documentation/runbook for the new split after implementation. Scope: describe marketing/static content ownership, Vite patient app ownership, API Gateway/Lambda backend ownership, CloudFront routing, local development, deployment workflows, Cognito/session-cookie behavior, CORS/CSRF posture, webhook ingress, and thin-PHI boundaries. Include a route table showing which system owns each path. Document that MDI is the clinical system of record and Apoth does not persist questionnaire answers after submission. Acceptance criteria: docs are updated in the repo; onboarding a developer no longer requires knowing the historical Next API/static-export confusion; deployment/runbook steps are accurate for staging and production.",
+  "id": "T-136",
+  "order": 140,
+  "parentTicket": "T-114",
+  "phase": "deploy",
+  "status": "complete",
+  "title": "Document final split architecture for marketing, patient app, and Lambda APIs",
+  "type": "chore"
+}

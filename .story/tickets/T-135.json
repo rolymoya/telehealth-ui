@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-123"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Make an explicit decision on whether public marketing/legal pages remain in Next static generation or migrate to the same Vite/static setup after the patient app split. Evaluate SEO needs, content workflow, OpenGraph/sitemap/robots generation, design reuse, build/deploy complexity, and the cost of keeping two frontend toolchains. This ticket should produce a concrete recommendation and follow-up tickets if needed; it does not have to migrate marketing pages. Acceptance criteria: decision is documented; tradeoffs are captured; route ownership is clear for /, /about, /privacy, /terms, public medication/category pages, and patient app routes; no patient-app cutover is blocked by unresolved marketing-site preferences.",
+  "id": "T-135",
+  "order": 130,
+  "parentTicket": "T-114",
+  "phase": "deploy",
+  "status": "complete",
+  "title": "Decide future of marketing site after patient app split",
+  "type": "task"
+}

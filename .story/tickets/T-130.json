@@ -1,0 +1,16 @@
+{
+  "blockedBy": [
+    "T-123",
+    "T-129"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Add CI/CD support for building and deploying the Vite patient app artifact. Scope: add npm scripts for Vite build/preview; configure GitHub Actions or existing deploy workflow to build the patient app, verify required files, sync to the correct S3 prefix/bucket, and invalidate CloudFront; pass only public Cognito/API/site configuration into the Vite build; keep secrets out of frontend bundles; preserve or adapt the existing static smoke tests. Acceptance criteria: patient app build runs in CI; deploy workflow publishes the Vite dist artifact separately from any marketing/static artifact; CloudFront invalidation covers changed patient app assets; smoke checks prove /api routing still reaches API Gateway.",
+  "id": "T-130",
+  "order": 90,
+  "parentTicket": "T-114",
+  "phase": "deploy",
+  "status": "complete",
+  "title": "Add Vite patient app static build and deploy workflow",
+  "type": "task"
+}

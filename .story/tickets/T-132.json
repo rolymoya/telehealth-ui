@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-123"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Define and validate the public runtime/build configuration needed by the Vite patient app. Scope: Cognito user pool/client identifiers, public app/site URL, API path/base behavior, stage label, and any feature flags for patient surfaces. Ensure sensitive values such as Stripe/MDI/API secrets are never exposed to Vite. Decide whether config is compile-time VITE_* vars, a generated static config JSON, or a hybrid. Acceptance criteria: missing required public config fails build/dev startup clearly; no private secrets appear in built assets; staging and production can use distinct values; documentation explains how config reaches the frontend.",
+  "id": "T-132",
+  "order": 110,
+  "parentTicket": "T-114",
+  "phase": "deploy",
+  "status": "complete",
+  "title": "Add public environment config for Vite patient app",
+  "type": "task"
+}

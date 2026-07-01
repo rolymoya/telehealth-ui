@@ -1,0 +1,15 @@
+{
+  "blockedBy": [
+    "T-122"
+  ],
+  "completedDate": "2026-06-30",
+  "createdDate": "2026-06-30",
+  "description": "Introduce a Vite React patient app without immediately removing the current Next app. Scope: choose workspace/package layout; configure React 19, TypeScript, Tailwind/PostCSS, Vitest/RTL compatibility, and production build output; preserve existing design tokens and global styles where practical; set up an app entrypoint and router shell for patient-facing product pages; keep all API calls relative to /api/*; ensure no server-only/next/* imports enter the Vite app. This should be an incremental coexistence step, not a big-bang cutover. Acceptance criteria: Vite app builds a static dist artifact; local dev server runs with patient app shell; typecheck/test scripts include the Vite package; no production traffic is cut over yet.",
+  "id": "T-123",
+  "order": 60,
+  "parentTicket": "T-114",
+  "phase": "deploy",
+  "status": "complete",
+  "title": "Scaffold Vite React patient app alongside current Next app",
+  "type": "feature"
+}
