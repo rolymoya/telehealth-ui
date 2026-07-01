@@ -101,6 +101,9 @@ marketing homepage.
 
 The deploy workflow snapshots the current marketing and patient S3 buckets
 before upload. After sync and CloudFront invalidation, it runs route smoke tests
-and Playwright E2E against the deployed CloudFront URL. If verification fails,
-the workflow restores both buckets from the pre-deploy snapshot and invalidates
-CloudFront again.
+and deploy-safe Playwright coverage against the deployed CloudFront URL:
+public/static routes plus patient auth and route-guard shells. The deeper
+intake, dashboard, and billing E2E specs remain local contract tests because
+they install mocked API guards that intentionally block non-local document
+navigation. If deployed verification fails, the workflow restores both buckets
+from the pre-deploy snapshot and invalidates CloudFront again.

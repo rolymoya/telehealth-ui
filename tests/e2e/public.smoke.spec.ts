@@ -11,10 +11,10 @@ test.describe("@smoke public launch path", () => {
 
     await expect(page).toHaveURL(/\/get-started$/);
     await expect(
-      page.getByRole("heading", { name: "Start with a secure account." }),
+      page.getByRole("heading", { name: "Start with the privacy notice." }),
     ).toBeVisible();
     await expect(
-      page.getByText("Clinical intake happens after account setup."),
+      page.getByText("Clinical questionnaire answers come later through MD Integrations."),
     ).toBeVisible();
   });
 });

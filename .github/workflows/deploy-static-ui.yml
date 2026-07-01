@@ -210,7 +210,10 @@ jobs:
         run: |
           PLAYWRIGHT_MARKETING_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
           PLAYWRIGHT_PATIENT_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
-            npm run test:e2e -- --workers=2
+            npm run test:e2e -- --project=public-chromium --workers=2
+          PLAYWRIGHT_MARKETING_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
+          PLAYWRIGHT_PATIENT_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
+            npm run test:e2e -- --project=patient-chromium tests/e2e/auth-protected.spec.ts --workers=2
 
       - name: Roll back static UI deployment
         if: failure() && steps.backup.outputs.ready == 'true'
