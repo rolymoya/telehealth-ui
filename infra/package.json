@@ -5,7 +5,11 @@
   "scripts": {
     "build": "tsc --noEmit",
     "diff": "cdk diff",
+    "diff:staging": "AWS_PROFILE=apoth-staging CDK_DEFAULT_ACCOUNT=329425487030 CDK_DEFAULT_REGION=us-east-1 cdk diff --context stage=staging Apoth-staging-ServerlessPlatform",
+    "deploy:staging": "AWS_PROFILE=apoth-staging CDK_DEFAULT_ACCOUNT=329425487030 CDK_DEFAULT_REGION=us-east-1 cdk deploy --context stage=staging Apoth-staging-ServerlessPlatform --require-approval never",
+    "sso:staging": "aws sso login --profile apoth-staging",
     "synth": "cdk synth",
+    "synth:staging": "AWS_PROFILE=apoth-staging CDK_DEFAULT_ACCOUNT=329425487030 CDK_DEFAULT_REGION=us-east-1 cdk synth --context stage=staging Apoth-staging-ServerlessPlatform",
     "test": "vitest run"
   },
   "dependencies": {

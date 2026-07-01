@@ -65,6 +65,14 @@ MD Integrations remains the clinical system of record. Apoth can store minimal
 linkage and operational evidence, but must not persist questionnaire answers
 after submission to MDI.
 
+Staging can run the MDI intake Lambdas with `APOTH_MDI_MODE=synthetic` while
+MDI sandbox credentials are unavailable. Synthetic mode returns deterministic
+opaque MDI patient, case, and submission IDs plus a small synthetic
+questionnaire fixture. It never sends patient details or questionnaire answers
+to MDI, and it still persists only the normal linkage/status records. Production
+must use `APOTH_MDI_MODE=live`; CDK config and the Lambda runtime both fail
+closed if synthetic mode is configured for production.
+
 Stripe receives only opaque, non-PHI identifiers in metadata. Do not send
 condition, medication, diagnosis, symptom, answer, note, or clinical context to
 Stripe.

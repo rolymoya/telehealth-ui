@@ -48,6 +48,7 @@ describe("MDI intake lambda handlers", () => {
     process.env.APP_TABLE_NAME = "apoth-staging-app";
     process.env.APOTH_ALLOWED_ORIGIN = "http://localhost:3000";
     process.env.APOTH_ALLOWED_ORIGINS = "http://localhost:3000,https://static.example.cloudfront.net";
+    delete process.env.APOTH_MDI_MODE;
     process.env.APOTH_MDI_QUESTIONNAIRE_ID = questionnaire.questionnaireId;
     process.env.APOTH_SECRET_MDI_API_ID = "/apoth/staging/mdi/api";
     process.env.APOTH_STAGE = "staging";
@@ -417,6 +418,160 @@ describe("MDI intake lambda handlers", () => {
     expect(JSON.stringify(selectionWrite)).not.toMatch(
       /PATIENT_NAME_SENTINEL|patient@example\.test|answer|diagnosis|symptom/i,
     );
+  });
+
+  it("uses synthetic MDI mode to create patient linkage without sending patient details upstream", async () => {
+    process.env.APOTH_MDI_MODE = "synthetic";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { patientHandler } = await import("../src/lambda/mdi-intake.js");
+    mockProfileAndConsent("intake_ready");
+
+    const response = await patientHandler(event({
+      body: JSON.stringify({
+        address1: "1 Example St",
+        city: "Chicago",
+        dateOfBirth: "1990-01-02",
+        email: "patient@example.test",
+        firstName: "PATIENT_NAME_SENTINEL",
+        lastName: "Example",
+        phoneNumber: "312-555-0101",
+        state: "IL",
+        treatment: "weight",
+        zipCode: "60601",
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "x-apoth-csrf": csrfFor("valid-token", "mdi-patient"),
+      },
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      redirect: "/onboarding/mdi",
+      status: "linked",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const linkageWrite = sendMock.mock.calls.find(([command]) =>
+      command.kind === "TransactWriteItems" &&
+      JSON.stringify(command.input).includes("mdiPatientCreateAttempt")
+    )?.[0].input;
+    expect(JSON.stringify(linkageWrite)).toContain("mdi_patient_synthetic_");
+    expect(JSON.stringify(linkageWrite)).not.toMatch(
+      /PATIENT_NAME_SENTINEL|patient@example\.test|1 Example St|312-555-0101/i,
+    );
+  });
+
+  it("serves and submits synthetic MDI questionnaire data without storing answers locally", async () => {
+    process.env.APOTH_MDI_MODE = "synthetic";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { bootstrapHandler, submitHandler } = await import("../src/lambda/mdi-intake.js");
+    mockProfileAndConsent("intake_ready", {
+      mdiPatientId: "mdi_patient_synthetic_existing",
+    }, { medicationDisclosure: false, treatment: "weight" });
+
+    const bootstrap = await bootstrapHandler(event());
+
+    expect(bootstrap.statusCode).toBe(200);
+    const bootstrapBody = JSON.parse(bootstrap.body);
+    expect(bootstrapBody).toMatchObject({
+      status: "ready",
+      questionnaire: {
+        patientId: "mdi_patient_synthetic_existing",
+        questionnaireId: questionnaire.questionnaireId,
+      },
+    });
+    expect(bootstrapBody.questionnaire.questions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: "Synthetic readiness check",
+        }),
+      ]),
+    );
+
+    const response = await submitHandler(event({
+      body: JSON.stringify({
+        casePayload: {
+          case_questions: [
+            {
+              answer: "ANSWER_VALUE_SENTINEL",
+              question: "QUESTION_TEXT_SENTINEL",
+              type: "single_select",
+            },
+          ],
+        },
+        questionnaireId: questionnaire.questionnaireId,
+        responses: [
+          {
+            questionId: "mdi_question_synthetic_test",
+            value: "ANSWER_VALUE_SENTINEL",
+          },
+        ],
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "x-apoth-csrf": csrfFor("valid-token"),
+      },
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      redirect: "/onboarding/consent?gate=medication",
+      status: "submitted",
+      linkage: {
+        mdiCaseId: expect.stringMatching(/^mdi_case_synthetic_[a-f0-9]{24}$/),
+        mdiPatientId: "mdi_patient_synthetic_existing",
+      },
+      submissionId: expect.stringMatching(/^mdi_submission_synthetic_[a-f0-9]{24}$/),
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const writes = sendMock.mock.calls
+      .filter(([command]) => command.kind === "PutItem" || command.kind === "TransactWriteItems")
+      .map(([command]) => command.input);
+    expect(JSON.stringify(writes)).toContain("mdi_case_synthetic_");
+    expect(JSON.stringify(writes)).not.toContain("ANSWER_VALUE_SENTINEL");
+    expect(JSON.stringify(writes)).not.toContain("QUESTION_TEXT_SENTINEL");
+  });
+
+  it("fails closed when synthetic MDI mode is configured for production", async () => {
+    process.env.APOTH_MDI_MODE = "synthetic";
+    process.env.APOTH_STAGE = "production";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { patientHandler } = await import("../src/lambda/mdi-intake.js");
+    mockProfileAndConsent("intake_ready");
+
+    const response = await patientHandler(event({
+      body: JSON.stringify({
+        address1: "1 Example St",
+        city: "Chicago",
+        dateOfBirth: "1990-01-02",
+        email: "patient@example.test",
+        firstName: "PATIENT_NAME_SENTINEL",
+        lastName: "Example",
+        phoneNumber: "312-555-0101",
+        state: "IL",
+        treatment: "weight",
+        zipCode: "60601",
+      }),
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+        "x-apoth-csrf": csrfFor("valid-token", "mdi-patient"),
+      },
+    }));
+
+    expect(response.statusCode).toBe(503);
+    expect(JSON.parse(response.body)).toEqual({ code: "provider_unavailable" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(sendMock.mock.calls.some(([command]) =>
+      command.kind === "PutItem" || command.kind === "TransactWriteItems"
+    )).toBe(false);
   });
 
   it("rejects tampered questionnaire IDs before claiming submission", async () => {

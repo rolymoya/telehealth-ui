@@ -12,6 +12,7 @@ export type StageConfig = {
   allowedOrigins: string[];
   authEmailDomain: string;
   authEmailFromAddress: string;
+  mdiMode: "live" | "synthetic";
   mdiQuestionnaireId: string;
   tags: Record<string, string>;
 };
@@ -40,6 +41,7 @@ export function getStageConfig(stage: string): StageConfig {
       : ["http://localhost:3000"],
     authEmailDomain: "apothhealth.com",
     authEmailFromAddress: "contact@apothhealth.com",
+    mdiMode: resolveMdiMode(stage),
     mdiQuestionnaireId: process.env.APOTH_MDI_QUESTIONNAIRE_ID ??
       "mdi_questionnaire_launch",
     tags: {
@@ -49,6 +51,20 @@ export function getStageConfig(stage: string): StageConfig {
       "apoth:data-class": "thin-phi-linkage",
     },
   };
+}
+
+function resolveMdiMode(stage: StageName): "live" | "synthetic" {
+  const configured = process.env.APOTH_MDI_MODE?.trim();
+  if (configured === "live" || configured === "synthetic") {
+    if (stage === "production" && configured === "synthetic") {
+      throw new Error("Production MDI mode must be live");
+    }
+    return configured;
+  }
+  if (configured) {
+    throw new Error("APOTH_MDI_MODE must be live or synthetic");
+  }
+  return stage === "production" ? "live" : "synthetic";
 }
 
 export function resolveDeployEnvironment(

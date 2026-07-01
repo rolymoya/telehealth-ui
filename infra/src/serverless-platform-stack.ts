@@ -796,6 +796,8 @@ exports.handler = async () => ({
         environment: {
           APP_TABLE_NAME: appTable.tableName,
           APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_ALLOWED_ORIGINS: props.config.allowedOrigins.join(","),
+          APOTH_MDI_MODE: props.config.mdiMode,
           APOTH_MDI_QUESTIONNAIRE_ID: props.config.mdiQuestionnaireId,
           APOTH_STAGE: props.config.stage,
           APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
@@ -828,6 +830,8 @@ exports.handler = async () => ({
         environment: {
           APP_TABLE_NAME: appTable.tableName,
           APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_ALLOWED_ORIGINS: props.config.allowedOrigins.join(","),
+          APOTH_MDI_MODE: props.config.mdiMode,
           APOTH_MDI_QUESTIONNAIRE_ID: props.config.mdiQuestionnaireId,
           APOTH_STAGE: props.config.stage,
           APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
@@ -865,6 +869,8 @@ exports.handler = async () => ({
         environment: {
           APP_TABLE_NAME: appTable.tableName,
           APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_ALLOWED_ORIGINS: props.config.allowedOrigins.join(","),
+          APOTH_MDI_MODE: props.config.mdiMode,
           APOTH_MDI_QUESTIONNAIRE_ID: props.config.mdiQuestionnaireId,
           APOTH_STAGE: props.config.stage,
           APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
@@ -885,17 +891,19 @@ exports.handler = async () => ({
       "dynamodb:TransactWriteItems",
     );
 
-    for (const fn of [mdiIntakeBootstrapFunction, mdiIntakeSubmitFunction, mdiPatientFunction]) {
-      fn.addToRolePolicy(new PolicyStatement({
-        actions: ["secretsmanager:GetSecretValue"],
-        resources: [
-          this.formatArn({
-            service: "secretsmanager",
-            resource: "secret",
-            resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
-          }),
-        ],
-      }));
+    if (props.config.mdiMode === "live") {
+      for (const fn of [mdiIntakeBootstrapFunction, mdiIntakeSubmitFunction, mdiPatientFunction]) {
+        fn.addToRolePolicy(new PolicyStatement({
+          actions: ["secretsmanager:GetSecretValue"],
+          resources: [
+            this.formatArn({
+              service: "secretsmanager",
+              resource: "secret",
+              resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
+            }),
+          ],
+        }));
+      }
     }
 
     api.addRoutes({

@@ -264,6 +264,7 @@ describe("ServerlessPlatformStack", () => {
           Variables: {
             APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
             APOTH_ALLOWED_ORIGINS: Match.anyValue(),
+            APOTH_MDI_MODE: "synthetic",
             APOTH_MDI_QUESTIONNAIRE_ID: "mdi_questionnaire_launch",
             APOTH_STAGE: "staging",
             APOTH_SECRET_MDI_API_ID: "/apoth/staging/mdi/api",
@@ -765,11 +766,29 @@ describe("ServerlessPlatformStack", () => {
     expect(getStageConfig("staging")).toMatchObject({
       authEmailDomain: "apothhealth.com",
       authEmailFromAddress: "contact@apothhealth.com",
+      mdiMode: "synthetic",
     });
     expect(getStageConfig("production")).toMatchObject({
       authEmailDomain: "apothhealth.com",
       authEmailFromAddress: "contact@apothhealth.com",
+      mdiMode: "live",
     });
+  });
+
+  it("prevents synthetic MDI mode in production config", () => {
+    const previous = process.env.APOTH_MDI_MODE;
+    process.env.APOTH_MDI_MODE = "synthetic";
+    try {
+      expect(() => getStageConfig("production")).toThrow(
+        "Production MDI mode must be live",
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.APOTH_MDI_MODE;
+      } else {
+        process.env.APOTH_MDI_MODE = previous;
+      }
+    }
   });
 
   it("uses no required MFA and stage-specific CORS origins", () => {

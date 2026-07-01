@@ -59,6 +59,8 @@ type MdiLinkage = {
 
 type MdiPatientPayload = Record<string, unknown>;
 
+type MdiMode = "live" | "synthetic";
+
 let testGateway: MdiIntakeGateway | null = null;
 
 const ddb = new DynamoDBClient({});
@@ -192,7 +194,8 @@ export async function patientHandler(event: ApiEvent): Promise<ApiResponse> {
 
   const existingLinkage = await getMdiLinkage(csrf.session.cognitoSub);
   if (!existingLinkage?.mdiPatientId) {
-    const created = await createMdiPatient({
+    const created = await createMdiPatientForMode({
+      cognitoSub: csrf.session.cognitoSub,
       idempotencyKey: createMdiPatientIdempotencyKey(csrf.session.cognitoSub),
       patient: parsed.value.patient,
     });
@@ -235,7 +238,135 @@ export async function patientHandler(event: ApiEvent): Promise<ApiResponse> {
 }
 
 function activeGateway(questionnaireId?: string | null): MdiIntakeGateway {
-  return testGateway ?? productionMdiGateway(questionnaireId);
+  if (testGateway) {
+    return testGateway;
+  }
+
+  const mode = resolveMdiMode();
+  if (!mode.ok) {
+    return unavailableMdiGateway();
+  }
+  return mode.value === "synthetic"
+    ? syntheticMdiGateway(questionnaireId)
+    : productionMdiGateway(questionnaireId);
+}
+
+function resolveMdiMode():
+  | { ok: true; value: MdiMode }
+  | { ok: false; status: number } {
+  const mode = (process.env.APOTH_MDI_MODE?.trim() || "live") as MdiMode;
+  if (mode !== "live" && mode !== "synthetic") {
+    return { ok: false, status: 500 };
+  }
+  if (mode === "synthetic") {
+    const stage = process.env.APOTH_STAGE?.trim();
+    if (!stage || stage === "production") {
+      return { ok: false, status: 500 };
+    }
+  }
+  return { ok: true, value: mode };
+}
+
+function unavailableMdiGateway(): MdiIntakeGateway {
+  return {
+    async createCase() {
+      return mdiIntakeFailure(
+        "provider_unavailable",
+        "MDI provider is not available for this stage",
+        { retryable: false, status: 503 },
+      );
+    },
+    async loadQuestionnaire() {
+      return mdiIntakeFailure(
+        "provider_unavailable",
+        "MDI provider is not available for this stage",
+        { retryable: false, status: 503 },
+      );
+    },
+  };
+}
+
+function syntheticMdiGateway(questionnaireIdOverride?: string | null): MdiIntakeGateway {
+  return {
+    async loadQuestionnaire(input) {
+      if (!input.linkage?.mdiPatientId) {
+        return mdiIntakeFailure(
+          "provider_unavailable",
+          "Synthetic MDI patient linkage is not available",
+          { retryable: false, status: 503 },
+        );
+      }
+
+      const questionnaireId = syntheticQuestionnaireId(questionnaireIdOverride);
+      return {
+        ok: true,
+        value: {
+          questionnaireId,
+          patientId: input.linkage.mdiPatientId,
+          ...(input.linkage.mdiCaseId ? { caseId: input.linkage.mdiCaseId } : {}),
+          questions: syntheticQuestions(questionnaireId),
+        },
+      };
+    },
+    async createCase(input) {
+      return {
+        ok: true,
+        value: {
+          linkage: {
+            mdiPatientId: input.patientId,
+            mdiCaseId: syntheticOpaqueId(
+              "mdi_case",
+              `${input.cognitoSub}:${input.idempotencyKey}:${input.questionnaireId}`,
+            ),
+          },
+          submissionId: syntheticOpaqueId(
+            "mdi_submission",
+            `${input.cognitoSub}:${input.idempotencyKey}:${input.questionnaireId}`,
+          ),
+        },
+      };
+    },
+  };
+}
+
+function syntheticQuestionnaireId(questionnaireIdOverride?: string | null) {
+  return questionnaireIdOverride?.trim() ||
+    process.env.APOTH_MDI_QUESTIONNAIRE_ID?.trim() ||
+    "mdi_questionnaire_synthetic";
+}
+
+function syntheticQuestions(questionnaireId: string) {
+  const digest = createHash("sha256")
+    .update(`synthetic-mdi:questionnaire:${questionnaireId}`)
+    .digest("hex")
+    .slice(0, 24);
+  return [
+    {
+      questionId: `mdi_question_synthetic_${digest}_ready`,
+      text: "Synthetic readiness check",
+      controlType: "single_select",
+      required: true,
+      options: [
+        {
+          optionId: `mdi_option_synthetic_${digest}_ready_yes`,
+          label: "Ready to continue",
+        },
+        {
+          optionId: `mdi_option_synthetic_${digest}_ready_no`,
+          label: "Not ready",
+        },
+      ],
+    },
+    {
+      questionId: `mdi_question_synthetic_${digest}_note`,
+      text: "Synthetic note",
+      controlType: "free_text",
+      required: false,
+      constraints: {
+        maxLength: 256,
+      },
+    },
+  ];
 }
 
 function productionMdiGateway(questionnaireIdOverride?: string | null): MdiIntakeGateway {
@@ -432,6 +563,38 @@ async function createMdiPatient(input: {
   return parsed.ok
     ? { ok: true, mdiPatientId: parsed.value.mdiPatientId }
     : { ok: false, status: parsed.error.status };
+}
+
+async function createMdiPatientForMode(input: {
+  cognitoSub: string;
+  idempotencyKey: string;
+  patient: MdiPatientPayload;
+}): Promise<
+  | { ok: true; mdiPatientId: string }
+  | { ok: false; status: number }
+> {
+  const mode = resolveMdiMode();
+  if (!mode.ok) {
+    return { ok: false, status: mode.status };
+  }
+  if (mode.value === "synthetic") {
+    return {
+      ok: true,
+      mdiPatientId: syntheticOpaqueId("mdi_patient", input.cognitoSub),
+    };
+  }
+  return createMdiPatient({
+    idempotencyKey: input.idempotencyKey,
+    patient: input.patient,
+  });
+}
+
+function syntheticOpaqueId(prefix: "mdi_patient" | "mdi_case" | "mdi_submission", seed: string) {
+  const digest = createHash("sha256")
+    .update(`synthetic-mdi:${prefix}:${seed}`)
+    .digest("hex")
+    .slice(0, 24);
+  return `${prefix}_synthetic_${digest}`;
 }
 
 async function loadMdiApiSecret(): Promise<
@@ -725,8 +888,12 @@ function dynamoRepository(): MdiIntakeRepository {
             lastAttemptAt: input.now,
             mdiCaseId: input.mdiCaseId,
             mdiPatientId: input.mdiPatientId,
+            pk: mdiCaseCreateAttemptKey(input.cognitoSub).pk.S ?? "",
             providerStatus: input.providerStatus,
+            recordType: "mdiCaseCreateAttempt",
             retryAfterSeconds: input.retryAfterSeconds,
+            schemaVersion: 1,
+            sk: mdiCaseCreateAttemptKey(input.cognitoSub).sk.S ?? "",
             status: input.status,
             updatedAt: input.now,
           },
