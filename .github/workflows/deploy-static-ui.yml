@@ -166,12 +166,17 @@ jobs:
           curl --fail --silent --show-error "${base_url}/dashboard" >/dev/null
           curl --fail --silent --show-error "${base_url}/onboarding/mdi" >/dev/null
 
-          api_status="$(curl --silent --show-error --output /tmp/apoth-api-smoke.json \
+          api_status="$(curl --silent --show-error --request DELETE \
+            --output /tmp/apoth-api-smoke.json \
             --write-out '%{http_code}' \
-            "${base_url}/api/intake/bootstrap")"
-          if [ "${api_status}" != "403" ]; then
-            echo "Expected /api/intake/bootstrap to route to API Gateway and return 403 before privacy acknowledgement, got ${api_status}."
-            cat /tmp/apoth-api-smoke.json
-            exit 1
+            "${base_url}/api/auth/session")"
+          if [ "${api_status}" = "200" ]; then
+            grep -q '"status":"session_cleared"' /tmp/apoth-api-smoke.json
+            exit 0
           fi
-          grep -q '"code":"privacy_notice_required"' /tmp/apoth-api-smoke.json
+          echo "Expected /api/auth/session DELETE to route to API Gateway and clear the session, got ${api_status}."
+          if grep -qi '<html' /tmp/apoth-api-smoke.json; then
+            echo "Response looked like static HTML, so /api/* may not be routing to API Gateway."
+          fi
+          cat /tmp/apoth-api-smoke.json
+          exit 1
