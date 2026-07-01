@@ -561,8 +561,14 @@ describe("ServerlessPlatformStack", () => {
     });
     template.hasResourceProperties("AWS::CloudFront::Function", {
       Name: "apoth-staging-patient-app-routes",
-      FunctionCode: Match.stringLikeRegexp('/index\\.html'),
+      FunctionCode: Match.stringLikeRegexp('/patient-index\\.html'),
     });
+    const patientAppFunction = Object.values(resources).find(
+      (resource) =>
+        resource.Type === "AWS::CloudFront::Function" &&
+        resource.Properties.Name === "apoth-staging-patient-app-routes",
+    );
+    expect(patientAppFunction?.Properties.FunctionCode).not.toContain('"/index.html"');
     const staticCleanFunction = Object.values(resources).find(
       (resource) =>
         resource.Type === "AWS::CloudFront::Function" &&

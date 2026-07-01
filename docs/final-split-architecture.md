@@ -95,4 +95,6 @@ The static UI workflow builds and syncs two artifacts:
 
 CloudFront routes `/api/*` to API Gateway, patient paths and
 `/patient-assets/*` to the patient app bucket, and marketing/legal paths to the
-marketing static bucket.
+marketing static bucket. Patient SPA routes rewrite to `patient-index.html`
+instead of `index.html` so CloudFront cache entries cannot collide with the
+marketing homepage.

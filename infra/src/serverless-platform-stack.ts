@@ -1478,11 +1478,11 @@ function handler(event) {
   var request = event.request;
   var uri = request.uri;
   if (uri === "" || uri === "/") {
-    request.uri = "/index.html";
+    request.uri = "/patient-index.html";
     return request;
   }
   if (!uri.includes(".")) {
-    request.uri = "/index.html";
+    request.uri = "/patient-index.html";
   }
   return request;
 }

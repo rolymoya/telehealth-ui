@@ -117,6 +117,9 @@ jobs:
       - name: Build patient app artifact
         run: npm run patient:build
 
+      - name: Prepare patient app route fallback
+        run: cp dist/patient-app/index.html dist/patient-app/patient-index.html
+
       - name: Verify static artifact routes
         run: |
           set -euo pipefail
@@ -125,6 +128,7 @@ jobs:
           test -f out/privacy/index.html
           test -f out/terms/index.html
           test -f dist/patient-app/index.html
+          test -f dist/patient-app/patient-index.html
           test -d dist/patient-app/patient-assets
 
       - name: Sync marketing artifact to S3
