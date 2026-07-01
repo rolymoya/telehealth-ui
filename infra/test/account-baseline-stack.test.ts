@@ -199,6 +199,7 @@ describe("AccountBaselineStack", () => {
       "cdk-hnb659fds-image-publishing-role-",
       "cdk-hnb659fds-lookup-role-",
       "apoth-staging-static-assets",
+      "apoth-staging-patient-app",
       "cloudfront",
       "distribution/*",
       "stack/Apoth-staging-ServerlessPlatform/*",

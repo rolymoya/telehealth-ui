@@ -132,6 +132,7 @@ export class AccountBaselineStack extends Stack {
       ],
       resources: [
         `arn:${this.partition}:s3:::apoth-${props.config.stage}-static-assets`,
+        `arn:${this.partition}:s3:::apoth-${props.config.stage}-patient-app`,
       ],
     }));
     githubDeployRole.addToPolicy(new PolicyStatement({
@@ -141,6 +142,7 @@ export class AccountBaselineStack extends Stack {
       ],
       resources: [
         `arn:${this.partition}:s3:::apoth-${props.config.stage}-static-assets/*`,
+        `arn:${this.partition}:s3:::apoth-${props.config.stage}-patient-app/*`,
       ],
     }));
     githubDeployRole.addToPolicy(new PolicyStatement({
