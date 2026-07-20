@@ -27,6 +27,9 @@ vi.mock("@aws-sdk/client-dynamodb", () => {
     TransactWriteItemsCommand: class extends Command {
       kind = "TransactWriteItems";
     },
+    UpdateItemCommand: class extends Command {
+      kind = "UpdateItem";
+    },
   };
 });
 
@@ -249,17 +252,34 @@ describe("MDI intake lambda handlers", () => {
     expect(JSON.stringify(claim)).toContain("mdi-case-");
     expect(JSON.stringify(claim)).not.toContain("ANSWER_VALUE_SENTINEL");
     expect(JSON.stringify(claim)).not.toContain("QUESTION_TEXT_SENTINEL");
-    const transaction = sendMock.mock.calls.find(([command]) =>
-      command.kind === "TransactWriteItems"
+    const linkageUpdate = sendMock.mock.calls.find(([command]) =>
+      command.kind === "UpdateItem" &&
+      command.input.Key?.sk?.S === "MDI#LINKAGE"
     )?.[0].input;
-    expect(JSON.stringify(transaction)).toContain(questionnaire.patientId);
-    expect(JSON.stringify(transaction)).toContain(questionnaire.caseId);
-    expect(JSON.stringify(transaction)).toContain("mdi_submitted");
-    expect(JSON.stringify(transaction)).not.toContain("mdiReverseLookup");
-    expect(JSON.stringify(transaction)).not.toContain("MDI#PATIENT");
-    expect(JSON.stringify(transaction)).not.toContain("MDI#CASE#");
-    expect(JSON.stringify(transaction)).not.toContain("ANSWER_VALUE_SENTINEL");
-    expect(JSON.stringify(transaction)).not.toContain("QUESTION_TEXT_SENTINEL");
+    expect(JSON.stringify(linkageUpdate)).toContain(questionnaire.patientId);
+    expect(JSON.stringify(linkageUpdate)).toContain(questionnaire.caseId);
+    expect(JSON.stringify(linkageUpdate)).not.toContain("mdiReverseLookup");
+    expect(JSON.stringify(linkageUpdate)).not.toContain("MDI#PATIENT");
+    expect(JSON.stringify(linkageUpdate)).not.toContain("MDI#CASE#");
+    expect(JSON.stringify(linkageUpdate)).not.toContain("ANSWER_VALUE_SENTINEL");
+    expect(JSON.stringify(linkageUpdate)).not.toContain("QUESTION_TEXT_SENTINEL");
+
+    const submittedAttempt = sendMock.mock.calls.find(([command]) =>
+      command.kind === "PutItem" &&
+      command.input.Item?.status?.S === "submitted"
+    )?.[0].input;
+    expect(JSON.stringify(submittedAttempt)).toContain(questionnaire.patientId);
+    expect(JSON.stringify(submittedAttempt)).toContain(questionnaire.caseId);
+    expect(JSON.stringify(submittedAttempt)).not.toContain("ANSWER_VALUE_SENTINEL");
+    expect(JSON.stringify(submittedAttempt)).not.toContain("QUESTION_TEXT_SENTINEL");
+
+    const profileUpdate = sendMock.mock.calls.find(([command]) =>
+      command.kind === "UpdateItem" &&
+      command.input.Key?.sk?.S === "PROFILE"
+    )?.[0].input;
+    expect(JSON.stringify(profileUpdate)).toContain("mdi_submitted");
+    expect(JSON.stringify(profileUpdate)).not.toContain("ANSWER_VALUE_SENTINEL");
+    expect(JSON.stringify(profileUpdate)).not.toContain("QUESTION_TEXT_SENTINEL");
   });
 
   it("does not redirect to medication disclosure after submit for non-applicable treatment", async () => {
@@ -531,11 +551,30 @@ describe("MDI intake lambda handlers", () => {
     expect(fetchMock).not.toHaveBeenCalled();
 
     const writes = sendMock.mock.calls
-      .filter(([command]) => command.kind === "PutItem" || command.kind === "TransactWriteItems")
+      .filter(([command]) =>
+        command.kind === "PutItem" ||
+        command.kind === "TransactWriteItems" ||
+        command.kind === "UpdateItem"
+      )
       .map(([command]) => command.input);
     expect(JSON.stringify(writes)).toContain("mdi_case_synthetic_");
     expect(JSON.stringify(writes)).not.toContain("ANSWER_VALUE_SENTINEL");
     expect(JSON.stringify(writes)).not.toContain("QUESTION_TEXT_SENTINEL");
+    const caseLinkUpdate = sendMock.mock.calls.find(([command]) =>
+      command.kind === "UpdateItem" &&
+      command.input.Key?.sk?.S === "MDI#LINKAGE"
+    )?.[0].input;
+    expect(caseLinkUpdate).toMatchObject({
+      ConditionExpression: expect.stringContaining("attribute_not_exists(#mdiCaseId)"),
+      ExpressionAttributeValues: {
+        ":linkageType": { S: "mdiLinkage" },
+        ":mdiPatientId": { S: "mdi_patient_synthetic_existing" },
+      },
+      UpdateExpression: expect.stringContaining("SET #mdiCaseId"),
+    });
+    expect(caseLinkUpdate?.ExpressionAttributeValues[":mdiCaseId"].S).toMatch(
+      /^mdi_case_synthetic_[a-f0-9]{24}$/,
+    );
   });
 
   it("fails closed when synthetic MDI mode is configured for production", async () => {

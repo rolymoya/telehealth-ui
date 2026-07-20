@@ -282,6 +282,7 @@ describe("ServerlessPlatformStack", () => {
     expect(policies).toContain("dynamodb:GetItem");
     expect(policies).toContain("dynamodb:PutItem");
     expect(policies).toContain("dynamodb:TransactWriteItems");
+    expect(policies).toContain("dynamodb:UpdateItem");
     expect(policies).toContain("secretsmanager:GetSecretValue");
     expect(policies).not.toContain("dynamodb:DeleteItem");
   });

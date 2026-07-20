@@ -5,6 +5,7 @@ import {
   GetItemCommand,
   PutItemCommand,
   TransactWriteItemsCommand,
+  UpdateItemCommand,
 } from "@aws-sdk/client-dynamodb";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import {
@@ -710,58 +711,68 @@ function dynamoRepository(): MdiIntakeRepository {
       };
     },
     async saveSubmitted(input) {
+      const linked = await linkMdiCaseIfAbsent({
+        cognitoSub: input.cognitoSub,
+        linkage: input.linkage,
+        now: input.now,
+      });
+      if (!linked.ok) {
+        return mdiIntakeFailure(
+          "storage_failed",
+          "MDI case linkage could not be stored",
+          { retryable: true, status: 500 },
+        );
+      }
+
+      const recorded = await recordMdiCaseSubmittedAttempt({
+        cognitoSub: input.cognitoSub,
+        idempotencyKey: input.idempotencyKey,
+        mdiCaseId: input.linkage.mdiCaseId,
+        mdiPatientId: input.linkage.mdiPatientId,
+        mdiSubmissionId: input.submissionId,
+        now: input.now,
+      });
+      if (!recorded.ok) {
+        return mdiIntakeFailure(
+          "storage_failed",
+          "MDI case submission status could not be stored",
+          { retryable: true, status: 500 },
+        );
+      }
+
       try {
-        await ddb.send(new TransactWriteItemsCommand({
-          TransactItems: [
-            {
-              Update: {
-                ConditionExpression: "#recordType = :profileType AND #onboardingStatus = :expected",
-                ExpressionAttributeNames: {
-                  "#onboardingStatus": "onboardingStatus",
-                  "#recordType": "recordType",
-                  "#updatedAt": "updatedAt",
-                },
-                ExpressionAttributeValues: {
-                  ":expected": { S: "intake_ready" },
-                  ":next": { S: "mdi_submitted" },
-                  ":profileType": { S: "patientProfile" },
-                  ":updatedAt": { S: input.now },
-                },
-                Key: profileKey(input.cognitoSub),
-                TableName: requiredEnv("APP_TABLE_NAME"),
-                UpdateExpression: "SET #onboardingStatus = :next, #updatedAt = :updatedAt",
-              },
-            },
-            {
-              Put: {
-                Item: mdiLinkageItem(input),
-                TableName: requiredEnv("APP_TABLE_NAME"),
-              },
-            },
-            {
-              Put: {
-                Item: mdiCaseCreateAttemptItem({
-                  attempts: 1,
-                  cognitoSub: input.cognitoSub,
-                  idempotencyKey: input.idempotencyKey,
-                  linkedAt: input.now,
-                  mdiCaseId: input.linkage.mdiCaseId,
-                  mdiPatientId: input.linkage.mdiPatientId,
-                  mdiSubmissionId: input.submissionId,
-                  now: input.now,
-                  status: "submitted",
-                  submittedAt: input.now,
-                }),
-                TableName: requiredEnv("APP_TABLE_NAME"),
-              },
-            },
-          ],
+        await ddb.send(new UpdateItemCommand({
+          ConditionExpression: "#recordType = :profileType AND #onboardingStatus = :expected",
+          ExpressionAttributeNames: {
+            "#onboardingStatus": "onboardingStatus",
+            "#recordType": "recordType",
+            "#updatedAt": "updatedAt",
+          },
+          ExpressionAttributeValues: {
+            ":expected": { S: "intake_ready" },
+            ":next": { S: "mdi_submitted" },
+            ":profileType": { S: "patientProfile" },
+            ":updatedAt": { S: input.now },
+          },
+          Key: profileKey(input.cognitoSub),
+          TableName: requiredEnv("APP_TABLE_NAME"),
+          UpdateExpression: "SET #onboardingStatus = :next, #updatedAt = :updatedAt",
         }));
         return {
           ok: true,
           value: input.linkage,
         };
-      } catch {
+      } catch (error) {
+        if (isConditionalCheckFailed(error)) {
+          const profile = await getProfile(input.cognitoSub);
+          if (isSubmittedStatus(profile?.onboardingStatus)) {
+            return {
+              ok: true,
+              value: input.linkage,
+            };
+          }
+        }
+        logStorageFailure("mdi_intake_save_submitted_profile", error);
         return mdiIntakeFailure(
           "storage_failed",
           "MDI intake status could not be stored",
@@ -1427,6 +1438,77 @@ async function saveMdiPatientLinkage(input: {
   }
 }
 
+async function linkMdiCaseIfAbsent(input: {
+  cognitoSub: string;
+  linkage: Required<MdiLinkage>;
+  now: string;
+}): Promise<{ ok: true } | { ok: false }> {
+  try {
+    await ddb.send(new UpdateItemCommand({
+      ConditionExpression:
+        "#recordType = :linkageType AND #mdiPatientId = :mdiPatientId AND (attribute_not_exists(#mdiCaseId) OR #mdiCaseId = :mdiCaseId)",
+      ExpressionAttributeNames: {
+        "#mdiCaseId": "mdiCaseId",
+        "#mdiPatientId": "mdiPatientId",
+        "#recordType": "recordType",
+        "#updatedAt": "updatedAt",
+      },
+      ExpressionAttributeValues: {
+        ":linkageType": { S: "mdiLinkage" },
+        ":mdiCaseId": { S: input.linkage.mdiCaseId },
+        ":mdiPatientId": { S: input.linkage.mdiPatientId },
+        ":updatedAt": { S: input.now },
+      },
+      Key: mdiLinkageKey(input.cognitoSub),
+      TableName: requiredEnv("APP_TABLE_NAME"),
+      UpdateExpression: "SET #mdiCaseId = :mdiCaseId, #updatedAt = :updatedAt",
+    }));
+    return { ok: true };
+  } catch (error) {
+    if (isConditionalCheckFailed(error)) {
+      const existing = await getMdiLinkage(input.cognitoSub);
+      return existing?.mdiPatientId === input.linkage.mdiPatientId &&
+          existing.mdiCaseId === input.linkage.mdiCaseId
+        ? { ok: true }
+        : { ok: false };
+    }
+    logStorageFailure("mdi_intake_link_case", error);
+    return { ok: false };
+  }
+}
+
+async function recordMdiCaseSubmittedAttempt(input: {
+  cognitoSub: string;
+  idempotencyKey: string;
+  mdiCaseId: string;
+  mdiPatientId: string;
+  now: string;
+  mdiSubmissionId?: string;
+}): Promise<{ ok: true } | { ok: false }> {
+  const existing = await getMdiCaseCreateAttempt(input.cognitoSub);
+  try {
+    await ddb.send(new PutItemCommand({
+      Item: mdiCaseCreateAttemptItem({
+        attempts: existing?.attempts ?? 1,
+        cognitoSub: input.cognitoSub,
+        idempotencyKey: existing?.idempotencyKey ?? input.idempotencyKey,
+        linkedAt: input.now,
+        mdiCaseId: input.mdiCaseId,
+        mdiPatientId: input.mdiPatientId,
+        mdiSubmissionId: input.mdiSubmissionId,
+        now: existing?.createdAt ?? input.now,
+        status: "submitted",
+        submittedAt: input.now,
+      }),
+      TableName: requiredEnv("APP_TABLE_NAME"),
+    }));
+    return { ok: true };
+  } catch (error) {
+    logStorageFailure("mdi_intake_record_submitted_attempt", error);
+    return { ok: false };
+  }
+}
+
 function parseSubmissionBody(body: string | null | undefined):
   | {
       ok: true;
@@ -1573,6 +1655,12 @@ function toOnboardingStatus(value: string | undefined): MdiIntakeStatus | undefi
     return value;
   }
   return undefined;
+}
+
+function isSubmittedStatus(status: MdiIntakeStatus | undefined) {
+  return status === "mdi_submitted" ||
+    status === "clinical_review" ||
+    status === "billing_ready";
 }
 
 function profileKey(cognitoSub: string) {
@@ -2021,6 +2109,15 @@ function isConditionalCheckFailed(error: unknown) {
     "name" in error &&
     error.name === "ConditionalCheckFailedException"
   );
+}
+
+function logStorageFailure(operation: string, error: unknown) {
+  console.error("mdi_intake_storage_failed", {
+    errorName: typeof error === "object" && error !== null && "name" in error
+      ? String(error.name)
+      : "UnknownError",
+    operation,
+  });
 }
 
 function withoutUndefined<T extends Record<string, AttributeValue | undefined>>(

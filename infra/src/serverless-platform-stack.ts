@@ -850,6 +850,7 @@ exports.handler = async () => ({
       "dynamodb:GetItem",
       "dynamodb:PutItem",
       "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
     );
 
     const mdiPatientFunction = new NodejsFunction(
