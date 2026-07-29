@@ -818,12 +818,39 @@ describe("ServerlessPlatformStack", () => {
     expect(getStageConfig("staging")).toMatchObject({
       authEmailDomain: "apothhealth.com",
       authEmailFromAddress: "contact@apothhealth.com",
+      checkoutSignup: {
+        enabled: true,
+        integrationIdentifier: "apoth_checkout_hprmzkta",
+        weightCatalogId: "catalog_weight_staging_v1",
+      },
       mdiMode: "synthetic",
     });
     expect(getStageConfig("production")).toMatchObject({
       authEmailDomain: "apothhealth.com",
       authEmailFromAddress: "contact@apothhealth.com",
+      checkoutSignup: {
+        enabled: false,
+        integrationIdentifier: "",
+        weightCatalogId: "",
+      },
       mdiMode: "live",
+    });
+  });
+
+  it("persists the staging Checkout gate and opaque catalog configuration", () => {
+    const template = synthesizeTemplate("staging");
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-enrollment-checkout",
+      Environment: {
+        Variables: Match.objectLike({
+          APOTH_CHECKOUT_CATALOG_WEIGHT_ID: "catalog_weight_staging_v1",
+          APOTH_CHECKOUT_SIGNUP_ENABLED: "true",
+          APOTH_ENROLLMENT_BINDING_ENABLED: "false",
+          APOTH_PORTAL_LAUNCH_ENABLED: "false",
+          APOTH_STRIPE_INTEGRATION_IDENTIFIER: "apoth_checkout_hprmzkta",
+        }),
+      },
     });
   });
 
