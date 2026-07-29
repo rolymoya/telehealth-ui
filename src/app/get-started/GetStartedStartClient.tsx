@@ -65,7 +65,7 @@ export function GetStartedStartClient({
 
   if (state.status === "unavailable") {
     return (
-      <div className="border border-ash-line bg-cream-warm p-5 sm:p-7">
+      <div className="rounded-[26px] border border-black/[0.05] bg-white p-6 shadow-soft sm:p-9">
         <p className="text-eyebrow uppercase text-ash">Start a visit</p>
         <p className="mt-4 text-[1rem] text-ink/72">
           We could not check your visit status. You can still begin with the
@@ -74,7 +74,7 @@ export function GetStartedStartClient({
         <div className="mt-6 flex flex-wrap gap-3">
           <PrimaryLink href={intakeHref}>Start precheck</PrimaryLink>
           <button
-            className="border border-clay-deep px-5 py-3 text-[1rem] font-medium text-clay-deep transition-colors hover:border-clay hover:text-clay"
+            className="min-h-12 rounded-full border border-black/15 px-5 py-3 text-[1rem] font-semibold text-[#171719] transition-colors hover:bg-black/[0.04]"
             onClick={retry}
             type="button"
           >
@@ -86,7 +86,7 @@ export function GetStartedStartClient({
   }
 
   return (
-    <div className="border border-ash-line bg-cream-warm p-5 sm:p-7" role="status">
+    <div className="rounded-[26px] border border-black/[0.05] bg-white p-6 shadow-soft sm:p-9" role="status">
       <p className="text-eyebrow uppercase text-ash">Start a visit</p>
       <p className="mt-4 text-[1rem] text-ink/72">
         {state.status === "redirecting"
@@ -102,7 +102,7 @@ export function GetStartedStartClient({
 
 export function StartLinks() {
   return (
-    <div className="border border-ash-line bg-cream-warm p-5 sm:p-7">
+    <div className="rounded-[26px] border border-black/[0.05] bg-white p-6 shadow-soft sm:p-9">
       <p className="text-eyebrow uppercase text-ash">Start a visit</p>
       <p className="mt-4 text-[1rem] text-ink/72">
         Begin with the privacy notice and a short precheck. You will create or
@@ -125,7 +125,7 @@ function PrimaryLink({
 }) {
   return (
     <a
-      className="bg-clay-deep px-5 py-3 text-[1rem] font-medium text-cream transition-colors hover:bg-clay"
+      className="inline-flex min-h-12 items-center rounded-full bg-[#171719] px-5 py-3 text-[1rem] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#343437]"
       href={href}
     >
       {children}
@@ -142,7 +142,7 @@ function SecondaryLink({
 }) {
   return (
     <a
-      className="border border-clay-deep px-5 py-3 text-[1rem] font-medium text-clay-deep transition-colors hover:border-clay hover:text-clay"
+      className="inline-flex min-h-12 items-center rounded-full border border-black/15 bg-white px-5 py-3 text-[1rem] font-semibold text-[#171719] transition-colors hover:bg-black/[0.04]"
       href={href}
     >
       {children}
@@ -158,7 +158,7 @@ function SecondaryTextLink({
   href: string;
 }) {
   return (
-    <a className="font-medium text-clay-deep hover:text-clay" href={href}>
+    <a className="font-semibold text-[#315fbf] underline decoration-[#4e80ee]/30 underline-offset-4 hover:text-[#244a99]" href={href}>
       {children}
     </a>
   );

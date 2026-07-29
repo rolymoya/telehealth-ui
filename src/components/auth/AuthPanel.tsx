@@ -74,21 +74,21 @@ function AuthFrame({
   const content = authContent[mode];
 
   return (
-    <section className="mx-auto grid max-w-page gap-10 px-6 py-16 text-ink md:grid-cols-[0.9fr_1fr] md:px-10 md:py-24">
-      <div className="max-w-prose">
-        <p className="text-eyebrow uppercase text-ash">{content.kicker}</p>
+    <section className="mx-auto grid max-w-[1120px] gap-5 px-5 py-10 text-ink md:grid-cols-[0.86fr_1fr] md:px-8 md:py-20">
+      <div className="max-w-prose rounded-[26px] bg-[#4e80ee] p-7 text-white shadow-soft sm:p-10">
+        <p className="text-eyebrow uppercase text-white/70">{content.kicker}</p>
         <h1 className="display-serif mt-4 text-display-md font-light text-balance">
           {content.title}
         </h1>
-        <p className="mt-5 max-w-measure text-pretty text-ink/75">
+        <p className="mt-5 max-w-measure text-pretty text-white/85">
           {content.body}
         </p>
-        <p className="mt-6 max-w-measure text-[1rem] text-ink/65">
+        <p className="mt-8 max-w-measure border-t border-white/20 pt-6 text-[0.92rem] leading-6 text-white/70">
           Apoth provides the technology platform. Licensed clinicians working
           with MDI handle clinical care decisions.
         </p>
       </div>
-      <div className="border border-ash-line bg-cream-warm p-5 sm:p-7">
+      <div className="rounded-[26px] border border-black/[0.05] bg-white p-6 shadow-soft sm:p-9">
         {children}
       </div>
     </section>
@@ -447,7 +447,7 @@ function isValidSignUpPassword(password: string) {
 
 function PasswordRequirements() {
   return (
-    <div className="border border-ash-line bg-cream px-4 py-3 text-[1rem] text-ink/75">
+    <div className="rounded-2xl border border-black/[0.07] bg-[#f2f2f4] px-4 py-3 text-[0.95rem] text-ink/75">
       <p className="font-medium text-ink">Password requirements</p>
       <ul className="mt-2 list-disc space-y-1 pl-5">
         {signUpPasswordRequirements.map((requirement) => (
@@ -474,7 +474,7 @@ function Field({
         id={name}
         name={name}
         required
-        className="mt-2 block min-h-12 w-full border border-ash-line bg-cream px-4 py-3 text-[1rem] text-ink transition-colors duration-250 ease-out-quart placeholder:text-ash hover:border-clay focus:border-clay-deep"
+        className="mt-2 block min-h-12 w-full rounded-[14px] border border-black/15 bg-white px-4 py-3 text-[1rem] text-ink transition-colors placeholder:text-ash hover:border-black/30 focus:border-[#4e80ee]"
       />
     </label>
   );
@@ -491,7 +491,7 @@ function SubmitButton({
     <button
       type="submit"
       disabled={loading}
-      className="min-h-12 w-full bg-clay-deep px-5 py-3 text-[1rem] font-medium text-cream transition-colors duration-250 ease-out-quart hover:bg-clay disabled:cursor-wait disabled:bg-ash"
+      className="min-h-12 w-full rounded-full bg-[#171719] px-5 py-3 text-[1rem] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#343437] disabled:cursor-wait disabled:bg-[#9b9ca0]"
     >
       {loading ? "Working" : children}
     </button>
@@ -525,8 +525,8 @@ function Notice({
     <p
       className={
         tone === "error"
-          ? "border border-clay bg-cream px-4 py-3 text-[1rem] text-clay-deep"
-          : "border border-sage bg-cream px-4 py-3 text-[1rem] text-sage-deep"
+          ? "rounded-2xl border border-[#a53f2b]/25 bg-[#fff5f2] px-4 py-3 text-[0.95rem] text-[#7d2e22]"
+          : "rounded-2xl border border-[#397057]/20 bg-[#e2f1eb] px-4 py-3 text-[0.95rem] text-[#285540]"
       }
       role={tone === "error" ? "alert" : "status"}
     >
@@ -544,7 +544,7 @@ function SecondaryLink({
 }) {
   return (
     <p className="text-[1rem]">
-      <a className="font-medium text-clay-deep hover:text-clay" href={href}>
+      <a className="font-semibold text-[#315fbf] underline decoration-[#4e80ee]/30 underline-offset-4 hover:text-[#244a99]" href={href}>
         {children}
       </a>
     </p>
@@ -566,7 +566,7 @@ function SecondaryButton({
         type="button"
         disabled={loading}
         onClick={onClick}
-        className="font-medium text-clay-deep hover:text-clay disabled:cursor-wait disabled:text-ash"
+        className="font-semibold text-[#315fbf] underline decoration-[#4e80ee]/30 underline-offset-4 hover:text-[#244a99] disabled:cursor-wait disabled:text-ash"
       >
         {loading ? "Working" : children}
       </button>

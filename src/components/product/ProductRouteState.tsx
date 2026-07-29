@@ -54,11 +54,13 @@ export function ProductRouteState({
     <>
       <Nav variant="light" />
       <main id="main" className="text-ink">
-        <section className="mx-auto max-w-page px-6 py-16 md:px-10 md:py-24">
-          <div className="grid gap-10 md:grid-cols-[0.72fr_1.28fr] md:items-start">
-            <div className="border-l-2 border-clay-deep pl-5">
+        <section className="mx-auto max-w-[980px] px-5 py-10 md:px-8 md:py-20">
+          <div className="overflow-hidden rounded-[28px] border border-black/[0.05] bg-white shadow-soft">
+            <div className="h-2 bg-[#4e80ee]" aria-hidden="true" />
+            <div className="grid gap-8 p-7 md:grid-cols-[0.72fr_1.28fr] md:items-start md:p-10">
+            <div>
               <p className="text-eyebrow uppercase text-ash">{eyebrow}</p>
-              <p className="mt-4 font-mono text-[0.78rem] uppercase tracking-eyebrow text-clay-deep">
+              <p className="mt-4 inline-flex rounded-full bg-[#eef3ff] px-3 py-1.5 text-[0.72rem] font-bold uppercase tracking-[0.1em] text-[#315fbf]">
                 {status ?? toneLabels[tone]}
               </p>
             </div>
@@ -80,6 +82,7 @@ export function ProductRouteState({
                   ))}
                 </div>
               ) : null}
+            </div>
             </div>
           </div>
         </section>
@@ -120,7 +123,7 @@ function ProductStateAction({
 function actionClassName(variant: ProductRouteStateAction["variant"]) {
   const disabledState = "disabled:cursor-not-allowed disabled:opacity-60";
   if (variant === "secondary") {
-    return `inline-flex min-h-11 items-center rounded-full border border-ash-line px-5 py-2.5 text-[0.95rem] font-medium text-ink transition-colors duration-250 ease-out-quart hover:border-clay hover:text-clay-deep ${disabledState}`;
+    return `inline-flex min-h-11 items-center rounded-full border border-black/15 bg-white px-5 py-2.5 text-[0.95rem] font-semibold text-ink transition-colors hover:bg-black/[0.04] ${disabledState}`;
   }
-  return `inline-flex min-h-11 items-center rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors duration-250 ease-out-quart hover:bg-clay ${disabledState}`;
+  return `inline-flex min-h-11 items-center rounded-full bg-[#171719] px-5 py-2.5 text-[0.95rem] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#343437] ${disabledState}`;
 }

@@ -196,7 +196,7 @@ export function MdiIntakeClient({
 
   if (state.status === "loading" || state.status === "redirecting") {
     return (
-      <section className="border border-ash-line bg-cream-warm p-5 sm:p-7" aria-live="polite">
+      <section className="border border-ash-line bg-white p-5 sm:p-7" aria-live="polite">
         <p className="text-eyebrow uppercase text-ash">Clinical intake</p>
         <h2 className="mt-4 text-[1.35rem] font-semibold text-ink">
           Preparing your MDI questionnaire.
@@ -211,7 +211,7 @@ export function MdiIntakeClient({
 
   if (state.status === "submitted") {
     return (
-      <section className="border border-ash-line bg-cream-warm p-5 sm:p-7" aria-live="polite">
+      <section className="border border-ash-line bg-white p-5 sm:p-7" aria-live="polite">
         <p className="text-eyebrow uppercase text-ash">Clinical intake</p>
         <h2 className="mt-4 text-[1.45rem] font-semibold text-ink">
           Your questionnaire was sent for clinical review.
@@ -233,7 +233,7 @@ export function MdiIntakeClient({
 
   if (state.status === "error") {
     return (
-      <section className="border border-ash-line bg-cream-warm p-5 sm:p-7" aria-live="polite">
+      <section className="border border-ash-line bg-white p-5 sm:p-7" aria-live="polite">
         <p className="text-eyebrow uppercase text-ash">Clinical intake</p>
         <h2 className="mt-4 text-[1.35rem] font-semibold text-ink">
           We could not open this step.
@@ -257,7 +257,7 @@ export function MdiIntakeClient({
       className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_220px]"
       onSubmit={onSubmit}
     >
-      <section className="border border-ash-line bg-cream-warm p-5 sm:p-7">
+      <section className="border border-ash-line bg-white p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-eyebrow uppercase text-ash">MDI questionnaire</p>
@@ -265,7 +265,7 @@ export function MdiIntakeClient({
               Complete your clinical intake.
             </h2>
           </div>
-          <span className="border border-ash-line bg-cream px-3 py-2 text-[0.85rem] font-medium text-ink/70">
+          <span className="rounded-full border border-black/10 bg-[#eef3ff] px-3 py-2 text-[0.85rem] font-semibold text-[#315fbf]">
             {answeredCount}/{questionCount}
           </span>
         </div>
@@ -304,19 +304,19 @@ export function MdiIntakeClient({
         </div>
       </section>
 
-      <aside className="border border-ash-line bg-cream-warm p-5 lg:sticky lg:top-24 lg:self-start">
+      <aside className="border border-ash-line bg-[#e2f1eb] p-5 lg:sticky lg:top-24 lg:self-start">
         <p className="text-eyebrow uppercase text-ash">Progress</p>
         <ol className="mt-4 space-y-3 text-[0.95rem] text-ink/72">
           <li className="flex items-center gap-2 text-ink">
-            <span className="h-2.5 w-2.5 rounded-full bg-clay-deep" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#4e80ee]" />
             Consent
           </li>
           <li className="flex items-center gap-2 text-ink">
-            <span className="h-2.5 w-2.5 rounded-full bg-clay-deep" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#4e80ee]" />
             Eligibility
           </li>
           <li className="flex items-center gap-2 text-ink">
-            <span className="h-2.5 w-2.5 rounded-full bg-clay-deep" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#4e80ee]" />
             MDI intake
           </li>
         </ol>
@@ -348,12 +348,12 @@ function QuestionField({
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {(question.options ?? []).map((option) => (
             <label
-              className="flex min-h-12 items-center gap-3 border border-ash-line bg-cream px-4 py-3 text-[0.98rem] text-ink transition-colors hover:border-clay"
+              className="flex min-h-12 items-center gap-3 rounded-2xl border border-black/10 bg-white px-4 py-3 text-[0.98rem] text-ink transition-colors hover:border-[#4e80ee]"
               key={option.optionId}
             >
               <input
                 checked={answer === option.optionId}
-                className="h-4 w-4 accent-clay-deep"
+                className="h-4 w-4 accent-[#4e80ee]"
                 name={question.questionId}
                 onChange={() => onAnswer(option.optionId)}
                 required={question.required}

@@ -1,4 +1,11 @@
-import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import path from "node:path";
 
 const projectRoot = process.cwd();
@@ -9,14 +16,28 @@ const outputDir = path.join(projectRoot, "out");
 const requiredRoutes = [
   "/",
   "/about",
+  "/account",
+  "/billing",
+  "/dashboard",
+  "/get-started",
+  "/intake",
+  "/onboarding/consent",
+  "/onboarding/mdi",
   "/privacy",
+  "/reset-password",
+  "/sign-in",
+  "/sign-out",
+  "/sign-up",
   "/terms",
+  "/verify-email",
+  "/weight-loss",
 ];
 
 rmSync(outputDir, { force: true, recursive: true });
 mkdirSync(outputDir, { recursive: true });
 
 copyStaticAssets();
+copyPublicAssets();
 
 for (const route of requiredRoutes) {
   const source = htmlSourceForRoute(route);
@@ -45,6 +66,20 @@ function copyStaticAssets() {
   cpSync(nextStatic, path.join(outputDir, "_next", "static"), {
     recursive: true,
   });
+}
+
+function copyPublicAssets() {
+  const publicDir = path.join(projectRoot, "public");
+  if (!existsSync(publicDir)) {
+    return;
+  }
+  for (const entry of readdirSync(publicDir)) {
+    cpSync(
+      path.join(publicDir, entry),
+      path.join(outputDir, entry),
+      { recursive: true },
+    );
+  }
 }
 
 function copyNotFoundArtifact() {

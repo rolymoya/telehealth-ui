@@ -1,192 +1,183 @@
-<!-- SEED: re-run /impeccable document once there's code to capture the actual tokens and components. -->
 ---
-name: Telehealth UI
-description: Marketing surface for a patient-facing telehealth service in the warm-modern wellness lane.
+name: Apoth design direction
+description: Reference-led visual system for Apoth marketing and patient-facing product surfaces.
+status: adopted
+updated: 2026-07-27
 ---
 
-# Design System: Telehealth UI
+# Apoth Design Direction
 
-## 1. Overview
+## North star
 
-**Creative North Star: "The Editorial Apothecary"**
+**Everyday Care, Studio Clear**
 
-A patient-facing telehealth marketing surface that reads like a thoughtfully made print object pulled into a quiet consult room. Warmth comes from a committed clay surface that carries 30 to 60% of any given screen, paired with a soft sage as its supporting tone and a bone-cream as the neutral. Authority comes from editorial restraint: a transitional or contemporary serif on hero and headline, a humanist sans for everything that does the working.
+Apoth should feel direct, approachable, and visually confident. The public experience combines crisp retail composition with the reassurance and plain language expected from a healthcare service. It should feel easy to enter without looking casual about care.
 
-The system explicitly rejects the category's two failure modes. It is not a clinical portal (no clinical blue, no institutional navy, no beige forms, no regulatory voice). It is not generic health-tech SaaS (no gradient hero blob, no three-up feature card grid, no cartoon doctor illustrations, no "AI-powered" copy). The reference triangle is Hims for permission to be warm and confident in healthcare, Aesop for restrained apothecary craft and clay/sage palette literacy, Cereal Magazine for editorial typography and unhurried spacing.
+The canonical visual reference for the current marketing direction is the implementation in `/Users/roly/git/apoth-ui-v2`. The reference is a design source, not a runtime dependency. Ports must preserve its fonts, colors, spacing, imagery treatment, radii, shadows, and motion unless a documented product, accessibility, or compliance requirement demands a change.
 
-The voice is warm, candid, modern: a knowledgeable friend who happens to work in healthcare. Trust is earned through specifics (named clinicians, transparent pricing, real timelines), not badges or "trusted by millions" copy.
+This replaces the former clay-led, serif-first "Editorial Apothecary" direction. Do not recolor the reference into that older system.
 
-**Key Characteristics:**
-- Committed clay surface as the brand's primary visual move; the color does load-bearing work
-- Serif headline + humanist sans body pairing; reads "made", not templated
-- Restrained motion that lives between state-change minimalism and light transitional feedback
-- Patient-leaning legibility defaults: comfortable body type sizes, generous tap targets, AA contrast
-- Real over stock: photography and detail sourced from the actual service, never illustrated avatars
+## Experience principles
 
-The system now covers two related surfaces:
+- Lead with a clear patient outcome and one obvious next action.
+- Use generous whitespace and large type, but keep the composition compact enough to feel useful.
+- Pair neutral structure with distinct category colors. Color is part of the navigation and product storytelling.
+- Use concrete pricing, timing, shipping, and process details to build trust.
+- Keep medical and legal qualifications visible without letting them dominate the first impression.
+- Preserve the distinction between Apoth Health LLC as the technology platform and independent clinical and pharmacy partners.
 
-1. **Public marketing/legal pages** that persuade, disclose, and start intake.
-2. **Authenticated product surfaces** where patients finish intake, track case
-   status, manage billing, and access MDI-backed care workflows.
+## Color system
 
-The authenticated surface should feel quieter and more operational than the
-homepage, but it should not become a hospital portal. It keeps the same type,
-palette, and plain-spoken voice while using denser layouts, clearer state
-labels, and more predictable controls.
+The marketing palette is reference-specific. Do not replace these colors with legacy clay, sage, cream, or warm-ink tokens.
 
-## 2. Colors
+### Core colors
 
-A warm, earth-tonal palette anchored on a committed clay primary, with sage as a quieter supporting tone and bone-cream as the neutral surface. No clinical blue, anywhere.
+| Role | Value | Use |
+| --- | --- | --- |
+| Canvas | `#f9f9fa` | Landing page, navigation, neutral breathing room |
+| Paper | `#ffffff` | Cards, panels, product detail surfaces |
+| Ink | `#171719` | Primary text and dark controls |
+| Soft ink | `#46474b` to `#727377` | Secondary copy, labels, supporting details |
+| Cloud | `#f0f0f2`, `#ededf0`, `#f2f2f4` | Section bands and product-page backgrounds |
+| Utility blue | `#4e80ee` | Shipping banner and supporting branded moments |
+| Sun yellow | `#f5df75` | Landing-page closing call to action |
+| Trust sage | `#e8f2e9` | Trust and benefit strip |
+| Journey mint | `#e2f1eb` | Weight-loss journey section |
+| Product pear | `#9dcc7d` | Weight-loss product hero image field |
+| Treatment blue | `#4ba4d6` | Featured medication card |
 
-### Primary
-- **Warm Clay** (`oklch(58% 0.115 38)` — scale: deep `oklch(46% 0.13 36)`, soft `oklch(72% 0.07 40)`, tint `oklch(92% 0.025 50)`): the brand's load-bearing color. Used as committed surface treatment on hero and section blocks, on the primary CTA, and as the strong text accent in editorial pull quotes. Carries 30 to 60% of any given screen.
+### Treatment gradient
 
-### Secondary
-- **Soft Sage** (`oklch(76% 0.045 145)` — scale: deep `oklch(40% 0.06 145)`, soft `oklch(88% 0.03 145)`): the supporting tone. Used on calmer surfaces (testimonials, trust strip, secondary cards) and as a quiet accent in iconography. Never used at full saturation; never paired with the clay at equal weight. Sage is the second voice, never the lead.
+The featured weight-loss card uses a clay-red studio gradient, not a flat brand surface:
 
-### Neutral
-- **Bone Cream** (`oklch(97% 0.008 75)` — scale: warm `oklch(94% 0.012 70)`, deep `oklch(91% 0.014 65)`): the default page surface and the resting background outside the clay sections. Tinted toward the brand hue; never pure `#fff`.
-- **Stone Ink** (`oklch(20% 0.008 40)` — scale: soft `oklch(35% 0.008 40)`): default body text. Tinted toward warm; never pure `#000`.
-- **Ash Mid** (`oklch(58% 0.008 40)` — scale: line `oklch(82% 0.008 40)`): meta text, captions, supporting labels. Used sparingly, AA-validated against bone-cream.
+- Deep: `#63251b`
+- Mid: `#a53f2b`
+- Highlight: `#d98a6f`
 
-### Named Rules
+The product-page start panel uses `#4e80ee` through `#79b8e1`. These gradients belong to illustration and product storytelling. Do not use gradient-filled text.
 
-**The Committed Clay Rule.** The warm clay anchors the page; it must carry 30 to 60% of the visual surface, never less. A clay accent of 5% on an otherwise neutral page reads as restraint, not commitment, and undermines the brand stance. If a screen feels neutral-by-default with a small clay button, the clay is in the wrong role.
+### Color behavior
 
-**The Two-Voice Rule.** Clay leads, sage supports. They are never given equal weight. Sage may quiet a section, frame a testimonial, tint an icon set; sage may not headline.
+- Black pill controls are the default primary action.
+- Blue, yellow, pear, mint, and clay-red are intentional category and section colors. None is a universal brand primary.
+- Full-color photography and product imagery are required. Do not apply global grayscale, sepia, or tint filters.
+- Text and controls must continue to meet WCAG 2.2 AA contrast requirements.
 
-**The No Clinical Blue Rule.** No blue, period. The color slot it would occupy is occupied by clay or sage. There is no third hue waiting to enter the palette.
+## Typography
 
-## 3. Typography
+### Marketing and product pages
 
-**Display Font:** Fraunces — a contemporary variable serif with optical size axis (`opsz`) and expressive weight range. Loaded via `next/font/google`, weights 300–500, CSS var `--font-display`. Tailwind: `font-display`.
-**Body Font:** Inter — a humanist sans with excellent legibility at small sizes. Loaded via `next/font/google`, weights 400–600, CSS var `--font-sans`. Tailwind: `font-sans`.
+- **Primary face:** Arial with Helvetica and generic sans-serif fallbacks.
+- **Wordmark:** Georgia or Times New Roman, bold, with tight negative tracking.
+- **How it works display:** Apoth Care variable face, matching the reference product page.
 
-**Character:** A deliberately editorial pairing. The serif on hero and headline does the "made" signal; the humanist sans on body keeps reading effortless for a mixed-literacy patient audience. The contrast between the two is the system's signature move.
+Headlines are predominantly bold sans serif with tight tracking and compact line height. This is a deliberate change from the former serif-led direction. Serif is reserved for the Apoth wordmark and intentional editorial accents already present in the reference.
 
-### Hierarchy
-- **Display** (serif, weight 300-400, `clamp(2.75rem, 7vw, 5rem)`, line-height ~1.0-1.05): hero headline and major section titles only. Tight tracking; tight leading; never stacked more than one Display per surface.
-- **Headline** (serif, weight 400, ~2rem-2.5rem, line-height 1.15): secondary section titles and feature lead-ins.
-- **Title** (sans, weight 500, ~1.25rem, line-height 1.3): card titles, list-section labels.
-- **Body** (sans, weight 400, 17-18px on key reading surfaces, line-height 1.55-1.65, max line length 65-75ch): all primary reading copy. The 16px floor is a floor, not a target.
-- **Label** (sans, weight 500, 12-13px, letter-spacing +2-4%, sentence case): meta labels, eyebrow text, form field labels. Avoid all-caps blocks longer than two or three words.
+The current Apoth Care font is loaded from the reference stylesheet source. Before production launch, confirm licensing and self-host the approved font file so the page does not depend on a third-party font host.
 
-### Named Rules
+### Type hierarchy
 
-**The Serif-Lead Rule.** The display lane is always serif. The sans never crosses into headline territory. If a hero looks balanced in sans-only, the hero is missing its strongest move.
+- **Hero display:** 42px mobile to 64px desktop, normal or heavy weight according to the reference composition, approximately `0.96` line height and `-0.055em` tracking.
+- **Section display:** 36px to 64px, bold, tightly tracked.
+- **Card title:** 16px to 28px, medium to bold, compact leading.
+- **Body:** 16px by default; 18px to 21px for lead copy.
+- **Navigation and controls:** 13px to 14px, semibold or bold.
+- **Eyebrow and legal metadata:** 11px to 13px, uppercase only when short.
 
-**The Patient Floor Rule.** Body type never drops below 16px and targets 17-18px on long-form reading surfaces. The audience is mixed-literacy adults, often on phones outside good light; small type is a trust failure, not a sophistication signal.
+Long-form legal and account pages may retain the existing Inter and Fraunces implementation until they are deliberately migrated. New marketing work should not use those legacy faces by default.
 
-**The No All-Caps Paragraphs Rule.** All-caps is reserved for short labels and eyebrows. Sentence case for everything that has to be read.
+## Layout and composition
 
-## 4. Elevation
+### Landing page
 
-The system is flat by default with depth conveyed through tonal layering. Bone-cream is the resting surface; clay sections sit at the same plane visually but read as foreground because of saturation. Sage panels sit between, used to demarcate testimonial or trust regions without introducing shadow.
+The landing page uses an announcement strip, compact sticky navigation, a large outcome-led hero, an asymmetric treatment grid, trust marquee, broad editorial bands, FAQ cards, and a high-contrast yellow closing call to action.
 
-Shadows appear only as a response to state (hover on an interactive surface, focus on an input). They are never used to make a card "lift" decoratively. No glassmorphism, no backdrop blur as a default.
+Cards should vary in scale and purpose. Avoid a generic repeated three-column feature grid. Large imagery should be cropped confidently and allowed to carry significant visual weight.
 
-### Named Rules
+### Weight-loss product page
 
-**The Flat-By-Default Rule.** Surfaces are flat at rest. Depth comes from clay-vs-cream-vs-sage tonal layering, not from drop-shadow. If a surface needs a shadow to read as a surface, the structure is wrong.
+The product page uses a two-column purchase hero on desktop with a sticky visual panel, followed by benefit, comparison, treatment, journey, process, social-proof, and FAQ sections. The product hero uses pear green; treatment cards use distinct colors; the process section uses the Apoth Care display face.
 
-**The State-Only Shadow Rule.** Shadows belong to states (hover, focus), not to resting elements. A card that has a shadow before the cursor arrives is a card that has nothing to say when it is touched.
+On mobile, content becomes a single readable column, controls remain at least 44px high, and horizontal overflow is not permitted.
 
-## 5. Components
+### Authenticated surfaces
 
-`[Component primitives to be defined when implementation begins. Re-run /impeccable document once buttons, inputs, navigation, and cards exist in code.]`
+Account, intake, dashboard, billing, and case-status screens should inherit the same neutral canvas, black controls, rounded geometry, and sans-serif clarity. They should be denser and quieter than marketing pages.
 
-## 6. Authenticated Product Surfaces
+- Show the current state, its meaning, the next action, and who owns it.
+- Prefer full-width bands and focused panels over nested cards.
+- Keep intake conversational, with one clear question group per step.
+- Treat MDI as the clinical source of truth and Apoth as the framing and orchestration layer.
+- Keep billing actions visually straightforward and separate from clinical decision-making.
 
-The account, intake, dashboard, billing, and care-status screens are work
-surfaces. They should be calm, scannable, and efficient, with less editorial
-drama than the homepage.
+## Shape, elevation, and motion
 
-### Product Layout
+- Use rounded rectangles in the 16px to 28px range and pill-shaped buttons.
+- Soft shadows are part of the reference at rest, especially on menus, pricing panels, FAQ items, and product cards.
+- Interactive cards may lift slightly and gain a stronger soft shadow on hover or keyboard focus.
+- Sticky navigation may use blur and a restrained shadow.
+- Reveal transitions should be short and subtle. Marquees may pause on hover.
+- Respect `prefers-reduced-motion` and preserve all information without animation.
 
-- Use a compact top navigation or app shell that makes account, dashboard,
-  billing, and support easy to find without feeling like enterprise software.
-- Prefer full-width page bands and constrained inner content. Do not nest cards
-  inside cards.
-- Use panels for individual tasks: "finish intake", "payment method", "case
-  status", "message from clinician", "next step". Keep each panel focused on a
-  single patient job.
-- Dashboard status should be readable at a glance: current state, what it means,
-  who owns the next action, and whether any payment has occurred.
-- Avoid surfacing raw integration state unless it helps the patient. "Clinician
-  review in progress" is better than "case_assigned_to_clinician".
+## Components
 
-### Intake Forms
+### Buttons
 
-- Intake should feel like a careful conversation, not a spreadsheet. One clear
-  question group per step, generous spacing, and obvious progress.
-- Use native-feeling form controls: radio groups for single choice, checkboxes
-  for multiple choice, textareas for narrative answers, date inputs for DOB,
-  and clear validation messages near the field.
-- Never store questionnaire answers in Apoth after submission to MDI. Design
-  copy should not imply Apoth keeps the clinical chart.
-- The submit step should make the handoff explicit: answers go to MD
-  Integrations for clinician review.
+- Primary: near-black fill, white label, pill shape.
+- Outline: transparent or white fill with a quiet border.
+- Minimum interactive height: 44px.
+- Use direct action labels such as "Get started", "Start online visit", and "Login".
 
-### Dashboard And Status
+### Navigation
 
-- Use plain state labels: "Intake submitted", "Clinician review", "Waiting on
-  you", "Prescription processing", "Complete", "Cancelled".
-- For each state, show: what happened, what happens next, expected timing if
-  known, and the primary action.
-- Use MDI as the source of truth for clinical status, messages, files, orders,
-  and prescription workflow. Native Apoth UI may frame or summarize that data,
-  but should not look like a separate clinical chart.
-- Billing status should be visually adjacent to care status only when it affects
-  the patient's next action. Avoid making payment feel like the main event.
+- Keep the Apoth wordmark left-aligned.
+- Route patient access to `/sign-in` and intake entry to `/get-started`.
+- Mobile navigation opens as a full-width panel below the sticky header and uses a soft shadow.
 
-### Billing
+### Cards and accordions
 
-- Stripe actions should be clear and boring: add payment method, manage
-  subscription, view billing status.
-- Do not use medication names, diagnoses, or condition-specific clinical data in
-  Stripe-facing labels or metadata. Patient-facing copy may name the care
-  category when needed, but integration payloads must stay opaque.
-- The "no charge before clinical acceptance" promise should be visible where the
-  patient adds a payment method.
+- Product cards may use full-color photography, illustrated product still lifes, or a category color field.
+- FAQ items are white rounded cards with a subtle resting shadow.
+- Focus states use a neutral dark ring rather than a legacy clay ring.
 
-### Visual Tone
+## Content and compliance
 
-- Marketing pages may use large clay fields and editorial hero scale.
-- Product pages should use smaller clay anchors: nav, primary action, progress,
-  and key status accents. Bone and warm neutral space do more of the holding.
-- Sage remains a calm supporting surface for low-urgency status or help panels.
-- Use alert colors sparingly and semantically. Avoid alarming reds for routine
-  waiting states.
+- Apoth Health LLC is a technology platform, not a medical provider.
+- Clinical decisions belong to independent licensed providers through MD Integrations.
+- Compounded medications must retain the required not-FDA-approved disclosure and brand-name distinction.
+- Legal pages retain their review banners until counsel approval.
+- Stripe metadata remains free of PHI and uses only opaque identifiers.
+- Questionnaire answers are submitted to MDI and are not retained by Apoth after submission.
 
-## 7. Do's and Don'ts
+## Do and do not
 
-### Do:
-- **Do** anchor the page with warm clay covering 30 to 60% of the visual surface. Below that, the brand has not committed.
-- **Do** lead with a serif display on hero and major section titles. The sans never crosses into headline territory.
-- **Do** size body type at 17-18px on key reading surfaces, with a 16px floor and a 65-75ch max line length.
-- **Do** use sage as a quiet supporting tone for testimonial regions, trust strips, and icon tinting.
-- **Do** earn trust through specifics: named clinicians, real prices, real wait times, real conditions.
-- **Do** keep one clear primary action per surface; secondary actions are quieter (text link, ghost button), never competitive.
-- **Do** make authenticated states explicit: current step, next step, owner, and payment status where relevant.
-- **Do** design MDI-backed surfaces as framed access to the clinical workflow, not as a duplicated medical chart.
-- **Do** respect `prefers-reduced-motion`; ship a reduced-motion variant of any transition longer than a state-change.
-- **Do** validate every type and color pairing against WCAG 2.2 AA (4.5:1 body, 3:1 large text and UI affordances).
+### Do
 
-### Don't:
-- **Don't** use clinical blue. There is no version of this system that reads with a primary blue. Anti-reference: GoodRx, Doctor on Demand, Teladoc.
-- **Don't** ship a "generic health-tech SaaS" landing page: gradient hero blob, three-up feature cards, pastel illustrations of doctors with stethoscopes, "AI-powered" headline. Anti-reference: GoodRx and the broader category template.
-- **Don't** style anything like a hospital portal: beige forms, navy headers, dense regulatory disclosure. Anti-reference: MyChart, Epic, hospital homepages.
-- **Don't** style anything like corporate pharma: navy-and-white, suit-and-handshake stock, press-release voice. Anti-reference: Pfizer, Merck.
-- **Don't** ship shouty DTC: neon CTAs, urgency banners, countdown timers, "limited time!" copy. Warmth is the move; pressure is not.
-- **Don't** use cartoon doctor illustrations or generic "doctor with tablet" stock photography. Real photography sourced from the actual service, or no image.
-- **Don't** use gradient text (`background-clip: text` over a gradient). One solid color, weight contrast for emphasis.
-- **Don't** use side-stripe borders (a colored `border-left` or `border-right` greater than 1px) on cards, callouts, or alerts.
-- **Don't** lean on glassmorphism or backdrop blur as a default. Rare and purposeful, or nothing.
-- **Don't** ship the hero-metric template: big number, small label, supporting stats, gradient accent. SaaS cliché.
-- **Don't** ship identical card grids: same-sized cards with icon + heading + text repeated endlessly.
-- **Don't** use modals as a first thought. Exhaust inline and progressive alternatives first.
-- **Don't** make dashboard/product screens use hero-scale type or marketing composition.
-- **Don't** imply Apoth stores the clinical chart or questionnaire answers.
-- **Don't** expose raw MDI, Stripe, or Cognito IDs in patient-facing UI.
-- **Don't** use em dashes (` — `) or double-hyphens (`--`) in body copy. Commas, colons, semicolons, periods, parentheses.
-- **Don't** wrap everything in a container or use the same padding everywhere. Vary spacing for rhythm.
+- Match the reference fonts and exact color values on `/` and `/weight-loss`.
+- Keep imagery in full color.
+- Use black primary controls and category color for large storytelling moments.
+- Preserve asymmetric layouts, generous whitespace, and soft reference shadows.
+- Connect every visible action to a real route or intentionally remove it.
+- Validate desktop and mobile layouts, keyboard focus, contrast, and reduced motion.
+
+### Do not
+
+- Do not translate the reference into the retired clay-and-sage system.
+- Do not substitute Fraunces or Inter for reference typography on new marketing pages.
+- Do not desaturate, grayscale, sepia-tone, or recolor reference imagery.
+- Do not flatten reference cards by removing their resting shadows.
+- Do not introduce gradient text, decorative side-stripe borders, countdowns, or pressure tactics.
+- Do not imply that Apoth practices medicine, stores the clinical chart, or controls clinical decisions.
+
+## Current implementation status
+
+- `/` and `/weight-loss` are the reference implementation for this direction.
+- `/about`, `/privacy`, and `/terms` use the reference typography, neutral
+  reading canvas, rounded navigation panels, and dark shared footer.
+- `/get-started`, authentication, intake, consent, billing, dashboard, account,
+  loading, error, and empty states use the patient-workspace expression of this
+  system: neutral canvas, black pill actions, soft elevated panels, and focused
+  blue, yellow, or mint context fields.
+- The standalone patient-app build shares the same tokens and components.
+- Future migrations must not change clinical, identity, payment, or data-flow
+  boundaries as part of a visual redesign.

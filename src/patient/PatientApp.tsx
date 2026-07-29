@@ -72,9 +72,9 @@ function GetStartedPage() {
     <>
       <Nav variant="light" />
       <main id="main">
-        <section className="mx-auto grid max-w-page gap-10 px-6 py-16 text-ink md:grid-cols-[0.9fr_1fr] md:px-10 md:py-24">
-          <div className="max-w-3xl">
-            <p className="text-eyebrow uppercase text-ash">Start a visit</p>
+        <section className="mx-auto grid max-w-[1120px] gap-5 px-5 py-10 text-ink md:grid-cols-[0.86fr_1fr] md:px-8 md:py-20">
+          <div className="max-w-3xl rounded-[26px] bg-[#f5df75] p-7 shadow-soft sm:p-10">
+            <p className="text-eyebrow uppercase text-black/55">Start a visit</p>
             <h1 className="display-serif mt-4 text-display-md font-light text-balance">
               Start with the privacy notice.
             </h1>
@@ -83,9 +83,9 @@ function GetStartedPage() {
               or sign in to your account if online intake is a fit. Clinical
               questionnaire answers come later through MD Integrations.
             </p>
-            <div className="mt-8 flex flex-wrap gap-4 text-[0.95rem] font-medium text-clay-deep">
-              <a className="hover:text-clay" href="/#what-we-treat">See what we treat</a>
-              <a className="hover:text-clay" href="/#how-it-works">How a visit goes</a>
+            <div className="mt-8 flex flex-wrap gap-4 text-[0.95rem] font-semibold text-[#171719]">
+              <a className="underline decoration-black/25 underline-offset-4 hover:decoration-black" href="/weight-loss">Explore weight loss</a>
+              <a className="underline decoration-black/25 underline-offset-4 hover:decoration-black" href="/weight-loss#how-it-works">How a visit goes</a>
             </div>
           </div>
           <div>
@@ -103,9 +103,9 @@ function IntakePage() {
     <>
       <Nav variant="light" />
       <main id="main" className="text-ink">
-        <section className="mx-auto grid max-w-page gap-10 px-6 py-16 md:grid-cols-[0.85fr_1.15fr] md:px-10 md:py-24">
-          <div className="max-w-prose">
-            <p className="text-eyebrow uppercase text-ash">Onboarding</p>
+        <section className="mx-auto grid max-w-[1120px] gap-5 px-5 py-10 md:grid-cols-[0.86fr_1fr] md:px-8 md:py-20">
+          <div className="max-w-prose rounded-[26px] bg-[#e2f1eb] p-7 shadow-soft sm:p-10">
+            <p className="text-eyebrow uppercase text-[#397057]">Onboarding</p>
             <h1 className="display-serif mt-4 text-display-md font-light text-balance">
               Privacy notice, then a short precheck.
             </h1>
@@ -132,7 +132,7 @@ function ConsentPage() {
     <>
       <Nav variant="light" />
       <main id="main">
-        <section className="mx-auto max-w-page px-6 py-16 text-ink md:px-10 md:py-24">
+        <section className="mx-auto max-w-[980px] px-5 py-10 text-ink md:px-8 md:py-20">
           <ConsentAcceptanceClient
             medicationConsents={requiredMedicationDisclosureConsents({ treatment: "weight" })}
             preMdiConsents={requiredConsentsBeforeMdi()}
@@ -146,23 +146,27 @@ function ConsentPage() {
 
 function MdiPage() {
   return (
-    <main className="bg-cream px-5 py-10 text-ink sm:px-8 lg:px-12">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-7 max-w-3xl">
-          <p className="text-eyebrow uppercase text-ash">Onboarding</p>
-          <h1 className="mt-4 text-[2rem] font-semibold leading-tight text-ink sm:text-[2.6rem]">
-            MDI questionnaire
-          </h1>
-          <p className="mt-4 text-[1.05rem] leading-7 text-ink/72">
-            Answer the MDI questionnaire here after your profile is linked.
-            Apoth sends responses to MDI and keeps only the handoff status and
-            opaque case pointers. Medication disclosure comes after submission
-            when it applies.
-          </p>
+    <>
+      <Nav variant="light" />
+      <main id="main" className="bg-[#f9f9fa] px-5 py-10 text-ink sm:px-8 lg:px-12 lg:py-16">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-5 max-w-3xl rounded-[26px] bg-[#4e80ee] p-7 text-white shadow-soft sm:p-10">
+            <p className="text-eyebrow uppercase text-white/70">Onboarding</p>
+            <h1 className="display-serif mt-4 text-[2rem] leading-tight sm:text-[2.6rem]">
+              MDI questionnaire
+            </h1>
+            <p className="mt-4 text-[1.05rem] leading-7 text-white/80">
+              Answer the MDI questionnaire here after your profile is linked.
+              Apoth sends responses to MDI and keeps only the handoff status and
+              opaque case pointers. Medication disclosure comes after submission
+              when it applies.
+            </p>
+          </div>
+          <MdiIntakeClient />
         </div>
-        <MdiIntakeClient />
-      </div>
-    </main>
+      </main>
+      <Footer />
+    </>
   );
 }
 

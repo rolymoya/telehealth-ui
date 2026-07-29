@@ -14,8 +14,8 @@ export default function AboutPage() {
     <>
       <Nav variant="light" />
       <main id="main" className="text-ink">
-        <section className="border-b border-ash-line bg-cream py-20 md:py-28">
-          <div className="mx-auto max-w-page px-6 md:px-10">
+        <section className="border-b border-black/[0.05] bg-[#f2f2f4] py-16 md:py-24">
+          <div className="mx-auto max-w-[1270px] px-5 lg:px-6">
             <p className="text-eyebrow uppercase text-ash">About</p>
             <h1 className="display-serif mt-5 text-display-lg font-light text-balance">
               What Apoth is, what it isn't, and how we're set up.
@@ -33,8 +33,8 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className="bg-cream-warm py-20 md:py-28">
-          <div className="mx-auto grid max-w-page grid-cols-1 gap-y-12 px-6 md:px-10 lg:grid-cols-12 lg:gap-x-12">
+        <section className="bg-[#e2f1eb] py-16 md:py-24">
+          <div className="mx-auto grid max-w-[1270px] grid-cols-1 gap-y-12 px-5 lg:grid-cols-12 lg:gap-x-12 lg:px-6">
             <header className="lg:col-span-5">
               <p className="text-eyebrow uppercase text-ash">How we are structured</p>
               <h2 className="display-serif mt-5 text-display-md font-light text-balance">
@@ -49,8 +49,8 @@ export default function AboutPage() {
               </p>
             </header>
 
-            <dl className="lg:col-span-7">
-              <div className="border-t border-ash-line py-7">
+            <dl className="space-y-3 lg:col-span-7">
+              <div className="rounded-[22px] border border-black/[0.05] bg-white p-6 shadow-soft">
                 <dt className="flex items-baseline justify-between gap-4">
                   <p className="display-serif text-2xl font-light text-ink">
                     Apoth Health LLC
@@ -70,7 +70,7 @@ export default function AboutPage() {
                 </dd>
               </div>
 
-              <div className="border-t border-ash-line py-7">
+              <div className="rounded-[22px] border border-black/[0.05] bg-white p-6 shadow-soft">
                 <dt className="flex items-baseline justify-between gap-4">
                   <p className="display-serif text-2xl font-light text-ink">
                     MD Integrations
@@ -91,7 +91,7 @@ export default function AboutPage() {
                 </dd>
               </div>
 
-              <div className="border-t border-b border-ash-line py-7">
+              <div className="rounded-[22px] border border-black/[0.05] bg-white p-6 shadow-soft">
                 <dt className="flex items-baseline justify-between gap-4">
                   <p className="display-serif text-2xl font-light text-ink">
                     Licensed pharmacy partner
@@ -124,7 +124,7 @@ export default function AboutPage() {
 
         <section
           id="states"
-          className="scroll-mt-24 border-t border-ash-line bg-cream py-20 md:py-28"
+          className="scroll-mt-24 border-t border-black/[0.05] bg-[#f9f9fa] py-16 md:py-24"
         >
           <div className="mx-auto max-w-page px-6 md:px-10">
             <header className="grid grid-cols-1 gap-y-6 lg:grid-cols-12 lg:gap-x-12">
@@ -174,7 +174,7 @@ export default function AboutPage() {
 
         <section
           id="contact"
-          className="scroll-mt-24 border-t border-ash-line bg-sage-soft py-20 md:py-28"
+          className="scroll-mt-24 border-t border-black/[0.05] bg-[#f5df75] py-16 md:py-24"
         >
           <div className="mx-auto max-w-page px-6 md:px-10">
             <div className="grid grid-cols-1 gap-y-12 lg:grid-cols-12 lg:gap-x-12">

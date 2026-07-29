@@ -3,7 +3,7 @@ import type { SVGProps } from "react";
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span
-      className={`display-serif text-[1.55rem] font-light leading-none tracking-tight ${className ?? ""}`}
+      className={`font-serif text-[2rem] font-bold lowercase leading-none tracking-[-0.075em] ${className ?? ""}`}
     >
       Apoth
     </span>

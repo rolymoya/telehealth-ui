@@ -26,12 +26,21 @@
 
 ## Design System (see DESIGN.md)
 
-- **Committed Clay**: warm clay carries 30–60% of any screen.
-- **Two-Voice**: clay leads, sage supports — never equal weight.
-- **No Clinical Blue**: no blue anywhere.
-- **Serif-Lead**: display/headline is always serif; sans never headlines.
-- **Patient Floor**: body type >=16px, target 17-18px on reading surfaces.
-- **Flat-By-Default**: shadows only on state (hover/focus), never at rest.
+- **Reference Fidelity**: `/` and `/weight-loss` follow the fonts, colors,
+  spacing, imagery treatment, shadows, and motion in `apoth-ui-v2`. Do not
+  translate the reference into the retired clay-and-sage system.
+- **Reference Typography**: marketing headlines use Arial/Helvetica; Georgia
+  is reserved for the wordmark; the weight-loss process display uses the
+  reference Apoth Care face.
+- **Reference Color**: neutral canvas and black controls are paired with the
+  exact blue, yellow, pear, mint, sage, and clay-red reference colors. Blue is
+  intentional and must not be recolored.
+- **Full-Color Imagery**: do not apply grayscale, sepia, desaturation, or global
+  color filters to reference photography and product art.
+- **Soft Elevation**: reference shadows may appear at rest on menus, product
+  panels, cards, and accordions; hover and focus can increase elevation.
+- **Patient Legibility**: default body type is 16px, with larger lead and
+  long-form reading copy where appropriate. Controls remain at least 44px high.
 - No em dashes or double-hyphens in body copy; no gradient text; no
   side-stripe borders.
 

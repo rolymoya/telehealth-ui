@@ -193,8 +193,7 @@ export const usStates: { code: string; name: string }[] = [
 ];
 
 export const navLinks = [
-  { href: "/#what-we-treat", label: "What we treat" },
-  { href: "/#pricing", label: "Pricing" },
-  { href: "/#how-it-works", label: "How it works" },
-  { href: "/#clinicians", label: "Clinicians" },
+  { href: "/weight-loss", label: "Weight Loss" },
+  { href: "/about", label: "About" },
+  { href: "/#faq", label: "FAQs" },
 ];

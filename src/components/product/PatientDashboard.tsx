@@ -21,17 +21,17 @@ export function PatientDashboard({
     <>
       <Nav variant="light" />
       <main id="main" className="text-ink">
-        <section className="mx-auto max-w-page px-6 py-12 md:px-10 md:py-16">
-          <div className="grid gap-10 lg:grid-cols-[0.62fr_1.38fr] lg:items-start">
-            <aside className="border-l-2 border-clay-deep pl-5">
-              <p className="text-eyebrow uppercase text-ash">Patient account</p>
+        <section className="mx-auto max-w-[1270px] px-5 py-10 md:px-8 md:py-16">
+          <div className="grid gap-5 lg:grid-cols-[0.62fr_1.38fr] lg:items-start">
+            <aside className="rounded-[26px] bg-[#f5df75] p-7 shadow-soft lg:sticky lg:top-24 sm:p-9">
+              <p className="text-eyebrow uppercase text-black/50">Patient account</p>
               <h1 className="display-serif mt-4 text-display-md font-light text-balance">
                 Dashboard
               </h1>
               <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
                 Track account, billing, and care workflow status without storing clinical content in Apoth.
               </p>
-              <p className="mt-8 font-mono text-[0.72rem] uppercase tracking-eyebrow text-clay-deep">
+              <p className="mt-8 inline-flex rounded-full bg-white/65 px-3 py-1.5 text-[0.68rem] font-bold uppercase tracking-[0.1em] text-[#171719]">
                 {dashboard.caseStatus.code}
               </p>
             </aside>
@@ -77,7 +77,7 @@ function StatusPanel({
   return (
     <section
       aria-labelledby="dashboard-status"
-      className="border border-ash-line bg-cream-warm p-6"
+      className="border border-ash-line bg-white p-6"
     >
       <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-start">
         <div>
@@ -139,7 +139,7 @@ function ActionPanel({
               {action.href ? (
                 <a
                   href={action.href}
-                  className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors duration-250 ease-out-quart hover:bg-clay"
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[#171719] px-5 py-2.5 text-[0.95rem] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#343437]"
                 >
                   Open
                 </a>

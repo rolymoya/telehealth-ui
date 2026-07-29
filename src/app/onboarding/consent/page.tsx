@@ -17,7 +17,7 @@ export default function ConsentPage() {
     <>
       <Nav variant="light" />
       <main id="main">
-        <section className="mx-auto max-w-page px-6 py-16 text-ink md:px-10 md:py-24">
+        <section className="mx-auto max-w-[980px] px-5 py-10 text-ink md:px-8 md:py-20">
           <ConsentAcceptanceClient
             medicationConsents={requiredMedicationDisclosureConsents({
               treatment: "weight",

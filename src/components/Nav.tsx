@@ -1,37 +1,34 @@
+import { UserRound } from "lucide-react";
+
 import { navLinks } from "@/lib/data";
+import { MobileMenu } from "@/components/marketing-v2/MobileMenu";
 import { Wordmark } from "./Icons";
 
 type NavProps = {
   variant?: "dark" | "light";
 };
 
-export function Nav({ variant = "dark" }: NavProps) {
+export function Nav({ variant = "light" }: NavProps) {
   const isDark = variant === "dark";
 
-  const wordmarkClass = isDark
-    ? "text-cream transition-opacity duration-250 ease-out-quart hover:opacity-80"
-    : "text-ink transition-opacity duration-250 ease-out-quart hover:opacity-80";
-
-  const linkClass = isDark
-    ? "text-[0.95rem] text-cream/90 transition-colors duration-250 ease-out-quart hover:text-cream"
-    : "text-[0.95rem] text-ink/80 transition-colors duration-250 ease-out-quart hover:text-clay-deep";
-
-  const ctaClass = isDark
-    ? "rounded-full bg-cream px-5 py-2.5 text-[0.95rem] font-medium text-clay-deep transition-all duration-250 ease-out-quart hover:bg-cream-warm hover:text-ink"
-    : "rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-all duration-250 ease-out-quart hover:bg-clay";
-
   return (
-    <header className="relative z-10">
-      <div className="mx-auto flex max-w-page items-center justify-between px-6 pt-7 md:px-10 md:pt-9">
-        <a href="/" aria-label="Apoth home" className={wordmarkClass}>
+    <header
+      className={`sticky top-0 z-50 border-b backdrop-blur-xl ${
+        isDark
+          ? "border-white/10 bg-[#171719]/95 text-white"
+          : "border-black/[0.05] bg-[#f9f9fa]/95 text-[#171719]"
+      }`}
+    >
+      <div className="mx-auto flex h-[62px] max-w-[1400px] items-center justify-between px-5 sm:h-[74px] lg:px-8">
+        <a href="/" aria-label="Apoth home" className="transition-opacity hover:opacity-60">
           <Wordmark />
         </a>
 
-        <nav aria-label="Primary" className="hidden md:block">
-          <ul className="flex items-center gap-9">
+        <nav aria-label="Primary" className="hidden lg:block">
+          <ul className="flex items-center gap-10 text-sm font-semibold">
             {navLinks.map((link) => (
               <li key={link.href}>
-                <a href={link.href} className={linkClass}>
+                <a href={link.href} className="transition-opacity hover:opacity-55">
                   {link.label}
                 </a>
               </li>
@@ -39,9 +36,27 @@ export function Nav({ variant = "dark" }: NavProps) {
           </ul>
         </nav>
 
-        <a href="/get-started" className={ctaClass}>
-          Start a visit
-        </a>
+        <div className="flex items-center gap-3">
+          <a
+            href="/get-started"
+            className={`hidden min-h-11 items-center justify-center rounded-full px-6 text-sm font-semibold transition-all hover:-translate-y-px sm:inline-flex ${
+              isDark ? "bg-white text-[#171719] hover:bg-white/90" : "bg-[#171719] text-white hover:bg-[#343437]"
+            }`}
+          >
+            Get started
+          </a>
+          <a
+            href="/sign-in"
+            className={`hidden min-h-11 items-center justify-center gap-2 rounded-full border px-5 text-sm font-medium transition-colors sm:inline-flex ${
+              isDark
+                ? "border-white/25 hover:bg-white/10"
+                : "border-black/15 bg-white hover:bg-black/[0.04]"
+            }`}
+          >
+            <UserRound className="h-4 w-4" aria-hidden="true" /> Login
+          </a>
+          <MobileMenu links={navLinks.map(({ label, href }) => [label, href] as const)} />
+        </div>
       </div>
     </header>
   );

@@ -51,6 +51,8 @@ describe("intake static compatibility", () => {
     expect(exportScript).toContain("\"/onboarding/consent\"");
     expect(exportScript).toContain("\"/onboarding/mdi\"");
     expect(exportScript).toContain("\"/verify-email\"");
+    expect(exportScript).toContain("\"/weight-loss\"");
+    expect(exportScript).toContain("copyPublicAssets");
     expect(exportScript).toContain("_not-found.html");
     expect(exportScript).toContain("404.html");
     expect(exportScript).toContain("htmlDestinationForRoute");

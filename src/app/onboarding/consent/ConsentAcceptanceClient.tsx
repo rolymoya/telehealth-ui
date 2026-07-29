@@ -78,8 +78,8 @@ export function ConsentAcceptanceClient({
 
   return (
     <>
-      <div className="max-w-3xl">
-        <p className="text-eyebrow uppercase text-ash">Onboarding</p>
+      <div className="max-w-3xl rounded-[26px] bg-[#e2f1eb] p-7 shadow-soft sm:p-10">
+        <p className="text-eyebrow uppercase text-[#397057]">Onboarding</p>
         <h1 className="display-serif mt-4 text-display-md font-light text-balance">
           {copy.heading}
         </h1>
@@ -90,21 +90,21 @@ export function ConsentAcceptanceClient({
 
       {error ? (
         <p
-          className="mt-8 max-w-3xl border border-clay-deep px-4 py-3 text-[1rem] text-clay-deep"
+          className="mt-8 max-w-3xl rounded-2xl border border-[#a53f2b]/25 bg-[#fff5f2] px-4 py-3 text-[0.95rem] text-[#7d2e22]"
           role="alert"
         >
           {error}
         </p>
       ) : null}
 
-      <form className="mt-10 max-w-3xl" onSubmit={onSubmit}>
+      <form className="mt-5 max-w-3xl rounded-[26px] border border-black/[0.05] bg-white p-6 shadow-soft sm:p-9" onSubmit={onSubmit}>
         <div className="space-y-5">
           {requiredConsents.map((consent) => (
             <fieldset
-              className="border border-ash-line px-5 py-5"
+              className="rounded-[20px] border border-black/[0.07] bg-[#f9f9fa] px-5 py-5"
               key={`${consent.consentKind}:${consent.version}`}
             >
-              <legend className="display-serif px-1 text-[1.35rem] font-light text-ink">
+              <legend className="px-1 text-[1.2rem] font-bold tracking-[-0.025em] text-ink">
                 {consent.label}
               </legend>
               <p className="mt-3 text-[1rem] text-ink/72">
@@ -116,7 +116,7 @@ export function ConsentAcceptanceClient({
               </p>
               <p className="mt-3">
                 <a
-                  className="text-[1rem] font-medium text-clay-deep underline underline-offset-4"
+                  className="text-[1rem] font-semibold text-[#315fbf] underline decoration-[#4e80ee]/30 underline-offset-4"
                   href={consent.documentPath}
                 >
                   Open document
@@ -130,7 +130,7 @@ export function ConsentAcceptanceClient({
               ) : null}
               <label className="mt-5 flex gap-3 text-[1rem] leading-relaxed text-ink">
                 <input
-                  className="mt-1 h-5 w-5 accent-clay-deep"
+                  className="mt-1 h-5 w-5 accent-[#4e80ee]"
                   name={consentAcknowledgementFieldName(consent)}
                   required
                   type="checkbox"
@@ -152,7 +152,7 @@ export function ConsentAcceptanceClient({
         </p>
 
         <button
-          className="mt-8 rounded-full bg-clay-deep px-6 py-3 text-[1rem] font-medium text-cream transition-colors hover:bg-clay disabled:cursor-wait disabled:bg-ash"
+          className="mt-8 rounded-full bg-[#171719] px-6 py-3 text-[1rem] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#343437] disabled:cursor-wait disabled:bg-ash"
           disabled={loading}
           type="submit"
         >

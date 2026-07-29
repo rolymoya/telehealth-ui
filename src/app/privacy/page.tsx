@@ -18,8 +18,8 @@ export default function PrivacyPage() {
       <Nav variant="light" />
       <LegalReviewBanner />
       <main id="main" className="text-ink">
-        <section className="border-b border-ash-line bg-cream py-20 md:py-24">
-          <div className="mx-auto max-w-page px-6 md:px-10">
+        <section className="border-b border-black/[0.05] bg-[#f2f2f4] py-16 md:py-20">
+          <div className="mx-auto max-w-[1180px] px-5 lg:px-6">
             <p className="text-eyebrow uppercase text-ash">Privacy</p>
             <h1 className="display-serif mt-5 text-display-lg font-light text-balance">
               Privacy Policy
@@ -41,12 +41,12 @@ export default function PrivacyPage() {
           </div>
         </section>
 
-        <div className="mx-auto max-w-page px-6 py-16 md:px-10 md:py-24">
+        <div className="mx-auto max-w-[1180px] px-5 py-12 lg:px-6 lg:py-20">
           <div className="grid grid-cols-1 gap-x-12 gap-y-12 lg:grid-cols-12">
             <aside className="lg:col-span-3">
               <nav
                 aria-label="Privacy policy sections"
-                className="lg:sticky lg:top-8"
+                className="rounded-[22px] border border-black/[0.05] bg-white p-5 shadow-soft lg:sticky lg:top-24"
               >
                 <p className="text-eyebrow uppercase text-ash">On this page</p>
                 <ul className="mt-4 space-y-2 text-sm text-ink/85">
@@ -117,7 +117,7 @@ export default function PrivacyPage() {
               </nav>
             </aside>
 
-            <article className="prose-policy lg:col-span-9">
+            <article className="prose-policy rounded-[24px] border border-black/[0.05] bg-white p-6 shadow-soft sm:p-9 lg:col-span-9">
               <Section id="who-we-are" title="1. Who we are">
                 <p>
                   Apoth is operated by Apoth Health LLC, an Illinois limited
