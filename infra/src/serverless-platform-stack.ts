@@ -1189,13 +1189,15 @@ exports.handler = async () => ({
       APOTH_ACCOUNT_ORIGIN:
         process.env.APOTH_ACCOUNT_ORIGIN ?? props.config.allowedOrigins[0] ?? "",
       APOTH_CHECKOUT_CATALOG_WEIGHT_ID:
-        process.env.APOTH_CHECKOUT_CATALOG_WEIGHT_ID ?? "",
+        process.env.APOTH_CHECKOUT_CATALOG_WEIGHT_ID ??
+          props.config.checkoutSignup.weightCatalogId,
       APOTH_CHECKOUT_CATALOG_HAIR_ID:
         process.env.APOTH_CHECKOUT_CATALOG_HAIR_ID ?? "",
       APOTH_CHECKOUT_CATALOG_SEXUAL_HEALTH_ID:
         process.env.APOTH_CHECKOUT_CATALOG_SEXUAL_HEALTH_ID ?? "",
       APOTH_CHECKOUT_SIGNUP_ENABLED:
-        process.env.APOTH_CHECKOUT_SIGNUP_ENABLED ?? "false",
+        process.env.APOTH_CHECKOUT_SIGNUP_ENABLED ??
+          String(props.config.checkoutSignup.enabled),
       APOTH_ENROLLMENT_BINDING_ENABLED:
         process.env.APOTH_ENROLLMENT_BINDING_ENABLED ?? "false",
       APOTH_MARKETING_ORIGIN:
@@ -1212,7 +1214,8 @@ exports.handler = async () => ({
       APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
       APOTH_STAGE: props.config.stage,
       APOTH_STRIPE_INTEGRATION_IDENTIFIER:
-        process.env.APOTH_STRIPE_INTEGRATION_IDENTIFIER ?? "",
+        process.env.APOTH_STRIPE_INTEGRATION_IDENTIFIER ??
+          props.config.checkoutSignup.integrationIdentifier,
       COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
       COGNITO_USER_POOL_ID: userPool.userPoolId,
       NEXT_PUBLIC_COGNITO_REGION: Stack.of(this).region,

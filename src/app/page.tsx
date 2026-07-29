@@ -171,12 +171,12 @@ export default function Home() {
             </ul>
           </div>
 
-          <div className="mx-[-15px] mt-8 sm:mx-auto sm:mt-12 lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(290px,0.72fr)] lg:gap-4">
+          <div className="mx-[-15px] mt-8 sm:mx-auto sm:mt-12 lg:grid lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.78fr)] lg:gap-4">
             <InteractiveCard
               href={services[0].href}
               ariaLabel={`Explore ${services[0].title}`}
               glow="light"
-              className={`relative block min-h-[260px] overflow-hidden rounded-[22px] bg-gradient-to-br ${services[0].tone} p-6 text-white sm:min-h-[380px] sm:rounded-[24px] sm:p-7 lg:col-start-1 lg:row-start-1`}
+              className={`relative block min-h-[260px] overflow-hidden rounded-[22px] bg-gradient-to-br ${services[0].tone} p-6 text-white sm:min-h-[290px] sm:rounded-[24px] sm:p-7 lg:col-start-1 lg:row-start-1 lg:min-h-[340px]`}
             >
               <div className="treatment-card-gradient pointer-events-none absolute inset-0 z-0" aria-hidden="true" />
               <div className="treatment-card-grain pointer-events-none absolute inset-0 z-[1]" aria-hidden="true" />
