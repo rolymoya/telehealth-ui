@@ -1,4 +1,5 @@
 import {
+  ArnFormat,
   CfnOutput,
   Duration,
   Stack,
@@ -286,11 +287,7 @@ exports.handler = async () => ({
     mdiCaseReconciliationFunction.addToRolePolicy(new PolicyStatement({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
-        this.formatArn({
-          service: "secretsmanager",
-          resource: "secret",
-          resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
-        }),
+        secretAccessArn(this, props.config.stage, "mdiApi"),
       ],
     }));
 
@@ -337,16 +334,8 @@ exports.handler = async () => ({
     stripeMdiBillingReconciliationFunction.addToRolePolicy(new PolicyStatement({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
-        this.formatArn({
-          service: "secretsmanager",
-          resource: "secret",
-          resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
-        }),
-        this.formatArn({
-          service: "secretsmanager",
-          resource: "secret",
-          resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
-        }),
+        secretAccessArn(this, props.config.stage, "mdiApi"),
+        secretAccessArn(this, props.config.stage, "stripeApi"),
       ],
     }));
 
@@ -756,11 +745,7 @@ exports.handler = async () => ({
       fn.addToRolePolicy(new PolicyStatement({
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
-          this.formatArn({
-            service: "secretsmanager",
-            resource: "secret",
-            resourceName: `${secretName(props.config.stage, "appSigning")}*`,
-          }),
+          secretAccessArn(this, props.config.stage, "appSigning"),
         ],
       }));
     }
@@ -910,11 +895,7 @@ exports.handler = async () => ({
         fn.addToRolePolicy(new PolicyStatement({
           actions: ["secretsmanager:GetSecretValue"],
           resources: [
-            this.formatArn({
-              service: "secretsmanager",
-              resource: "secret",
-              resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
-            }),
+            secretAccessArn(this, props.config.stage, "mdiApi"),
           ],
         }));
       }
@@ -987,11 +968,7 @@ exports.handler = async () => ({
     onboardingStartFunction.addToRolePolicy(new PolicyStatement({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
-        this.formatArn({
-          service: "secretsmanager",
-          resource: "secret",
-          resourceName: `${secretName(props.config.stage, "appSigning")}*`,
-        }),
+        secretAccessArn(this, props.config.stage, "appSigning"),
       ],
     }));
 
@@ -1420,16 +1397,8 @@ exports.handler = async () => ({
       fn.addToRolePolicy(new PolicyStatement({
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
-          this.formatArn({
-            service: "secretsmanager",
-            resource: "secret",
-            resourceName: `${secretName(props.config.stage, "appSigning")}*`,
-          }),
-          this.formatArn({
-            service: "secretsmanager",
-            resource: "secret",
-            resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
-          }),
+          secretAccessArn(this, props.config.stage, "appSigning"),
+          secretAccessArn(this, props.config.stage, "stripeApi"),
         ],
       }));
     }
@@ -1573,11 +1542,7 @@ exports.handler = async () => ({
       fn.addToRolePolicy(new PolicyStatement({
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
-          this.formatArn({
-            service: "secretsmanager",
-            resource: "secret",
-            resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
-          }),
+          secretAccessArn(this, props.config.stage, "stripeApi"),
         ],
       }));
     }
@@ -1646,11 +1611,7 @@ exports.handler = async () => ({
     stripeWebhookFunction.addToRolePolicy(new PolicyStatement({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
-        this.formatArn({
-          service: "secretsmanager",
-          resource: "secret",
-          resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
-        }),
+        secretAccessArn(this, props.config.stage, "stripeApi"),
       ],
     }));
 
@@ -1699,16 +1660,8 @@ exports.handler = async () => ({
     mdiWebhookFunction.addToRolePolicy(new PolicyStatement({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
-        this.formatArn({
-          service: "secretsmanager",
-          resource: "secret",
-          resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
-        }),
-        this.formatArn({
-          service: "secretsmanager",
-          resource: "secret",
-          resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
-        }),
+        secretAccessArn(this, props.config.stage, "mdiApi"),
+        secretAccessArn(this, props.config.stage, "stripeApi"),
       ],
     }));
 
@@ -2230,4 +2183,17 @@ function customMetricsByName(
     throw new Error(`Missing observability metric contract: ${metricName}`);
   }
   return contract;
+}
+
+function secretAccessArn(
+  stack: Stack,
+  stage: StageConfig["stage"],
+  kind: SecretKind,
+) {
+  return stack.formatArn({
+    arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+    service: "secretsmanager",
+    resource: "secret",
+    resourceName: `${secretName(stage, kind)}*`,
+  });
 }

@@ -88,6 +88,24 @@ describe("ServerlessPlatformStack", () => {
     expect(dlq?.Properties.RedrivePolicy).toBeUndefined();
   }, 15_000);
 
+  it("grants secret reads against valid Secrets Manager ARNs", () => {
+    const template = synthesizeTemplate();
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+
+    expect(policies).toContain(
+      ":secretsmanager:us-east-1:111111111111:secret:/apoth/staging/stripe/api*",
+    );
+    expect(policies).toContain(
+      ":secretsmanager:us-east-1:111111111111:secret:/apoth/staging/mdi/api*",
+    );
+    expect(policies).toContain(
+      ":secretsmanager:us-east-1:111111111111:secret:/apoth/staging/app/signing*",
+    );
+    expect(policies).not.toContain(":secret//apoth/");
+  });
+
   it("keeps health public and protects authenticated API routes", () => {
     const template = synthesizeTemplate();
 
