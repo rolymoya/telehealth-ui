@@ -197,7 +197,9 @@ async function bindAnonymousPrecheck(
     profile.onboardingStatus === "intake_ready" &&
     (!profile.residencyState || profile.residencyState === context.residencyState)
   ) {
-    const operations = [consumptionPut(cognitoSub, context, nonceHash)];
+    const operations: Record<string, unknown>[] = [
+      consumptionPut(cognitoSub, context, nonceHash),
+    ];
     if (!profile.residencyState) {
       operations.unshift(profileUpdate(cognitoSub, {
         expectedStatus: "intake_ready",
@@ -356,7 +358,9 @@ async function finishBindWrite<T extends { ok: true; profile: PatientProfile }>(
     : { ok: false as const, code: "anonymous_precheck_bind_failed", status: 500 };
 }
 
-async function transactBind(transactItems: Record<string, unknown>[]) {
+async function transactBind(
+  transactItems: Record<string, unknown>[],
+): Promise<{ ok: true } | { ok: false; code: "conflict" | "failed" }> {
   try {
     await ddb.send(new TransactWriteItemsCommand({
       TransactItems: transactItems,
@@ -471,7 +475,7 @@ async function destinationForStart(
   if (!await hasRequiredConsent(cognitoSub, requiredConsentsBeforeMdi())) {
     return "/onboarding/consent";
   }
-  if (destination !== "/billing" && destination !== "/dashboard") {
+  if (destination !== "/billing") {
     return destination;
   }
   return await hasBillingDisclosureConsent(cognitoSub)

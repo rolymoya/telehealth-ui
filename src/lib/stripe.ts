@@ -9,7 +9,7 @@ import {
   type StripeMetadataValidation,
 } from "@/lib/stripe-policy";
 
-export const stripeApiVersion = "2026-05-27.dahlia";
+export const stripeApiVersion = "2026-06-24.dahlia";
 
 export type StripeResult<T> =
   | { ok: true; value: T }
@@ -145,6 +145,79 @@ export function createPaymentMethodSetupCheckoutParams(input: {
   };
 }
 
+export function createEnrollmentSetupCheckoutParams(input: {
+  apothOrderId: string;
+  apothStage: "staging" | "production";
+  cancelUrl: string;
+  expiresAt: number;
+  integrationIdentifier: string;
+  successUrl: string;
+}): StripeResult<Stripe.Checkout.SessionCreateParams> {
+  const metadata = {
+    apoth_order_id: input.apothOrderId,
+    apoth_stage: input.apothStage,
+  };
+  const metadataValidation = validateStripeMetadata(metadata);
+  if (!metadataValidation.valid) {
+    return validationErr(metadataValidation);
+  }
+
+  if (
+    !isSafeEnrollmentUrl(input.cancelUrl, input.apothStage) ||
+    !isEnrollmentCheckoutReturnUrl(input.successUrl, input.apothStage)
+  ) {
+    return {
+      ok: false,
+      error: {
+        code: "unsafe_checkout_url",
+        message: "Enrollment Checkout URLs must use the approved HTTPS return contract",
+      },
+    };
+  }
+
+  if (!/^[A-Za-z][A-Za-z0-9_-]*[A-Za-z]{8}$/.test(input.integrationIdentifier)) {
+    return {
+      ok: false,
+      error: {
+        code: "unsafe_integration_identifier",
+        message: "Stripe integration identifier must end in eight ASCII letters",
+      },
+    };
+  }
+
+  if (!Number.isSafeInteger(input.expiresAt) || input.expiresAt <= 0) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid_checkout_expiry",
+        message: "Stripe Checkout expiration must be a positive epoch timestamp",
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      cancel_url: input.cancelUrl,
+      client_reference_id: input.apothOrderId,
+      consent_collection: { terms_of_service: "required" },
+      currency: "usd",
+      custom_text: {
+        submit: {
+          message: "Your payment method will be saved for future purchases. You will not be charged today.",
+        },
+      },
+      customer_creation: "always",
+      expires_at: input.expiresAt,
+      integration_identifier: input.integrationIdentifier,
+      metadata,
+      mode: "setup",
+      setup_intent_data: { metadata },
+      success_url: input.successUrl,
+    },
+  };
+}
+
 export function constructStripeWebhookEvent(input: {
   payload: string | Buffer;
   signature: string;
@@ -220,4 +293,50 @@ function descriptorErr(
       message: "Stripe descriptor failed no-PHI validation",
     },
   };
+}
+
+function isSafeHttpsUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" &&
+      url.username === "" &&
+      url.password === "" &&
+      url.hash === "";
+  } catch {
+    return false;
+  }
+}
+
+function isSafeEnrollmentUrl(
+  value: string,
+  stage: "staging" | "production",
+) {
+  if (isSafeHttpsUrl(value)) {
+    return true;
+  }
+  try {
+    const url = new URL(value);
+    return stage === "staging" &&
+      url.protocol === "http:" &&
+      (url.hostname === "127.0.0.1" || url.hostname === "localhost") &&
+      url.username === "" &&
+      url.password === "" &&
+      url.hash === "";
+  } catch {
+    return false;
+  }
+}
+
+function isEnrollmentCheckoutReturnUrl(
+  value: string,
+  stage: "staging" | "production",
+) {
+  if (!isSafeEnrollmentUrl(value, stage)) {
+    return false;
+  }
+
+  const url = new URL(value);
+  return url.pathname === "/api/enrollment/checkout-return" &&
+    url.searchParams.size === 1 &&
+    url.searchParams.get("session_id") === "{CHECKOUT_SESSION_ID}";
 }

@@ -9,11 +9,13 @@ const projectRoot = path.resolve(__dirname, "..");
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, projectRoot, "");
   const apiTarget = env.VITE_PATIENT_API_PROXY_TARGET || "http://127.0.0.1:3000";
+  const apiOrigin = new URL(apiTarget).origin;
   const cognitoRegion = env.VITE_COGNITO_REGION || env.NEXT_PUBLIC_COGNITO_REGION || "";
   const userPoolId = env.VITE_COGNITO_USER_POOL_ID || env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || "";
   const userPoolClientId = env.VITE_COGNITO_USER_POOL_CLIENT_ID ||
     env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID ||
     "";
+  const accountOrigin = env.NEXT_PUBLIC_ACCOUNT_ORIGIN || "";
 
   return {
     root: __dirname,
@@ -28,6 +30,8 @@ export default defineConfig(({ mode }) => {
       "process.env.NEXT_PUBLIC_COGNITO_REGION": JSON.stringify(cognitoRegion),
       "process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID": JSON.stringify(userPoolId),
       "process.env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID": JSON.stringify(userPoolClientId),
+      "process.env.NEXT_PUBLIC_ACCOUNT_ORIGIN": JSON.stringify(accountOrigin),
+      "process.env.NODE_ENV": JSON.stringify(mode === "production" ? "production" : "development"),
     },
     build: {
       assetsDir: "patient-assets",
@@ -40,6 +44,9 @@ export default defineConfig(({ mode }) => {
         "/api": {
           target: apiTarget,
           changeOrigin: true,
+          headers: {
+            origin: apiOrigin,
+          },
         },
       },
     },

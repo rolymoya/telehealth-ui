@@ -2,14 +2,15 @@
 
 ## Purpose
 
-Patient-facing telehealth surface for Apoth. It converts curiosity into a
-started intake, then gives patients a lightweight account area for onboarding,
-case status, billing, and MDI-backed care workflow access.
+Patient-facing telehealth surface for Apoth. It converts curiosity into an
+ecommerce-style setup Checkout that also creates a passwordless account, then
+hands the verified patient into a white-label clinical intake and portal.
 
-Apoth is a thin technology layer. It owns identity, commerce orchestration, the
-intake UI, and minimal linkage records. MD Integrations is the clinical system
-of record and receives the clinical questionnaire responses. Apoth should not
-persist questionnaire answers after they are submitted to MDI.
+Apoth is a thin technology layer. It owns marketing, identity, commerce
+orchestration, and minimal linkage records. The selected white-label portal
+owns intake and the clinical record. Apoth must not render or persist clinical
+questionnaire answers. MD Integrations remains a legacy adapter during
+migration, not the target patient experience.
 
 ## Tech Stack
 
@@ -17,7 +18,8 @@ persist questionnaire answers after they are submitted to MDI.
 - Tailwind CSS 3, PostCSS, autoprefixer
 - Auth: Amazon Cognito
 - App data: DynamoDB for minimal patient/profile/linkage records
-- Clinical system of record: MD Integrations API
+- Clinical system of record: selected white-label portal (provider adapter TBD;
+  MD Integrations remains the legacy migration adapter)
 - Payments: Stripe
 - Testing: Vitest + React Testing Library (planned)
 - Deploy target: AWS serverless stack, likely Amplify Hosting or S3/CloudFront
@@ -32,16 +34,18 @@ persist questionnaire answers after they are submitted to MDI.
   minimal app records: `cognito_sub`, `mdi_patient_id`, `mdi_case_id`,
   `stripe_customer_id`, consent/version timestamps, onboarding and billing
   status.
-- Intake collects MDI-provided questions in Apoth UI, submits them to MDI, and
-  does not retain the answers locally.
-- Dashboard data should come from MDI APIs or MDI embedded workflow URLs where
-  feasible. Local state is a cache/pointer layer, not the clinical source of
-  truth.
+- Apoth does not collect clinical questionnaire answers. It provisions an
+  opaque patient/case linkage and creates an authenticated, single-use launch
+  into the selected portal.
+- Clinical status and workflow data should come from signed provider events or
+  short-lived provider launches. Local state is a pointer/status layer, not the
+  clinical source of truth.
 - Webhook reliability should use Lambda/SQS/DLQ where needed; do not reintroduce
   always-on ECS workers, Redis, RDS, App Runner, NAT gateways, or VPC endpoints
   without a new architecture decision.
-- Routes: `/` (marketing), `/about`, `/privacy`, `/terms`, `/get-started`
-  (stub — to be replaced by the real intake flow).
+- Marketing routes: `/`, `/weight-loss`, `/about`, `/privacy`, `/terms`.
+  Commerce/account routes: `/checkout`, `/checkout/complete`, `/verify`, and
+  `/portal/launch`. Legacy intake routes redirect to Checkout or the portal.
 
 ## Corporate Structure
 
@@ -64,13 +68,13 @@ partner requirement reintroduces it.
 
 ## Testing
 
-Tests run after building (Tests-only recipe). Write tests for residency/state
-capture validation, clinical eligibility, MDI/Stripe webhook verification, and
-the payment timing invariant — see RULES.md.
+Tests run after building (Tests-only recipe). Write tests for Stripe/provider
+webhook verification, enrollment concurrency and idempotency, portal launch
+authorization, and the payment timing invariant — see RULES.md.
 
 ## Roadmap
 
-Roadmap is being reset around Cognito, DynamoDB, MDI-backed intake/dashboard,
-Stripe, and lean AWS serverless deployment. The previous infra-heavy plan
-(better-auth, RDS, Redis, App Runner, ECS workers, Persona, Datadog) is
-superseded. See `docs/architecture-reset-audit.md`.
+Roadmap is being reset around a separate static marketing site, hosted Stripe
+Checkout as passwordless signup, Cognito, DynamoDB, a white-label clinical
+portal, and lean AWS serverless deployment. See
+`docs/features/checkout-as-signup-white-label-portal.md`.

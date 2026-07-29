@@ -1,11 +1,11 @@
 # Final Split Architecture
 
-Apoth now uses three production route owners behind one CloudFront distribution:
+Apoth uses three production route owners behind two CloudFront distributions:
 
 - Marketing/legal static site: Next static export in `out/`, served from the
-  static assets bucket.
+  static assets bucket and marketing distribution.
 - Patient app: Vite React SPA in `dist/patient-app/`, served from the patient
-  app bucket.
+  app bucket and account distribution.
 - Runtime APIs: API Gateway HTTP API backed by Lambda handlers under
   `infra/src/lambda`.
 
@@ -20,6 +20,9 @@ Marketing/legal routes remain static-first:
 
 Patient routes are owned by the Vite app:
 
+- `/checkout`
+- `/checkout/complete`
+- `/verify`
 - `/get-started`
 - `/intake`
 - `/sign-in`
@@ -33,6 +36,7 @@ Patient routes are owned by the Vite app:
 - `/billing`
 - `/account`
 - `/medication-management`
+- `/portal/launch`
 
 API routes are owned by API Gateway/Lambda:
 
@@ -79,20 +83,29 @@ Stripe.
 
 ## Local Development
 
-Run the marketing/API server:
+Run both local origins with one command:
 
 ```sh
-npm run dev -- --hostname 127.0.0.1 --port 3000
+npm run dev
 ```
 
-Run the patient app:
+This starts:
 
-```sh
-VITE_PATIENT_API_PROXY_TARGET=http://127.0.0.1:3000 npm run patient:dev -- --host 127.0.0.1
-```
+- marketing and local compatibility APIs at `http://127.0.0.1:3000`
+- checkout, account, and portal handoff at `http://127.0.0.1:5173`
 
-The Vite dev server calls relative `/api/*` routes and proxies them to the
-local Next compatibility API.
+Marketing CTAs use the account origin instead of resolving `/checkout` on the
+marketing server. The Vite server calls relative `/api/*` routes and proxies
+them to the local Next compatibility API. `npm run dev:marketing` and
+`npm run patient:dev` remain available for isolated debugging.
+
+The local shell does not invent Stripe credentials, signing material, or a
+DynamoDB checkout store. Without the staging checkout flags and approved test
+secret sources, the checkout page stays usable for UI review but reports that
+Stripe test-mode configuration is required. Use `npm test` for the mocked
+checkout contract, or configure the values in the checkout staging runbook to
+open real Stripe-hosted test Checkout. Never commit secret payloads or put a
+Stripe secret key in a public Vite/Next variable.
 
 ## Deployment
 
@@ -101,11 +114,11 @@ The static UI workflow builds and syncs two artifacts:
 - `npm run build:static` -> `out/` -> marketing static bucket
 - `npm run patient:build` -> `dist/patient-app/` -> patient app bucket
 
-CloudFront routes `/api/*` to API Gateway, patient paths and
-`/patient-assets/*` to the patient app bucket, and marketing/legal paths to the
-marketing static bucket. Patient SPA routes rewrite to `patient-index.html`
-instead of `index.html` so CloudFront cache entries cannot collide with the
-marketing homepage.
+The account distribution routes `/api/*` to API Gateway and all patient routes
+to the patient app bucket. The marketing distribution serves only the public
+static export. The publish workflow injects each distribution's origin into
+the other artifact before building, so navigation crosses the boundary with an
+absolute URL.
 
 The deploy workflow snapshots the current marketing and patient S3 buckets
 before upload. After sync and CloudFront invalidation, it runs route smoke tests

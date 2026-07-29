@@ -82,6 +82,8 @@ jobs:
           patient_app_bucket_name="$(get_output PatientAppBucketName)"
           static_distribution_domain="$(get_output StaticWebDistributionDomainName)"
           static_distribution_id="$(get_output StaticWebDistributionId)"
+          patient_distribution_domain="$(get_output PatientAppDistributionDomainName)"
+          patient_distribution_id="$(get_output PatientAppDistributionId)"
           cognito_user_pool_id="$(get_output PatientUserPoolId)"
           cognito_user_pool_client_id="$(get_output PatientUserPoolClientId)"
 
@@ -90,6 +92,8 @@ jobs:
             patient_app_bucket_name \
             static_distribution_domain \
             static_distribution_id \
+            patient_distribution_domain \
+            patient_distribution_id \
             cognito_user_pool_id \
             cognito_user_pool_client_id
           do
@@ -104,6 +108,8 @@ jobs:
             echo "PATIENT_APP_BUCKET_NAME=${patient_app_bucket_name}"
             echo "STATIC_DISTRIBUTION_DOMAIN=${static_distribution_domain}"
             echo "STATIC_DISTRIBUTION_ID=${static_distribution_id}"
+            echo "PATIENT_DISTRIBUTION_DOMAIN=${patient_distribution_domain}"
+            echo "PATIENT_DISTRIBUTION_ID=${patient_distribution_id}"
             echo "APOTH_STAGE=${APOTH_STAGE}"
             echo "NEXT_PUBLIC_COGNITO_REGION=${AWS_REGION}"
             echo "NEXT_PUBLIC_COGNITO_USER_POOL_ID=${cognito_user_pool_id}"
@@ -112,6 +118,8 @@ jobs:
             echo "VITE_COGNITO_USER_POOL_ID=${cognito_user_pool_id}"
             echo "VITE_COGNITO_USER_POOL_CLIENT_ID=${cognito_user_pool_client_id}"
             echo "NEXT_PUBLIC_SITE_URL=https://${static_distribution_domain}"
+            echo "NEXT_PUBLIC_ACCOUNT_ORIGIN=https://${patient_distribution_domain}"
+            echo "VITE_MARKETING_ORIGIN=https://${static_distribution_domain}"
           } >>"${GITHUB_ENV}"
 
       - name: Build static artifacts
@@ -133,6 +141,10 @@ jobs:
           test -f dist/patient-app/index.html
           test -f dist/patient-app/patient-index.html
           test -d dist/patient-app/patient-assets
+          grep -R -F -q \
+            "https://${PATIENT_DISTRIBUTION_DOMAIN}/checkout?product=weight" out
+          grep -R -F -q \
+            "https://${STATIC_DISTRIBUTION_DOMAIN}" dist/patient-app/patient-assets
 
       - name: Back up current deployed static UI
         id: backup
@@ -168,33 +180,43 @@ jobs:
         id: invalidate
         run: |
           set -euo pipefail
-          invalidation_id="$(aws cloudfront create-invalidation \
+          static_invalidation_id="$(aws cloudfront create-invalidation \
             --distribution-id "${STATIC_DISTRIBUTION_ID}" \
             --paths "/*" \
             --query 'Invalidation.Id' \
             --output text)"
-          echo "invalidation_id=${invalidation_id}" >>"${GITHUB_OUTPUT}"
+          patient_invalidation_id="$(aws cloudfront create-invalidation \
+            --distribution-id "${PATIENT_DISTRIBUTION_ID}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)"
+          echo "static_invalidation_id=${static_invalidation_id}" >>"${GITHUB_OUTPUT}"
+          echo "patient_invalidation_id=${patient_invalidation_id}" >>"${GITHUB_OUTPUT}"
 
       - name: Wait for invalidation
         run: |
           aws cloudfront wait invalidation-completed \
             --distribution-id "${STATIC_DISTRIBUTION_ID}" \
-            --id "${{ steps.invalidate.outputs.invalidation_id }}"
+            --id "${{ steps.invalidate.outputs.static_invalidation_id }}"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${PATIENT_DISTRIBUTION_ID}" \
+            --id "${{ steps.invalidate.outputs.patient_invalidation_id }}"
 
       - name: Smoke test CloudFront routes
         run: |
           set -euo pipefail
-          base_url="https://${STATIC_DISTRIBUTION_DOMAIN}"
+          marketing_base_url="https://${STATIC_DISTRIBUTION_DOMAIN}"
+          patient_base_url="https://${PATIENT_DISTRIBUTION_DOMAIN}"
 
-          curl --fail --silent --show-error "${base_url}/" >/dev/null
-          curl --fail --silent --show-error "${base_url}/about" >/dev/null
-          curl --fail --silent --show-error "${base_url}/dashboard" >/dev/null
-          curl --fail --silent --show-error "${base_url}/onboarding/mdi" >/dev/null
+          curl --fail --silent --show-error "${marketing_base_url}/" >/dev/null
+          curl --fail --silent --show-error "${marketing_base_url}/about" >/dev/null
+          curl --fail --silent --show-error "${patient_base_url}/checkout?product=weight" >/dev/null
+          curl --fail --silent --show-error "${patient_base_url}/portal/launch" >/dev/null
 
           api_status="$(curl --silent --show-error --request DELETE \
             --output /tmp/apoth-api-smoke.json \
             --write-out '%{http_code}' \
-            "${base_url}/api/auth/session")"
+            "${patient_base_url}/api/auth/session")"
           if [ "${api_status}" = "200" ]; then
             grep -q '"status":"session_cleared"' /tmp/apoth-api-smoke.json
             exit 0
@@ -209,11 +231,11 @@ jobs:
       - name: Run Playwright E2E against CloudFront
         run: |
           PLAYWRIGHT_MARKETING_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
-          PLAYWRIGHT_PATIENT_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
+          PLAYWRIGHT_PATIENT_BASE_URL="https://${PATIENT_DISTRIBUTION_DOMAIN}" \
             npm run test:e2e -- --project=public-chromium --workers=2
           PLAYWRIGHT_MARKETING_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
-          PLAYWRIGHT_PATIENT_BASE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}" \
-            npm run test:e2e -- --project=patient-chromium tests/e2e/auth-protected.spec.ts --workers=2
+          PLAYWRIGHT_PATIENT_BASE_URL="https://${PATIENT_DISTRIBUTION_DOMAIN}" \
+            npm run test:e2e -- --project=patient-chromium tests/e2e/commerce-funnel.spec.ts --workers=2
 
       - name: Roll back static UI deployment
         if: failure() && steps.backup.outputs.ready == 'true'
@@ -226,14 +248,22 @@ jobs:
             --delete \
             --only-show-errors
 
-          rollback_invalidation_id="$(aws cloudfront create-invalidation \
+          static_rollback_invalidation_id="$(aws cloudfront create-invalidation \
             --distribution-id "${STATIC_DISTRIBUTION_ID}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)"
+          patient_rollback_invalidation_id="$(aws cloudfront create-invalidation \
+            --distribution-id "${PATIENT_DISTRIBUTION_ID}" \
             --paths "/*" \
             --query 'Invalidation.Id' \
             --output text)"
           aws cloudfront wait invalidation-completed \
             --distribution-id "${STATIC_DISTRIBUTION_ID}" \
-            --id "${rollback_invalidation_id}"
+            --id "${static_rollback_invalidation_id}"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${PATIENT_DISTRIBUTION_ID}" \
+            --id "${patient_rollback_invalidation_id}"
 
           echo "Rolled back static UI buckets to the pre-deploy snapshot."
 

@@ -94,10 +94,11 @@ export function isSameOriginMutation(event: ApiGatewayEvent) {
 
   const origin = requestOrigin(event);
   if (origin) {
-    return origin === request;
+    return origin === request || allowedOrigins().has(origin);
   }
 
-  return canonicalOrigin(header(event, "referer")) === request;
+  const referer = canonicalOrigin(header(event, "referer"));
+  return referer === request || (referer !== null && allowedOrigins().has(referer));
 }
 
 export function requestBaseOrigin(event: ApiGatewayEvent) {

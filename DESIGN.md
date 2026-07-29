@@ -107,7 +107,8 @@ Account, intake, dashboard, billing, and case-status screens should inherit the 
 - Show the current state, its meaning, the next action, and who owns it.
 - Prefer full-width bands and focused panels over nested cards.
 - Keep intake conversational, with one clear question group per step.
-- Treat MDI as the clinical source of truth and Apoth as the framing and orchestration layer.
+- Treat the selected white-label portal as the clinical source of truth and
+  Apoth as the commerce, identity, and launch-orchestration layer.
 - Keep billing actions visually straightforward and separate from clinical decision-making.
 
 ## Shape, elevation, and motion
@@ -131,7 +132,8 @@ Account, intake, dashboard, billing, and case-status screens should inherit the 
 ### Navigation
 
 - Keep the Apoth wordmark left-aligned.
-- Route patient access to `/sign-in` and intake entry to `/get-started`.
+- Route patient access to `/sign-in` and purchase entry to
+  `/checkout?product=weight`.
 - Mobile navigation opens as a full-width panel below the sticky header and uses a soft shadow.
 
 ### Cards and accordions
@@ -143,11 +145,13 @@ Account, intake, dashboard, billing, and case-status screens should inherit the 
 ## Content and compliance
 
 - Apoth Health LLC is a technology platform, not a medical provider.
-- Clinical decisions belong to independent licensed providers through MD Integrations.
+- Clinical decisions belong to independent licensed providers through the
+  selected white-label clinical portal.
 - Compounded medications must retain the required not-FDA-approved disclosure and brand-name distinction.
 - Legal pages retain their review banners until counsel approval.
 - Stripe metadata remains free of PHI and uses only opaque identifiers.
-- Questionnaire answers are submitted to MDI and are not retained by Apoth after submission.
+- Questionnaire answers are collected and retained by the approved clinical
+  portal; they are not rendered or persisted by Apoth.
 
 ## Do and do not
 
@@ -174,10 +178,10 @@ Account, intake, dashboard, billing, and case-status screens should inherit the 
 - `/` and `/weight-loss` are the reference implementation for this direction.
 - `/about`, `/privacy`, and `/terms` use the reference typography, neutral
   reading canvas, rounded navigation panels, and dark shared footer.
-- `/get-started`, authentication, intake, consent, billing, dashboard, account,
-  loading, error, and empty states use the patient-workspace expression of this
-  system: neutral canvas, black pill actions, soft elevated panels, and focused
-  blue, yellow, or mint context fields.
+- `/checkout`, `/checkout/complete`, `/verify`, and `/portal/launch` use a
+  focused commerce receipt expression of this system: neutral canvas, black
+  pill actions, soft elevated panels, and clear `$0 today`/clinical-approval
+  disclosures. Legacy intake routes redirect into this funnel.
 - The standalone patient-app build shares the same tokens and components.
 - Future migrations must not change clinical, identity, payment, or data-flow
   boundaries as part of a visual redesign.

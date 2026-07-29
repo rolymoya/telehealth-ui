@@ -8,6 +8,11 @@ import {
   resolveDynamoDbAppDataConfig,
 } from "../../../src/lib/dynamodb/app-data-dynamodb.js";
 import {
+  createDefaultDynamoDbEnrollmentRepository,
+  resolveDynamoDbEnrollmentConfig,
+} from "../../../src/lib/enrollment/dynamodb-repository.js";
+import { applyEnrollmentStripeWebhookEvent } from "../../../src/lib/enrollment/stripe-webhook.js";
+import {
   createDynamoDbMdiWebhookMirrorRepository,
   handleMdiWebhook,
   maxMdiWebhookPayloadBytes,
@@ -50,8 +55,9 @@ export async function stripeWebhookHandler(event: ApiGatewayEvent): Promise<ApiG
 
   const secret = await resolveStripeSecret(process.env);
   const repository = resolveRepository(process.env);
+  const enrollmentRepository = resolveEnrollmentRepository(process.env);
   const queue = resolveWebhookQueueConfig(process.env);
-  if (!secret.ok || !repository.ok || !queue.ok) {
+  if (!secret.ok || !repository.ok || !enrollmentRepository.ok || !queue.ok) {
     return json(500, { error: "webhook_processing_failed" });
   }
 
@@ -59,6 +65,9 @@ export async function stripeWebhookHandler(event: ApiGatewayEvent): Promise<ApiG
   const result = await handleStripeWebhook({
     billingActivation: {
       async activate(input) {
+        if (!billingActivationEnabled(process.env)) {
+          return { ok: true as const };
+        }
         const priceId = resolveStripeRecurringPriceId(process.env);
         if (!priceId.ok) {
           return { ok: false as const, retryable: true };
@@ -76,6 +85,14 @@ export async function stripeWebhookHandler(event: ApiGatewayEvent): Promise<ApiG
           ? { ok: true as const }
           : { ok: false as const, retryable: activated.code !== "invalid_stripe_metadata" };
       },
+    },
+    enrollmentSetup: {
+      apply: ({ event, now }) => applyEnrollmentStripeWebhookEvent({
+        event,
+        now,
+        repository: enrollmentRepository.value,
+        stage: resolvePaymentStage(process.env),
+      }),
     },
     stripeMirrorRepository: createDynamoDbStripeMirrorRepository(repository.value),
     enqueue: createSqsWebhookEnqueue(queue.value),
@@ -112,6 +129,9 @@ export async function mdiWebhookHandler(event: ApiGatewayEvent): Promise<ApiGate
     authorization,
     billingActivation: {
       async activate(input) {
+        if (!billingActivationEnabled(process.env)) {
+          return { ok: true as const };
+        }
         const dependencies = await resolveBillingActivationDependencies(process.env);
         if (!dependencies.ok) {
           return { ok: false as const, retryable: true };
@@ -209,6 +229,13 @@ function resolveRepository(env: Record<string, string | undefined>) {
     : { ok: false as const };
 }
 
+function resolveEnrollmentRepository(env: Record<string, string | undefined>) {
+  const config = resolveDynamoDbEnrollmentConfig(env);
+  return config.ok
+    ? { ok: true as const, value: createDefaultDynamoDbEnrollmentRepository(config.value) }
+    : { ok: false as const };
+}
+
 async function resolveBillingActivationDependencies(env: Record<string, string | undefined>) {
   const stripeSecret = await resolveStripeSecret(env);
   const priceId = resolveStripeRecurringPriceId(env);
@@ -231,6 +258,10 @@ function resolveStripeRecurringPriceId(env: Record<string, string | undefined>) 
 
 function resolvePaymentStage(env: Record<string, string | undefined>) {
   return env.APOTH_STAGE === "production" ? "production" as const : "staging" as const;
+}
+
+function billingActivationEnabled(env: Record<string, string | undefined>) {
+  return env.APOTH_BILLING_ACTIVATION_ENABLED === "true";
 }
 
 function stripeWebhookSecret(secret: StripeApiSecretPayload) {

@@ -168,15 +168,58 @@ function validateRotationWindow(
   }
 
   if (expectedKind === "appSigning") {
-    return validatePreviousSecretWindow(payload, {
+    const signingWindow = validatePreviousSecretWindow(payload, {
       currentField: "signingSecret",
       previousField: "signingSecretPrevious",
       expiresAtField: "signingSecretPreviousExpiresAt",
       label: "signing secret",
       kind: expectedKind,
     });
+    if (!signingWindow.ok) {
+      return signingWindow;
+    }
+    return validateOptionalIdentityFingerprintWindow(payload);
   }
 
+  return ok(undefined);
+}
+
+function validateOptionalIdentityFingerprintWindow(
+  payload: Record<string, unknown>,
+): SecretResult<void> {
+  const current = payload.identityFingerprintSecret;
+  const currentVersion = payload.identityFingerprintKeyVersion;
+  if (current === undefined && currentVersion === undefined) {
+    return ok(undefined);
+  }
+  if (typeof current !== "string" ||
+      !Number.isInteger(currentVersion) || Number(currentVersion) < 1) {
+    return err(
+      "invalid_secret",
+      "Secret appSigning identity fingerprint material and version must be configured together",
+    );
+  }
+
+  const previous = payload.identityFingerprintSecretPrevious;
+  const previousVersion = payload.identityFingerprintKeyVersionPrevious;
+  const previousExpiresAt = payload.identityFingerprintSecretPreviousExpiresAt;
+  if (previous === undefined && previousVersion === undefined && previousExpiresAt === undefined) {
+    return ok(undefined);
+  }
+  if (typeof previous !== "string" ||
+      !Number.isInteger(previousVersion) || Number(previousVersion) < 1 ||
+      typeof previousExpiresAt !== "string" || !isIsoTimestamp(previousExpiresAt)) {
+    return err(
+      "invalid_secret",
+      "Secret appSigning previous identity fingerprint window is incomplete",
+    );
+  }
+  if (current === previous || currentVersion === previousVersion) {
+    return err(
+      "invalid_secret",
+      "Secret appSigning previous identity fingerprint material and version must differ from current",
+    );
+  }
   return ok(undefined);
 }
 

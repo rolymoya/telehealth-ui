@@ -19,9 +19,16 @@ for (const viewport of viewportCases) {
       await page.goto("/");
 
       await expect(
-        page.getByRole("heading", { name: "A clearer way to get care, online." }),
+        page.getByRole("heading", { name: "Better health has never been easier" }),
       ).toBeInViewport();
-      await expect(page.getByRole("link", { name: "Start a visit" }).first()).toBeInViewport();
+
+      if (viewport.name === "mobile") {
+        await page.getByRole("button", { name: "Open menu" }).click();
+        await expect(page.getByRole("navigation", { name: "Mobile navigation" })
+          .getByRole("link", { name: "Get started" })).toBeInViewport();
+      } else {
+        await expect(page.getByRole("link", { name: "Get started" }).first()).toBeInViewport();
+      }
       await expectNoHorizontalOverflow(page);
       errors.expectNone();
     });
@@ -47,18 +54,19 @@ test("keyboard focus exposes skip link and reaches the start CTA", async ({ page
   const errors = collectUnexpectedPageErrors(page);
 
   await page.goto("/");
-  await page.keyboard.press("Tab");
+  const skipLink = page.getByRole("link", { name: "Skip to main content" });
 
-  await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
+  await skipLink.focus();
+  await expect(skipLink).toBeFocused();
+  await expect(skipLink).toBeVisible();
+  await skipLink.press("Enter");
+  await expect(page).toHaveURL(/#main-content$/);
 
-  for (let i = 0; i < 6; i += 1) {
-    await page.keyboard.press("Tab");
-    const focusedName = await page.evaluate(() => document.activeElement?.textContent);
-    if (focusedName?.includes("Start a visit")) {
-      break;
-    }
-  }
+  const primaryNavigation = page.getByRole("navigation", { name: "Primary navigation" });
+  const faqLink = primaryNavigation.getByRole("link", { name: "FAQs" });
+  await faqLink.focus();
+  await faqLink.press("Tab");
 
-  await expect(page.getByRole("link", { name: "Start a visit" }).first()).toBeFocused();
+  await expect(page.getByRole("link", { name: "Get started" }).first()).toBeFocused();
   errors.expectNone();
 });

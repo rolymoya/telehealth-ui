@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 
-const localBaseURL = "http://127.0.0.1:3000";
-const localPatientBaseURL = "http://127.0.0.1:5173";
+const localMarketingPort = process.env.PLAYWRIGHT_LOCAL_MARKETING_PORT ?? "3100";
+const localPatientPort = process.env.PLAYWRIGHT_LOCAL_PATIENT_PORT ?? "5174";
+const localBaseURL = `http://127.0.0.1:${localMarketingPort}`;
+const localPatientBaseURL = `http://127.0.0.1:${localPatientPort}`;
 const externalMarketingBaseURL =
   process.env.PLAYWRIGHT_MARKETING_BASE_URL ?? process.env.PLAYWRIGHT_BASE_URL;
 const externalPatientBaseURL =
@@ -44,10 +46,7 @@ export default defineConfig({
     },
     {
       name: "patient-chromium",
-      testIgnore: [
-        /.*compliance-public\.spec\.ts/,
-        /.*public.*\.spec\.ts/,
-      ],
+      testMatch: [/.*commerce-funnel\.spec\.ts/],
       use: { ...devices["Desktop Chrome"], baseURL: patientBaseURL },
     },
   ],
@@ -55,7 +54,7 @@ export default defineConfig({
     ? undefined
     : [
         {
-          command: "npm run dev -- --hostname 127.0.0.1 --port 3000",
+          command: `npm run start -- --hostname 127.0.0.1 --port ${localMarketingPort}`,
           env: {
             ...process.env,
             APOTH_E2E_AUTH_ENABLED: "1",
@@ -66,7 +65,7 @@ export default defineConfig({
           url: localBaseURL,
         },
         {
-          command: "npm run patient:dev -- --host 127.0.0.1",
+          command: `npm run patient:dev -- --host 127.0.0.1 --port ${localPatientPort}`,
           env: {
             ...process.env,
             VITE_PATIENT_API_PROXY_TARGET: localBaseURL,

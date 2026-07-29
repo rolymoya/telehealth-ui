@@ -141,7 +141,7 @@ export function routeFailure(body: Record<string, unknown>, status: number) {
 }
 
 export function isSameOriginMutation(request: NextRequest) {
-  const requestOrigin = originFromUrl(request.nextUrl.origin);
+  const requestOrigin = requestOriginFromHeaders(request);
   if (!requestOrigin) {
     return false;
   }
@@ -153,6 +153,36 @@ export function isSameOriginMutation(request: NextRequest) {
 
   const referer = originFromUrl(request.headers.get("referer"));
   return referer === requestOrigin;
+}
+
+function requestOriginFromHeaders(request: NextRequest) {
+  const forwardedHostHeader = request.headers.get("x-forwarded-host");
+  const forwardedProtocolHeader = request.headers.get("x-forwarded-proto");
+  if (
+    (forwardedHostHeader && !singleForwardedValue(forwardedHostHeader)) ||
+    (forwardedProtocolHeader && !singleForwardedValue(forwardedProtocolHeader))
+  ) {
+    return null;
+  }
+  const forwardedHost = singleForwardedValue(forwardedHostHeader);
+  const host = forwardedHost ?? request.headers.get("host");
+  const forwardedProtocol = singleForwardedValue(forwardedProtocolHeader);
+  const protocol = forwardedProtocol ?? request.nextUrl.protocol.replace(/:$/, "");
+  if (!host) {
+    return originFromUrl(request.nextUrl.origin);
+  }
+  if (protocol !== "http" && protocol !== "https") {
+    return null;
+  }
+  return originFromUrl(`${protocol}://${host}`);
+}
+
+function singleForwardedValue(value: string | null) {
+  if (!value || value.includes(",")) {
+    return null;
+  }
+  const cleaned = value.trim();
+  return cleaned || null;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

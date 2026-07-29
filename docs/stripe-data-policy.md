@@ -19,6 +19,11 @@ Apoth-controlled Stripe metadata may contain only these keys:
 
 Do not add free-text metadata keys. New keys require a policy update and tests.
 
+The anonymous Checkout-as-signup flow uses only `apoth_order_id` and
+`apoth_stage` on the Checkout Session and SetupIntent. It does not use account,
+MDI, portal, offering, condition, or treatment metadata before verified account
+binding.
+
 ## Disallowed Data
 
 Never send these to Stripe metadata, product names, price nicknames,

@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createDynamoDbAppDataRepository: vi.fn(() => ({ kind: "dynamodb-repo" })),
+  createDefaultDynamoDbEnrollmentRepository: vi.fn(() => ({ kind: "enrollment-repo" })),
   createDynamoDbStripeMirrorRepository: vi.fn(() => ({ kind: "stripe-mirror" })),
   createDynamoDbWebhookProcessingRepository: vi.fn(() => ({ kind: "webhook-repo" })),
   createSqsWebhookEnqueue: vi.fn(() => vi.fn()),
   handleStripeWebhook: vi.fn(),
   resolveDynamoDbAppDataConfig: vi.fn(),
+  resolveDynamoDbEnrollmentConfig: vi.fn(),
   resolveRuntimeStage: vi.fn(() => "staging"),
   resolveStartupSecretSource: vi.fn(),
   validateServerStartupSecrets: vi.fn(),
@@ -16,6 +18,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/dynamodb/app-data-dynamodb", () => ({
   createDynamoDbAppDataRepository: mocks.createDynamoDbAppDataRepository,
   resolveDynamoDbAppDataConfig: mocks.resolveDynamoDbAppDataConfig,
+}));
+
+vi.mock("@/lib/enrollment/dynamodb-repository", () => ({
+  createDefaultDynamoDbEnrollmentRepository: mocks.createDefaultDynamoDbEnrollmentRepository,
+  resolveDynamoDbEnrollmentConfig: mocks.resolveDynamoDbEnrollmentConfig,
+}));
+
+vi.mock("@/lib/enrollment/stripe-webhook", () => ({
+  applyEnrollmentStripeWebhookEvent: vi.fn(),
 }));
 
 vi.mock("@/lib/secrets/startup", () => ({
@@ -70,6 +81,10 @@ describe("Stripe webhook route", () => {
     mocks.resolveDynamoDbAppDataConfig.mockReturnValue({
       ok: true,
       value: { tableName: "apoth-staging-app" },
+    });
+    mocks.resolveDynamoDbEnrollmentConfig.mockReturnValue({
+      ok: true,
+      value: { region: "us-east-1", tableName: "apoth-staging-app" },
     });
     mocks.resolveWebhookQueueConfig.mockReturnValue({
       ok: true,

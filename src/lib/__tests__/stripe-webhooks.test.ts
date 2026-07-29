@@ -1314,8 +1314,74 @@ describe("Stripe webhook receiver service", () => {
     });
   });
 
+  it("applies enrollment evidence inside the verified Stripe event lease", async () => {
+    const repository = createInMemoryAppDataRepository();
+    const enrollmentSetup = { apply: vi.fn().mockResolvedValue({ ok: true }) };
+    const event = stripeEvent({
+      id: "evt_enrollment_setup_001",
+      type: "setup_intent.succeeded",
+      object: {
+        customer: "cus_opaque_001",
+        id: "seti_opaque_001",
+        metadata: {
+          apoth_order_id: "apoth_order_opaque_001",
+          apoth_stage: "staging",
+        },
+        status: "succeeded",
+      },
+    });
+
+    const result = await handleStripeWebhook({
+      enrollmentSetup,
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe: stripeVerifier(() => event),
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+    expect(enrollmentSetup.apply).toHaveBeenCalledWith({
+      event,
+      now: "2026-06-09T12:00:00.000Z",
+    });
+  });
+
+  it("hands retryable enrollment write conflicts to the opaque webhook queue", async () => {
+    const repository = createInMemoryAppDataRepository();
+    const enqueue = vi.fn();
+    const result = await handleStripeWebhook({
+      enrollmentSetup: {
+        apply: vi.fn().mockResolvedValue({ ok: false, retryable: true }),
+      },
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue,
+      payload: "{}",
+      receivedAt: "2026-06-09T12:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe: stripeVerifier(() => stripeEvent({
+        id: "evt_enrollment_retry_001",
+        type: "checkout.session.completed",
+        object: {},
+      })),
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "queued" } });
+    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      eventId: "evt_enrollment_retry_001",
+      provider: "stripe",
+    }));
+  });
+
   it("covers every launch event with an explicit handling contract", () => {
     expect(stripeWebhookEventContracts.map((contract) => contract.type)).toEqual([
+      "checkout.session.completed",
+      "checkout.session.expired",
       "setup_intent.succeeded",
       "setup_intent.setup_failed",
       "payment_method.attached",

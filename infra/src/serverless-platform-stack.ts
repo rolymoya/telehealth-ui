@@ -101,6 +101,12 @@ export class ServerlessPlatformStack extends Stack {
       autoVerify: { email: true },
       deletionProtection: props.config.deletionProtection,
       mfa: Mfa.OFF,
+      signInPolicy: {
+        allowedFirstAuthFactors: {
+          password: true,
+          emailOtp: true,
+        },
+      },
       passwordPolicy: {
         minLength: 12,
         requireDigits: true,
@@ -125,6 +131,7 @@ export class ServerlessPlatformStack extends Stack {
       userPool,
       userPoolClientName: `apoth-${props.config.stage}-web`,
       authFlows: {
+        user: true,
         userSrp: true,
         userPassword: true,
       },
@@ -532,7 +539,13 @@ exports.handler = async () => ({
       apiName: `apoth-${props.config.stage}-api`,
       createDefaultStage: false,
       corsPreflight: {
-        allowHeaders: ["authorization", "content-type", "x-apoth-csrf"],
+        allowHeaders: [
+          "authorization",
+          "content-type",
+          "x-apoth-checkout-intent",
+          "x-apoth-csrf",
+          "x-apoth-portal-intent",
+        ],
         allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.OPTIONS],
         allowOrigins: props.config.allowedOrigins,
         allowCredentials: true,
@@ -1194,6 +1207,293 @@ exports.handler = async () => ({
       ),
     });
 
+    const enrollmentFunctionEnvironment = {
+      APP_TABLE_NAME: appTable.tableName,
+      APOTH_ACCOUNT_ORIGIN:
+        process.env.APOTH_ACCOUNT_ORIGIN ?? props.config.allowedOrigins[0] ?? "",
+      APOTH_CHECKOUT_CATALOG_WEIGHT_ID:
+        process.env.APOTH_CHECKOUT_CATALOG_WEIGHT_ID ?? "",
+      APOTH_CHECKOUT_CATALOG_HAIR_ID:
+        process.env.APOTH_CHECKOUT_CATALOG_HAIR_ID ?? "",
+      APOTH_CHECKOUT_CATALOG_SEXUAL_HEALTH_ID:
+        process.env.APOTH_CHECKOUT_CATALOG_SEXUAL_HEALTH_ID ?? "",
+      APOTH_CHECKOUT_SIGNUP_ENABLED:
+        process.env.APOTH_CHECKOUT_SIGNUP_ENABLED ?? "false",
+      APOTH_ENROLLMENT_BINDING_ENABLED:
+        process.env.APOTH_ENROLLMENT_BINDING_ENABLED ?? "false",
+      APOTH_MARKETING_ORIGIN:
+        process.env.APOTH_MARKETING_ORIGIN ?? props.config.allowedOrigins[0] ?? "",
+      APOTH_PORTAL_LAUNCH_ENABLED:
+        process.env.APOTH_PORTAL_LAUNCH_ENABLED ?? "false",
+      APOTH_PORTAL_LAUNCH_ORIGIN:
+        process.env.APOTH_PORTAL_LAUNCH_ORIGIN ?? "",
+      APOTH_PORTAL_PROVIDER:
+        process.env.APOTH_PORTAL_PROVIDER ?? "synthetic",
+      APOTH_PORTAL_PROVISIONING_ENABLED:
+        process.env.APOTH_PORTAL_PROVISIONING_ENABLED ?? "false",
+      APOTH_SECRET_APP_SIGNING_ID: secretName(props.config.stage, "appSigning"),
+      APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
+      APOTH_STAGE: props.config.stage,
+      APOTH_STRIPE_INTEGRATION_IDENTIFIER:
+        process.env.APOTH_STRIPE_INTEGRATION_IDENTIFIER ?? "",
+      COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+      COGNITO_USER_POOL_ID: userPool.userPoolId,
+      NEXT_PUBLIC_COGNITO_REGION: Stack.of(this).region,
+      NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+      NEXT_PUBLIC_COGNITO_USER_POOL_ID: userPool.userPoolId,
+      NEXT_PUBLIC_SITE_URL: props.config.allowedOrigins[0] ?? "",
+    };
+    const enrollmentCheckoutFunction = new NodejsFunction(
+      this,
+      "EnrollmentCheckoutFunction",
+      {
+        functionName: `apoth-${props.config.stage}-enrollment-checkout`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "checkoutHandler",
+        entry: path.join(__dirname, "lambda", "enrollment.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(15),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: enrollmentFunctionEnvironment,
+        logGroup: new LogGroup(this, "EnrollmentCheckoutFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-enrollment-checkout`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    const enrollmentCheckoutReturnFunction = new NodejsFunction(
+      this,
+      "EnrollmentCheckoutReturnFunction",
+      {
+        functionName: `apoth-${props.config.stage}-enrollment-checkout-return`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "checkoutReturnHandler",
+        entry: path.join(__dirname, "lambda", "enrollment.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: enrollmentFunctionEnvironment,
+        logGroup: new LogGroup(this, "EnrollmentCheckoutReturnFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-enrollment-checkout-return`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    const enrollmentStatusFunction = new NodejsFunction(
+      this,
+      "EnrollmentStatusFunction",
+      {
+        functionName: `apoth-${props.config.stage}-enrollment-status`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "statusHandler",
+        entry: path.join(__dirname, "lambda", "enrollment.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(10),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: enrollmentFunctionEnvironment,
+        logGroup: new LogGroup(this, "EnrollmentStatusFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-enrollment-status`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    const enrollmentEmailOtpStartFunction = new NodejsFunction(
+      this,
+      "EnrollmentEmailOtpStartFunction",
+      {
+        functionName: `apoth-${props.config.stage}-enrollment-email-otp-start`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "emailOtpStartHandler",
+        entry: path.join(__dirname, "lambda", "enrollment.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(15),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: enrollmentFunctionEnvironment,
+        logGroup: new LogGroup(this, "EnrollmentEmailOtpStartFunctionLogGroup", {
+          logGroupName:
+            `/aws/lambda/apoth-${props.config.stage}-enrollment-email-otp-start`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    const enrollmentEmailOtpConfirmFunction = new NodejsFunction(
+      this,
+      "EnrollmentEmailOtpConfirmFunction",
+      {
+        functionName: `apoth-${props.config.stage}-enrollment-email-otp-confirm`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "emailOtpConfirmHandler",
+        entry: path.join(__dirname, "lambda", "enrollment.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(15),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: enrollmentFunctionEnvironment,
+        logGroup: new LogGroup(this, "EnrollmentEmailOtpConfirmFunctionLogGroup", {
+          logGroupName:
+            `/aws/lambda/apoth-${props.config.stage}-enrollment-email-otp-confirm`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    const portalLaunchFunction = new NodejsFunction(
+      this,
+      "PortalLaunchFunction",
+      {
+        functionName: `apoth-${props.config.stage}-portal-launch`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "portalLaunchHandler",
+        entry: path.join(__dirname, "lambda", "enrollment.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(15),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: enrollmentFunctionEnvironment,
+        logGroup: new LogGroup(this, "PortalLaunchFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-portal-launch`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    for (const fn of [
+      enrollmentCheckoutFunction,
+      enrollmentCheckoutReturnFunction,
+      enrollmentStatusFunction,
+      enrollmentEmailOtpStartFunction,
+      enrollmentEmailOtpConfirmFunction,
+      portalLaunchFunction,
+    ]) {
+      appTable.grant(
+        fn,
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:TransactWriteItems",
+      );
+    }
+    for (const fn of [
+      enrollmentCheckoutFunction,
+      enrollmentCheckoutReturnFunction,
+      enrollmentStatusFunction,
+      enrollmentEmailOtpStartFunction,
+      enrollmentEmailOtpConfirmFunction,
+    ]) {
+      fn.addToRolePolicy(new PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          this.formatArn({
+            service: "secretsmanager",
+            resource: "secret",
+            resourceName: `${secretName(props.config.stage, "appSigning")}*`,
+          }),
+          this.formatArn({
+            service: "secretsmanager",
+            resource: "secret",
+            resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
+          }),
+        ],
+      }));
+    }
+    for (const fn of [
+      enrollmentEmailOtpStartFunction,
+      enrollmentEmailOtpConfirmFunction,
+    ]) {
+      fn.addToRolePolicy(new PolicyStatement({
+        actions: [
+          "cognito-idp:AdminCreateUser",
+          "cognito-idp:ListUsers",
+        ],
+        resources: [userPool.userPoolArn],
+      }));
+    }
+    api.addRoutes({
+      path: "/api/enrollment/checkout",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "EnrollmentCheckoutIntegration",
+        enrollmentCheckoutFunction,
+      ),
+    });
+    api.addRoutes({
+      path: "/api/enrollment/checkout-return",
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        "EnrollmentCheckoutReturnIntegration",
+        enrollmentCheckoutReturnFunction,
+      ),
+    });
+    api.addRoutes({
+      path: "/api/enrollment/status",
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        "EnrollmentStatusIntegration",
+        enrollmentStatusFunction,
+      ),
+    });
+    api.addRoutes({
+      path: "/api/auth/email-otp/start",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "EnrollmentEmailOtpStartIntegration",
+        enrollmentEmailOtpStartFunction,
+      ),
+    });
+    api.addRoutes({
+      path: "/api/auth/email-otp/confirm",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "EnrollmentEmailOtpConfirmIntegration",
+        enrollmentEmailOtpConfirmFunction,
+      ),
+    });
+    api.addRoutes({
+      path: "/api/portal/launch",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "PortalLaunchIntegration",
+        portalLaunchFunction,
+      ),
+    });
+
     const billingPaymentMethodFunction = new NodejsFunction(
       this,
       "BillingPaymentMethodFunction",
@@ -1320,6 +1620,8 @@ exports.handler = async () => ({
         environment: {
           APP_TABLE_NAME: appTable.tableName,
           APOTH_STAGE: props.config.stage,
+          APOTH_BILLING_ACTIVATION_ENABLED:
+            process.env.APOTH_BILLING_ACTIVATION_ENABLED ?? "false",
           APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
           APOTH_WEBHOOK_QUEUE_URL: webhookQueue.queueUrl,
           STRIPE_RECURRING_PRICE_ID: process.env.STRIPE_RECURRING_PRICE_ID ??
@@ -1371,6 +1673,8 @@ exports.handler = async () => ({
         },
         environment: {
           APP_TABLE_NAME: appTable.tableName,
+          APOTH_BILLING_ACTIVATION_ENABLED:
+            process.env.APOTH_BILLING_ACTIVATION_ENABLED ?? "false",
           APOTH_STAGE: props.config.stage,
           APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
           APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
@@ -1456,6 +1760,7 @@ function handler(event) {
     "/about": true,
     "/privacy": true,
     "/terms": true,
+    "/weight-loss": true,
   };
   if (uri.length > 1 && uri.endsWith("/")) {
     uri = uri.slice(0, -1);
@@ -1513,8 +1818,20 @@ function handler(event) {
       viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
     };
 
+    const apiOrigin = new HttpOrigin(
+      `${api.apiId}.execute-api.${this.region}.amazonaws.com`,
+      { protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY },
+    );
+    const apiBehavior = {
+      origin: apiOrigin,
+      allowedMethods: AllowedMethods.ALLOW_ALL,
+      cachePolicy: CachePolicy.CACHING_DISABLED,
+      originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+      viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+    };
+
     const staticWebDistribution = new Distribution(this, "StaticWebDistribution", {
-      comment: `Apoth ${props.config.stage} marketing, patient app, and same-origin API`,
+      comment: `Apoth ${props.config.stage} public marketing site`,
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(staticAssetsBucket),
         allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
@@ -1527,43 +1844,26 @@ function handler(event) {
         ],
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       },
+    });
+
+    const patientAppDistribution = new Distribution(this, "PatientAppDistribution", {
+      comment: `Apoth ${props.config.stage} checkout, account, portal handoff, and same-origin API`,
+      defaultBehavior: patientAppBehavior,
       additionalBehaviors: {
-        "api/*": {
-          origin: new HttpOrigin(
-            `${api.apiId}.execute-api.${this.region}.amazonaws.com`,
-            {
-              protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY,
-            },
-          ),
-          allowedMethods: AllowedMethods.ALLOW_ALL,
-          cachePolicy: CachePolicy.CACHING_DISABLED,
-          originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
-          viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-        },
-        "account*": patientAppBehavior,
-        "billing*": patientAppBehavior,
-        "dashboard*": patientAppBehavior,
-        "get-started*": patientAppBehavior,
-        "intake*": patientAppBehavior,
-        "medication-management*": patientAppBehavior,
-        "onboarding/*": patientAppBehavior,
+        "api/*": apiBehavior,
         "patient-assets/*": {
           origin: patientAppOrigin,
           allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
           cachePolicy: CachePolicy.CACHING_OPTIMIZED,
           viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         },
-        "reset-password*": patientAppBehavior,
-        "sign-in*": patientAppBehavior,
-        "sign-out*": patientAppBehavior,
-        "sign-up*": patientAppBehavior,
-        "verify-email*": patientAppBehavior,
       },
     });
 
     const runtimeAllowedOrigins = [
       ...props.config.allowedOrigins,
       `https://${staticWebDistribution.distributionDomainName}`,
+      `https://${patientAppDistribution.distributionDomainName}`,
     ].join(",");
     for (const fn of [
       intakeBootstrapFunction,
@@ -1575,6 +1875,31 @@ function handler(event) {
       consentAcceptanceFunction,
     ]) {
       fn.addEnvironment("APOTH_ALLOWED_ORIGINS", runtimeAllowedOrigins);
+    }
+    for (const fn of [
+      enrollmentCheckoutFunction,
+      enrollmentCheckoutReturnFunction,
+      enrollmentStatusFunction,
+      enrollmentEmailOtpStartFunction,
+      enrollmentEmailOtpConfirmFunction,
+      portalLaunchFunction,
+    ]) {
+      fn.addEnvironment("APOTH_ALLOWED_ORIGINS", runtimeAllowedOrigins);
+      fn.addEnvironment(
+        "APOTH_ACCOUNT_ORIGIN",
+        process.env.APOTH_ACCOUNT_ORIGIN ??
+          `https://${patientAppDistribution.distributionDomainName}`,
+      );
+      fn.addEnvironment(
+        "APOTH_MARKETING_ORIGIN",
+        process.env.APOTH_MARKETING_ORIGIN ??
+          `https://${staticWebDistribution.distributionDomainName}`,
+      );
+      fn.addEnvironment(
+        "NEXT_PUBLIC_SITE_URL",
+        process.env.APOTH_ACCOUNT_ORIGIN ??
+          `https://${patientAppDistribution.distributionDomainName}`,
+      );
     }
 
     new CfnOutput(this, "PatientUserPoolId", { value: userPool.userPoolId });
@@ -1594,6 +1919,12 @@ function handler(event) {
     });
     new CfnOutput(this, "StaticWebDistributionId", {
       value: staticWebDistribution.distributionId,
+    });
+    new CfnOutput(this, "PatientAppDistributionDomainName", {
+      value: patientAppDistribution.distributionDomainName,
+    });
+    new CfnOutput(this, "PatientAppDistributionId", {
+      value: patientAppDistribution.distributionId,
     });
     new CfnOutput(this, "WebhookQueueUrl", { value: webhookQueue.queueUrl });
     new CfnOutput(this, "WebhookQueueArn", { value: webhookQueue.queueArn });
