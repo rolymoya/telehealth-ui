@@ -53,6 +53,11 @@ export type AppSigningSecretPayload = SecretPayloadBase & {
   signingSecret: string;
   signingSecretPrevious?: string;
   signingSecretPreviousExpiresAt?: string;
+  identityFingerprintSecret?: string;
+  identityFingerprintKeyVersion?: number;
+  identityFingerprintSecretPrevious?: string;
+  identityFingerprintKeyVersionPrevious?: number;
+  identityFingerprintSecretPreviousExpiresAt?: string;
 };
 
 export type AppSecretPayload =
@@ -221,6 +226,36 @@ export const secretContracts = {
       {
         name: "signingSecretPreviousExpiresAt",
         description: "ISO timestamp after which the previous application signing secret must not be accepted.",
+        confidential: false,
+        required: false,
+      },
+      {
+        name: "identityFingerprintSecret",
+        description: "Dedicated HMAC material for normalized-email fingerprints and opaque Cognito usernames.",
+        confidential: true,
+        required: false,
+      },
+      {
+        name: "identityFingerprintKeyVersion",
+        description: "Positive version written with the current identity fingerprint.",
+        confidential: false,
+        required: false,
+      },
+      {
+        name: "identityFingerprintSecretPrevious",
+        description: "Previous identity fingerprint HMAC material accepted during bounded rotation.",
+        confidential: true,
+        required: false,
+      },
+      {
+        name: "identityFingerprintKeyVersionPrevious",
+        description: "Version associated with the previous identity fingerprint material.",
+        confidential: false,
+        required: false,
+      },
+      {
+        name: "identityFingerprintSecretPreviousExpiresAt",
+        description: "ISO timestamp after which previous identity fingerprints are no longer read.",
         confidential: false,
         required: false,
       },

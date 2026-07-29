@@ -52,6 +52,8 @@ export type StripeWebhookEventContract = {
 };
 
 export const stripeWebhookEventContracts = [
+  { type: "checkout.session.completed", handling: "inline" },
+  { type: "checkout.session.expired", handling: "inline" },
   { type: "setup_intent.succeeded", handling: "inline" },
   { type: "setup_intent.setup_failed", handling: "inline" },
   { type: "payment_method.attached", handling: "inline" },
@@ -70,6 +72,7 @@ export const stripeWebhookEventContracts = [
 
 export type HandleStripeWebhookInput = {
   billingActivation?: StripeBillingActivation;
+  enrollmentSetup?: StripeEnrollmentSetup;
   stripeMirrorRepository: StripeMirrorRepository;
   enqueue: (message: WebhookQueueMessage) => Promise<void>;
   payload: string | Buffer;
@@ -89,6 +92,13 @@ export type StripeBillingActivation = {
     mdiCaseId: string;
     now: string;
     webhookEventId: string;
+  }): Promise<{ ok: true } | { ok: false; retryable: boolean }>;
+};
+
+export type StripeEnrollmentSetup = {
+  apply(input: {
+    event: Stripe.Event;
+    now: string;
   }): Promise<{ ok: true } | { ok: false; retryable: boolean }>;
 };
 
@@ -226,6 +236,7 @@ export async function handleStripeWebhook(
       handler: async () => handleVerifiedStripeEvent({
         billingActivation: input.billingActivation,
         contract,
+        enrollmentSetup: input.enrollmentSetup,
         event: verified.value,
         now: input.receivedAt,
         stripeMirrorRepository: input.stripeMirrorRepository,
@@ -243,12 +254,27 @@ export async function handleStripeWebhook(
 async function handleVerifiedStripeEvent(input: {
   billingActivation?: StripeBillingActivation;
   contract: StripeWebhookEventContract;
+  enrollmentSetup?: StripeEnrollmentSetup;
   event: Stripe.Event;
   now: string;
   stripeMirrorRepository: StripeMirrorRepository;
 }) {
   if (input.contract.handling === "queued") {
     return retryableQueueResult();
+  }
+
+  if (input.enrollmentSetup) {
+    const enrollment = await input.enrollmentSetup.apply({
+      event: input.event,
+      now: input.now,
+    });
+    if (!enrollment.ok) {
+      return {
+        outcome: "failed" as const,
+        retryable: enrollment.retryable,
+        durableRetry: enrollment.retryable,
+      };
+    }
   }
 
   const inline = await applyInlineStripeMirror(

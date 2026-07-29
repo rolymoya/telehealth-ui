@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
 import {
   constructStripeWebhookEvent,
+  createEnrollmentSetupCheckoutParams,
   createPaymentMethodSetupCheckoutParams,
   createPaymentMethodSetupIntentParams,
   createStripeClient,
@@ -20,6 +21,7 @@ describe("Stripe launch helpers", () => {
     const stripe = createStripeClient({ secretKey: "fake_stripe_secret_key" });
 
     expect(stripe.getApiField("version")).toBe(stripeApiVersion);
+    expect(stripeApiVersion).toBe("2026-06-24.dahlia");
   });
 
   it("builds opaque metadata and rejects PHI-shaped metadata", () => {
@@ -143,6 +145,121 @@ describe("Stripe launch helpers", () => {
     });
     expect(params.ok && "subscription_data" in params.value).toBe(false);
     expect(params.ok && "line_items" in params.value).toBe(false);
+  });
+
+  it("creates anonymous ecommerce-style enrollment Checkout without charging", () => {
+    const params = createEnrollmentSetupCheckoutParams({
+      apothOrderId: "apoth_order_opaque_001",
+      apothStage: "staging",
+      cancelUrl: "https://www.apoth.example/weight-loss",
+      expiresAt: 1_800_003_600,
+      integrationIdentifier: "apoth_checkout_abcdefgh",
+      successUrl: "https://account.apoth.example/api/enrollment/checkout-return?session_id={CHECKOUT_SESSION_ID}",
+    });
+
+    expect(params).toEqual({
+      ok: true,
+      value: {
+        cancel_url: "https://www.apoth.example/weight-loss",
+        client_reference_id: "apoth_order_opaque_001",
+        consent_collection: { terms_of_service: "required" },
+        currency: "usd",
+        custom_text: {
+          submit: {
+            message: "Your payment method will be saved for future purchases. You will not be charged today.",
+          },
+        },
+        customer_creation: "always",
+        expires_at: 1_800_003_600,
+        integration_identifier: "apoth_checkout_abcdefgh",
+        metadata: {
+          apoth_order_id: "apoth_order_opaque_001",
+          apoth_stage: "staging",
+        },
+        mode: "setup",
+        setup_intent_data: {
+          metadata: {
+            apoth_order_id: "apoth_order_opaque_001",
+            apoth_stage: "staging",
+          },
+        },
+        success_url: "https://account.apoth.example/api/enrollment/checkout-return?session_id={CHECKOUT_SESSION_ID}",
+      },
+    });
+
+    if (params.ok) {
+      expect("payment_method_types" in params.value).toBe(false);
+      expect("payment_intent_data" in params.value).toBe(false);
+      expect("subscription_data" in params.value).toBe(false);
+      expect("line_items" in params.value).toBe(false);
+      expect("customer_email" in params.value).toBe(false);
+    }
+  });
+
+  it("rejects unsafe enrollment Checkout identifiers and return URLs", () => {
+    expect(createEnrollmentSetupCheckoutParams({
+      apothOrderId: "patient@example.com",
+      apothStage: "staging",
+      cancelUrl: "https://www.apoth.example/weight-loss",
+      expiresAt: 1_800_003_600,
+      integrationIdentifier: "apoth_checkout_abcdefgh",
+      successUrl: "https://account.apoth.example/api/enrollment/checkout-return?session_id={CHECKOUT_SESSION_ID}",
+    })).toMatchObject({
+      ok: false,
+      error: { code: "unsafe_value" },
+    });
+
+    expect(createEnrollmentSetupCheckoutParams({
+      apothOrderId: "apoth_order_opaque_001",
+      apothStage: "staging",
+      cancelUrl: "http://www.apoth.example/weight-loss",
+      expiresAt: 1_800_003_600,
+      integrationIdentifier: "apoth_checkout_abcdefgh",
+      successUrl: "https://analytics.example/collect?session_id={CHECKOUT_SESSION_ID}",
+    })).toEqual({
+      ok: false,
+      error: {
+        code: "unsafe_checkout_url",
+        message: "Enrollment Checkout URLs must use the approved HTTPS return contract",
+      },
+    });
+
+    expect(createEnrollmentSetupCheckoutParams({
+      apothOrderId: "apoth_order_opaque_001",
+      apothStage: "staging",
+      cancelUrl: "https://www.apoth.example/weight-loss",
+      expiresAt: 1_800_003_600,
+      integrationIdentifier: "apoth_checkout_12345678",
+      successUrl: "https://account.apoth.example/api/enrollment/checkout-return?session_id={CHECKOUT_SESSION_ID}",
+    })).toEqual({
+      ok: false,
+      error: {
+        code: "unsafe_integration_identifier",
+        message: "Stripe integration identifier must end in eight ASCII letters",
+      },
+    });
+  });
+
+  it("allows loopback Checkout returns in staging but never in production", () => {
+    const stagingInput = {
+      apothOrderId: "apoth_order_opaque_001",
+      cancelUrl: "http://127.0.0.1:3000/weight-loss",
+      expiresAt: 1_800_003_600,
+      integrationIdentifier: "apoth_checkout_abcdefgh",
+      successUrl: "http://127.0.0.1:5173/api/enrollment/checkout-return?session_id={CHECKOUT_SESSION_ID}",
+    } as const;
+
+    expect(createEnrollmentSetupCheckoutParams({
+      ...stagingInput,
+      apothStage: "staging",
+    }).ok).toBe(true);
+    expect(createEnrollmentSetupCheckoutParams({
+      ...stagingInput,
+      apothStage: "production",
+    })).toMatchObject({
+      ok: false,
+      error: { code: "unsafe_checkout_url" },
+    });
   });
 
   it("rejects PHI-shaped metadata before creating SetupIntent params", () => {

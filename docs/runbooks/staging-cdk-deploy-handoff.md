@@ -216,46 +216,72 @@ outputs_json="$(aws cloudformation describe-stacks \
 
 ```bash
 export STATIC_BUCKET_NAME="$(jq -r '.[] | select(.OutputKey == "StaticAssetsBucketName") | .OutputValue' <<<"$outputs_json")"
+export PATIENT_APP_BUCKET_NAME="$(jq -r '.[] | select(.OutputKey == "PatientAppBucketName") | .OutputValue' <<<"$outputs_json")"
 export STATIC_DISTRIBUTION_DOMAIN="$(jq -r '.[] | select(.OutputKey == "StaticWebDistributionDomainName") | .OutputValue' <<<"$outputs_json")"
 export STATIC_DISTRIBUTION_ID="$(jq -r '.[] | select(.OutputKey == "StaticWebDistributionId") | .OutputValue' <<<"$outputs_json")"
+export PATIENT_DISTRIBUTION_DOMAIN="$(jq -r '.[] | select(.OutputKey == "PatientAppDistributionDomainName") | .OutputValue' <<<"$outputs_json")"
+export PATIENT_DISTRIBUTION_ID="$(jq -r '.[] | select(.OutputKey == "PatientAppDistributionId") | .OutputValue' <<<"$outputs_json")"
 export NEXT_PUBLIC_COGNITO_REGION="$AWS_REGION"
 export NEXT_PUBLIC_COGNITO_USER_POOL_ID="$(jq -r '.[] | select(.OutputKey == "PatientUserPoolId") | .OutputValue' <<<"$outputs_json")"
 export NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID="$(jq -r '.[] | select(.OutputKey == "PatientUserPoolClientId") | .OutputValue' <<<"$outputs_json")"
 export NEXT_PUBLIC_SITE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}"
+export NEXT_PUBLIC_ACCOUNT_ORIGIN="https://${PATIENT_DISTRIBUTION_DOMAIN}"
+export VITE_MARKETING_ORIGIN="https://${STATIC_DISTRIBUTION_DOMAIN}"
+export VITE_COGNITO_REGION="$NEXT_PUBLIC_COGNITO_REGION"
+export VITE_COGNITO_USER_POOL_ID="$NEXT_PUBLIC_COGNITO_USER_POOL_ID"
+export VITE_COGNITO_USER_POOL_CLIENT_ID="$NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID"
 ```
 
 ```bash
 npm ci
 npm run build:static
+npm run patient:build
+cp dist/patient-app/index.html dist/patient-app/patient-index.html
 test -f out/index.html
-test -f out/intake/index.html
-test -f out/onboarding/mdi/index.html
+test -f out/weight-loss/index.html
+test ! -f out/intake/index.html
+test -f dist/patient-app/patient-index.html
 aws s3 sync out/ "s3://${STATIC_BUCKET_NAME}/" \
   --profile "$AWS_PROFILE" \
   --region "$AWS_REGION" \
   --delete \
   --only-show-errors
-invalidation_id="$(aws cloudfront create-invalidation \
+aws s3 sync dist/patient-app/ "s3://${PATIENT_APP_BUCKET_NAME}/" \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --delete \
+  --only-show-errors
+static_invalidation_id="$(aws cloudfront create-invalidation \
   --profile "$AWS_PROFILE" \
   --distribution-id "$STATIC_DISTRIBUTION_ID" \
+  --paths "/*" \
+  --query 'Invalidation.Id' \
+  --output text)"
+patient_invalidation_id="$(aws cloudfront create-invalidation \
+  --profile "$AWS_PROFILE" \
+  --distribution-id "$PATIENT_DISTRIBUTION_ID" \
   --paths "/*" \
   --query 'Invalidation.Id' \
   --output text)"
 aws cloudfront wait invalidation-completed \
   --profile "$AWS_PROFILE" \
   --distribution-id "$STATIC_DISTRIBUTION_ID" \
-  --id "$invalidation_id"
+  --id "$static_invalidation_id"
+aws cloudfront wait invalidation-completed \
+  --profile "$AWS_PROFILE" \
+  --distribution-id "$PATIENT_DISTRIBUTION_ID" \
+  --id "$patient_invalidation_id"
 curl --fail --silent --show-error "https://${STATIC_DISTRIBUTION_DOMAIN}/" >/dev/null
-curl --fail --silent --show-error "https://${STATIC_DISTRIBUTION_DOMAIN}/intake" >/dev/null
-curl --fail --silent --show-error "https://${STATIC_DISTRIBUTION_DOMAIN}/onboarding/mdi" >/dev/null
+curl --fail --silent --show-error "https://${STATIC_DISTRIBUTION_DOMAIN}/weight-loss" >/dev/null
+curl --fail --silent --show-error "https://${PATIENT_DISTRIBUTION_DOMAIN}/checkout?product=weight" >/dev/null
 api_status="$(curl --silent --show-error --output /tmp/apoth-api-smoke.json \
   --write-out '%{http_code}' \
-  "https://${STATIC_DISTRIBUTION_DOMAIN}/api/intake/bootstrap")"
-test "$api_status" = "401"
-grep -q '"code":"missing_session"' /tmp/apoth-api-smoke.json
+  "https://${PATIENT_DISTRIBUTION_DOMAIN}/api/enrollment/status")"
+test "$api_status" = "200"
+grep -q '"status":"restart_required"' /tmp/apoth-api-smoke.json
 ```
 
-If `StaticWebDistributionId` is missing, deploy the updated staging CDK stack
+If either distribution output is missing, deploy the updated staging CDK stack
 first and then retry the UI publish. If S3 sync or CloudFront invalidation is
 denied, deploy the updated account-baseline stack so the GitHub OIDC role has
 the narrow static publish policy. Do not hard-code generated bucket names or

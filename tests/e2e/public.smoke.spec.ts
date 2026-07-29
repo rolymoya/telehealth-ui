@@ -1,20 +1,19 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("@smoke public launch path", () => {
-  test("home page routes a patient into the start page", async ({ page }) => {
+  test("home page routes a patient toward account checkout", async ({ page }) => {
     await page.goto("/");
 
     await expect(page).toHaveTitle(/Apoth/);
     await expect(page.getByRole("main")).toBeVisible();
 
-    await page.getByRole("link", { name: "Start a visit" }).first().click();
-
-    await expect(page).toHaveURL(/\/get-started$/);
-    await expect(
-      page.getByRole("heading", { name: "Start with the privacy notice." }),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Clinical questionnaire answers come later through MD Integrations."),
-    ).toBeVisible();
+    const checkoutLink = page.getByRole("link", { name: "Start a visit" }).first();
+    await expect(checkoutLink).toHaveAttribute("href", /\/checkout\?product=weight$/);
+    if (process.env.PLAYWRIGHT_PATIENT_BASE_URL) {
+      await expect(checkoutLink).toHaveAttribute(
+        "href",
+        new URL("/checkout?product=weight", process.env.PLAYWRIGHT_PATIENT_BASE_URL).toString(),
+      );
+    }
   });
 });

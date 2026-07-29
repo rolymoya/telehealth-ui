@@ -73,18 +73,22 @@ test.describe("public compliance assertions", () => {
   test("public medication disclosures identify non-FDA-approved compounded products", async ({ page }) => {
     const errors = collectUnexpectedPageErrors(page);
 
-    await page.goto("/");
+    await page.goto("/terms#prescriptions");
+    const prescriptionTerms = page.locator("#prescriptions");
 
-    await expect(page.getByText("Not FDA-approved").first()).toBeVisible();
-    await expect(
-      page.getByText("Compounded semaglutide and compounded tirzepatide are not FDA-approved."),
-    ).toBeVisible();
-    await expect(
-      page.getByText("They are not the same as Ozempic, Wegovy, Mounjaro, or Zepbound"),
-    ).toBeVisible();
-    await expect(
-      page.getByText("BPC-157 and retatrutide are investigational and not FDA-approved."),
-    ).toBeVisible();
+    await expect(prescriptionTerms).toBeVisible();
+    await expect(prescriptionTerms).toContainText(
+      "compounded medications that are not FDA-approved",
+    );
+    await expect(prescriptionTerms).toContainText(
+      "including compounded semaglutide, compounded tirzepatide, BPC-157, and retatrutide",
+    );
+    await expect(prescriptionTerms).toContainText(
+      "not the same as Ozempic, Wegovy, Mounjaro, or Zepbound",
+    );
+    await expect(prescriptionTerms).toContainText(
+      "The FDA has not evaluated compounded medications for safety, efficacy, or quality",
+    );
 
     errors.expectNone();
   });

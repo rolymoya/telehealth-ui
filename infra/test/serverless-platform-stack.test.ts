@@ -52,12 +52,12 @@ describe("ServerlessPlatformStack", () => {
       },
     });
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 21);
+    template.resourceCountIs("AWS::Lambda::Function", 27);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
     template.resourceCountIs("AWS::CloudWatch::Dashboard", 1);
-    template.resourceCountIs("AWS::CloudFront::Distribution", 1);
+    template.resourceCountIs("AWS::CloudFront::Distribution", 2);
     template.resourceCountIs("AWS::CloudFront::Function", 2);
     template.resourceCountIs("AWS::CloudFront::OriginAccessControl", 2);
     template.resourceCountIs("AWS::Events::Rule", 3);
@@ -86,6 +86,24 @@ describe("ServerlessPlatformStack", () => {
     expect(JSON.stringify(processingQueue?.Properties.RedrivePolicy?.deadLetterTargetArn))
       .toContain(dlqEntry?.[0]);
     expect(dlq?.Properties.RedrivePolicy).toBeUndefined();
+  }, 15_000);
+
+  it("grants secret reads against valid Secrets Manager ARNs", () => {
+    const template = synthesizeTemplate();
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+
+    expect(policies).toContain(
+      ":secretsmanager:us-east-1:111111111111:secret:/apoth/staging/stripe/api*",
+    );
+    expect(policies).toContain(
+      ":secretsmanager:us-east-1:111111111111:secret:/apoth/staging/mdi/api*",
+    );
+    expect(policies).toContain(
+      ":secretsmanager:us-east-1:111111111111:secret:/apoth/staging/app/signing*",
+    );
+    expect(policies).not.toContain(":secret//apoth/");
   });
 
   it("keeps health public and protects authenticated API routes", () => {
@@ -148,6 +166,21 @@ describe("ServerlessPlatformStack", () => {
     });
 
     template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "POST /api/auth/email-otp/start",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "POST /api/auth/email-otp/confirm",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+      RouteKey: "POST /api/portal/launch",
+      AuthorizationType: "NONE",
+    });
+
+    template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
       RouteKey: "POST /api/onboarding/consent",
       AuthorizationType: "NONE",
     });
@@ -170,6 +203,8 @@ describe("ServerlessPlatformStack", () => {
   it("replaces the remaining Next patient API routes with Lambda integrations", () => {
     const template = synthesizeTemplate();
     const expectedRouteKeys = [
+      "POST /api/auth/email-otp/confirm",
+      "POST /api/auth/email-otp/start",
       "POST /api/auth/session",
       "POST /api/billing/payment-method",
       "POST /api/billing/subscription/cancel",
@@ -183,6 +218,10 @@ describe("ServerlessPlatformStack", () => {
       "POST /api/onboarding/mdi/patient",
       "POST /api/onboarding/mdi/submit",
       "GET /api/onboarding/start",
+      "POST /api/portal/launch",
+      "POST /api/enrollment/checkout",
+      "GET /api/enrollment/checkout-return",
+      "GET /api/enrollment/status",
       "POST /api/webhooks/mdi",
       "POST /api/webhooks/stripe",
     ];
@@ -436,6 +475,7 @@ describe("ServerlessPlatformStack", () => {
       Timeout: 30,
       Environment: {
         Variables: Match.objectLike({
+          APOTH_BILLING_ACTIVATION_ENABLED: "false",
           APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
           APOTH_STAGE: "staging",
           APOTH_WEBHOOK_QUEUE_URL: Match.anyValue(),
@@ -452,6 +492,7 @@ describe("ServerlessPlatformStack", () => {
       Timeout: 30,
       Environment: {
         Variables: Match.objectLike({
+          APOTH_BILLING_ACTIVATION_ENABLED: "false",
           APOTH_SECRET_MDI_API_ID: "/apoth/staging/mdi/api",
           APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
           APOTH_STAGE: "staging",
@@ -471,7 +512,7 @@ describe("ServerlessPlatformStack", () => {
     expect(policies).not.toContain("dynamodb:DeleteItem");
   });
 
-  it("serves static assets and same-origin API paths through CloudFront", () => {
+  it("separates the marketing site from the same-origin commerce API distribution", () => {
     const template = synthesizeTemplate();
     const resources = template.toJSON().Resources as Record<string, SynthResource>;
 
@@ -529,14 +570,6 @@ describe("ServerlessPlatformStack", () => {
             ViewerProtocolPolicy: "redirect-to-https",
           }),
           Match.objectLike({
-            PathPattern: "dashboard*",
-            ViewerProtocolPolicy: "redirect-to-https",
-          }),
-          Match.objectLike({
-            PathPattern: "onboarding/*",
-            ViewerProtocolPolicy: "redirect-to-https",
-          }),
-          Match.objectLike({
             PathPattern: "patient-assets/*",
             ViewerProtocolPolicy: "redirect-to-https",
           }),
@@ -545,13 +578,29 @@ describe("ServerlessPlatformStack", () => {
       }),
     });
 
-    const distribution = Object.values(resources).find(
+    const distributions = Object.values(resources).filter(
       (resource) => resource.Type === "AWS::CloudFront::Distribution",
-    ) as SynthResource & {
-      Properties: { DistributionConfig: { Origins: unknown[] } };
-    } | undefined;
-    expect(JSON.stringify(distribution?.Properties.DistributionConfig.Origins))
+    ) as Array<SynthResource & {
+      Properties: { DistributionConfig: {
+        CacheBehaviors?: Array<{ PathPattern?: string }>;
+        Comment?: string;
+        Origins: unknown[];
+      } };
+    }>;
+    const patientDistribution = distributions.find((resource) =>
+      resource.Properties.DistributionConfig.CacheBehaviors?.some(
+        (behavior) => behavior.PathPattern === "api/*",
+      ),
+    );
+    const marketingDistribution = distributions.find((resource) =>
+      resource.Properties.DistributionConfig.Comment?.includes("public marketing site"),
+    );
+    expect(JSON.stringify(patientDistribution?.Properties.DistributionConfig.Origins))
       .toContain("execute-api");
+    expect(marketingDistribution?.Properties.DistributionConfig.CacheBehaviors ?? [])
+      .not.toEqual(expect.arrayContaining([
+        expect.objectContaining({ PathPattern: "api/*" }),
+      ]));
 
     template.hasResourceProperties("AWS::CloudFront::Function", {
       Name: "apoth-staging-static-clean-routes",
@@ -579,7 +628,7 @@ describe("ServerlessPlatformStack", () => {
     expect(staticCleanFunction?.Properties.FunctionCode).not.toContain('"/account"');
   });
 
-  it("allows runtime API posts from the generated static distribution origin", () => {
+  it("allows runtime API posts only from configured generated origins", () => {
     const template = synthesizeTemplate();
     const rendered = JSON.stringify(
       Object.values(template.findResources("AWS::Lambda::Function")),
@@ -588,6 +637,7 @@ describe("ServerlessPlatformStack", () => {
     expect(rendered).toContain("APOTH_ALLOWED_ORIGINS");
     expect(rendered).toContain("http://localhost:3000");
     expect(rendered).toContain("StaticWebDistribution");
+    expect(rendered).toContain("PatientAppDistribution");
     expect(rendered).toContain("DomainName");
   });
 
@@ -755,6 +805,7 @@ describe("ServerlessPlatformStack", () => {
       ExplicitAuthFlows: Match.arrayWith([
         "ALLOW_USER_PASSWORD_AUTH",
         "ALLOW_USER_SRP_AUTH",
+        "ALLOW_USER_AUTH",
         "ALLOW_REFRESH_TOKEN_AUTH",
       ]),
       GenerateSecret: Match.absent(),
@@ -1205,8 +1256,11 @@ describe("ServerlessPlatformStack", () => {
       "AppTableName",
       "ApiEndpoint",
       "StaticAssetsBucketName",
+      "PatientAppBucketName",
       "StaticWebDistributionDomainName",
       "StaticWebDistributionId",
+      "PatientAppDistributionDomainName",
+      "PatientAppDistributionId",
       "WebhookQueueUrl",
       "WebhookQueueArn",
       "WebhookDeadLetterQueueUrl",
@@ -1355,6 +1409,7 @@ type SynthResource = {
     };
     EvaluationPeriods?: number;
     FunctionName?: string;
+    FunctionCode?: string;
     Handler?: string;
     InsufficientDataActions?: unknown;
     KmsKeyId?: string;

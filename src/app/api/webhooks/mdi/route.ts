@@ -36,6 +36,9 @@ export async function POST(request: NextRequest) {
     authorization,
     billingActivation: {
       async activate(input) {
+        if (!billingActivationEnabled(process.env)) {
+          return { ok: true as const };
+        }
         const dependencies = await resolveBillingActivationDependencies(process.env);
         if (!dependencies.ok) {
           return { ok: false as const, retryable: true };
@@ -188,4 +191,8 @@ function resolveStripeRecurringPriceId(env: Record<string, string | undefined>) 
 
 function resolvePaymentStage(env: Record<string, string | undefined>) {
   return env.APOTH_STAGE === "production" ? "production" as const : "staging" as const;
+}
+
+function billingActivationEnabled(env: Record<string, string | undefined>) {
+  return env.APOTH_BILLING_ACTIVATION_ENABLED === "true";
 }

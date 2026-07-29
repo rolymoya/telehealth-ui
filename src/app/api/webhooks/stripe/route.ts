@@ -4,6 +4,11 @@ import {
   createDynamoDbBillingActivationRepository,
 } from "@/lib/billing-activation";
 import { createDynamoDbAppDataRepository, resolveDynamoDbAppDataConfig } from "@/lib/dynamodb/app-data-dynamodb";
+import {
+  createDefaultDynamoDbEnrollmentRepository,
+  resolveDynamoDbEnrollmentConfig,
+} from "@/lib/enrollment/dynamodb-repository";
+import { applyEnrollmentStripeWebhookEvent } from "@/lib/enrollment/stripe-webhook";
 import { resolveRuntimeStage, resolveStartupSecretSource, validateServerStartupSecrets } from "@/lib/secrets/startup";
 import { createSqsWebhookEnqueue, resolveWebhookQueueConfig } from "@/lib/sqs";
 import { createStripeClient } from "@/lib/stripe";
@@ -27,8 +32,9 @@ export async function POST(request: NextRequest) {
 
   const secret = await resolveStripeSecret(process.env);
   const repository = resolveRepository(process.env);
+  const enrollmentRepository = resolveEnrollmentRepository(process.env);
   const queue = resolveWebhookQueueConfig(process.env);
-  if (!secret.ok || !repository.ok || !queue.ok) {
+  if (!secret.ok || !repository.ok || !enrollmentRepository.ok || !queue.ok) {
     return NextResponse.json({ error: "webhook_processing_failed" }, { status: 500 });
   }
 
@@ -36,6 +42,9 @@ export async function POST(request: NextRequest) {
   const result = await handleStripeWebhook({
     billingActivation: {
       async activate(input) {
+        if (!billingActivationEnabled(process.env)) {
+          return { ok: true as const };
+        }
         const priceId = resolveStripeRecurringPriceId(process.env);
         if (!priceId.ok) {
           return { ok: false as const, retryable: true };
@@ -53,6 +62,14 @@ export async function POST(request: NextRequest) {
           ? { ok: true as const }
           : { ok: false as const, retryable: activated.code !== "invalid_stripe_metadata" };
       },
+    },
+    enrollmentSetup: {
+      apply: ({ event, now }) => applyEnrollmentStripeWebhookEvent({
+        event,
+        now,
+        repository: enrollmentRepository.value,
+        stage: resolvePaymentStage(process.env),
+      }),
     },
     stripeMirrorRepository: createDynamoDbStripeMirrorRepository(repository.value),
     enqueue: createSqsWebhookEnqueue(queue.value),
@@ -129,6 +146,13 @@ function resolveRepository(env: Record<string, string | undefined>) {
     : { ok: false as const };
 }
 
+function resolveEnrollmentRepository(env: Record<string, string | undefined>) {
+  const config = resolveDynamoDbEnrollmentConfig(env);
+  return config.ok
+    ? { ok: true as const, value: createDefaultDynamoDbEnrollmentRepository(config.value) }
+    : { ok: false as const };
+}
+
 function resolveStripeRecurringPriceId(env: Record<string, string | undefined>) {
   const value = env.STRIPE_RECURRING_PRICE_ID;
   return value && /^price_[A-Za-z0-9_]+$/.test(value)
@@ -138,4 +162,8 @@ function resolveStripeRecurringPriceId(env: Record<string, string | undefined>) 
 
 function resolvePaymentStage(env: Record<string, string | undefined>) {
   return env.APOTH_STAGE === "production" ? "production" as const : "staging" as const;
+}
+
+function billingActivationEnabled(env: Record<string, string | undefined>) {
+  return env.APOTH_BILLING_ACTIVATION_ENABLED === "true";
 }

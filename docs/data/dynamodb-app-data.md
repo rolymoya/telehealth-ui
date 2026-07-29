@@ -1,9 +1,10 @@
 # DynamoDB App Data Model
 
-Apoth uses DynamoDB for minimal app linkage, status, consent evidence, evidence
-events, and webhook idempotency records. MDI remains the clinical system of record.
-Questionnaire answers are submitted to MDI and must not be persisted in Apoth
-DynamoDB after submission.
+Apoth uses DynamoDB for minimal enrollment, identity, portal, billing, status,
+consent-evidence, event, and webhook-idempotency records. The selected
+white-label portal is the target clinical system of record; MDI remains a
+legacy migration adapter. Questionnaire answers must never be persisted in
+Apoth DynamoDB.
 
 Use `docs/data/data-classification.md` as the cross-system classification map
 for Cognito, DynamoDB, MDI, Stripe, logs, queues, secrets, and test fixtures.
@@ -28,6 +29,14 @@ not scan the table or put PHI into third-party metadata.
 
 | Record | Owner system | Key | Retention expectation | PHI posture |
 | --- | --- | --- | --- | --- |
+| Enrollment | Apoth/Stripe | `ENROLLMENT#{enrollmentId}` / `ENROLLMENT` | Pending attempts expire by TTL; verified linkages follow account retention | Opaque catalog and Stripe pointers plus bounded orthogonal state only |
+| OTP transaction | Apoth/Cognito | `OTP_TRANSACTION#{digest}` / `OTP_TRANSACTION` | Minutes; consumed once and removed by TTL | HMAC email fingerprint, opaque challenge correlation, and enrollment pointers only |
+| Email claim | Apoth/Cognito | `EMAIL_CLAIM#{fingerprint}` / `EMAIL_CLAIM` | Account uniqueness/recovery retention | HMAC fingerprint and Cognito pointers; no raw email |
+| Enrollment Stripe claim | Apoth/Stripe | `STRIPE#CUSTOMER#{stripeCustomerId}` / `ENROLLMENT_CLAIM` | Same as account/payment linkage | Opaque Customer, enrollment, and Cognito pointers only |
+| Account enrollment | Apoth | `PATIENT#{cognitoSub}` / `ENROLLMENT#{enrollmentId}` and `ENROLLMENT#ACTIVE` | Account lifetime | Opaque enrollment and payment setup pointers only |
+| Portal linkage | Portal/Apoth | `PATIENT#{cognitoSub}` / `PORTAL#LINKAGE` | Active care relationship and approved retention | Provider code plus opaque patient/case pointers only |
+| External operation | Apoth | `EXTERNAL_OPERATION#{operationId}` / `EXTERNAL_OPERATION` | Bounded retry/reconciliation window; TTL | Opaque aggregate/result pointers, idempotency digest, lease/retry state; no payload or URL |
+| Launch nonce | Apoth | `LAUNCH_NONCE#{digest}` / `LAUNCH_NONCE` | Minutes; single use and TTL | Digest, Cognito pointer, provider code, purpose, and lease state; no launch URL/token |
 | Patient profile | Apoth/Cognito | `PATIENT#{cognitoSub}` / `PROFILE` | Keep while account is active; delete or archive per retention policy | Minimal account status and routing state only |
 | MDI linkage | MDI/Apoth | `PATIENT#{cognitoSub}` / `MDI#LINKAGE` | Keep while care workflow is active and per legal retention policy | MDI pointer IDs only |
 | MDI reverse lookup | MDI/Apoth | `MDI#PATIENT#{mdiPatientId}` or `MDI#CASE#{mdiCaseId}` / `PATIENT` | Same as MDI linkage | Opaque reverse pointer only |
@@ -73,14 +82,14 @@ record-type labels, or redacted presence booleans.
 ## Data Boundaries
 
 - Cognito owns authentication identity, password/MFA state, and sessions.
-- MDI owns clinical questionnaire answers, case details, clinician notes, and
-  care workflow state that contains clinical content.
+- The selected clinical portal owns questionnaire answers, case details,
+  clinician notes, and care workflow state that contains clinical content.
+  MDI continues to own those records for legacy cases during migration.
 - Stripe owns payment instruments, charges, invoices, and subscriptions.
 - DynamoDB stores only Apoth linkage/status records needed to connect those
   systems.
-- `residencyState` is the only T-021 precheck value persisted locally. All 50
-  U.S. state codes are valid after normalization. Missing or invalid state input
-  is incomplete intake data, not an unsupported-state refusal.
+- Legacy `residencyState` remains only for in-flight native cases; the target
+  Checkout/portal funnel does not collect clinical eligibility answers locally.
 
 Never store condition names, symptoms, diagnoses, medication names,
 questionnaire answers, clinical notes, photos, labs, or clinician messages in

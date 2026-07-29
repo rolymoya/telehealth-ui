@@ -1,5 +1,6 @@
 import { PackageCheck } from "lucide-react";
 
+import { accountHref, checkoutHref } from "@/lib/public-commerce";
 import { Wordmark } from "./Icons";
 
 const footerGroups = [
@@ -7,9 +8,9 @@ const footerGroups = [
     heading: "Care",
     links: [
       { label: "GLP-1 treatments", href: "/weight-loss" },
-      { label: "Start a visit", href: "/get-started" },
-      { label: "Patient login", href: "/sign-in" },
-      { label: "Patient dashboard", href: "/dashboard" },
+      { label: "Start a visit", href: checkoutHref("weight") },
+      { label: "Patient login", href: accountHref("/sign-in") },
+      { label: "Patient dashboard", href: accountHref("/dashboard") },
     ],
   },
   {
@@ -48,10 +49,10 @@ export function Footer() {
               pharmacy shipping rules support care.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <a className="inline-flex min-h-10 items-center rounded-full bg-white px-5 text-xs font-semibold text-[#171719] hover:bg-white/90" href="/get-started">
+              <a className="inline-flex min-h-10 items-center rounded-full bg-white px-5 text-xs font-semibold text-[#171719] hover:bg-white/90" href={checkoutHref("weight")}>
                 Start a visit
               </a>
-              <a className="inline-flex min-h-10 items-center rounded-full border border-white/25 px-5 text-xs font-semibold hover:bg-white/10" href="/sign-in">
+              <a className="inline-flex min-h-10 items-center rounded-full border border-white/25 px-5 text-xs font-semibold hover:bg-white/10" href={accountHref("/sign-in")}>
                 Patient login
               </a>
             </div>
