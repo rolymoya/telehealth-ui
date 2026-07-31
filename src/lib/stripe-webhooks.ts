@@ -35,6 +35,10 @@ import {
   type WebhookQueueMessage,
   processVerifiedWebhook,
 } from "@/lib/webhooks";
+import {
+  type EnrollmentRepository,
+  markEnrollmentPaymentSetupComplete,
+} from "@/lib/enrollment/checkout-service";
 
 export const maxStripeWebhookPayloadBytes = 64 * 1024;
 
@@ -52,6 +56,7 @@ export type StripeWebhookEventContract = {
 };
 
 export const stripeWebhookEventContracts = [
+  { type: "checkout.session.completed", handling: "inline" },
   { type: "setup_intent.succeeded", handling: "inline" },
   { type: "setup_intent.setup_failed", handling: "inline" },
   { type: "payment_method.attached", handling: "inline" },
@@ -70,6 +75,7 @@ export const stripeWebhookEventContracts = [
 
 export type HandleStripeWebhookInput = {
   billingActivation?: StripeBillingActivation;
+  enrollmentRepository?: EnrollmentRepository;
   stripeMirrorRepository: StripeMirrorRepository;
   enqueue: (message: WebhookQueueMessage) => Promise<void>;
   payload: string | Buffer;
@@ -226,6 +232,7 @@ export async function handleStripeWebhook(
       handler: async () => handleVerifiedStripeEvent({
         billingActivation: input.billingActivation,
         contract,
+        enrollmentRepository: input.enrollmentRepository,
         event: verified.value,
         now: input.receivedAt,
         stripeMirrorRepository: input.stripeMirrorRepository,
@@ -243,12 +250,26 @@ export async function handleStripeWebhook(
 async function handleVerifiedStripeEvent(input: {
   billingActivation?: StripeBillingActivation;
   contract: StripeWebhookEventContract;
+  enrollmentRepository?: EnrollmentRepository;
   event: Stripe.Event;
   now: string;
   stripeMirrorRepository: StripeMirrorRepository;
 }) {
   if (input.contract.handling === "queued") {
     return retryableQueueResult();
+  }
+
+  const enrollment = await applyPendingEnrollmentMirror(
+    input.enrollmentRepository,
+    input.event,
+    input.now,
+  );
+  if (!enrollment.ok) {
+    return {
+      outcome: "failed" as const,
+      retryable: enrollment.retryable,
+      durableRetry: enrollment.retryable,
+    };
   }
 
   const inline = await applyInlineStripeMirror(
@@ -270,6 +291,51 @@ async function handleVerifiedStripeEvent(input: {
   }
 
   return { outcome: "processed" as const };
+}
+
+async function applyPendingEnrollmentMirror(
+  repository: EnrollmentRepository | undefined,
+  event: Stripe.Event,
+  now: string,
+): Promise<{ ok: true } | { ok: false; retryable: boolean }> {
+  if (
+    !repository ||
+    (event.type !== "checkout.session.completed" &&
+      event.type !== "setup_intent.succeeded")
+  ) {
+    return { ok: true };
+  }
+  const object = stripeEventObject(event);
+  const metadata = isRecord(object.metadata) ? object.metadata : {};
+  const enrollmentId = objectString(metadata, "apoth_order_id");
+  if (!enrollmentId) {
+    return { ok: true };
+  }
+  const stripeCustomerId = objectString(object, "customer");
+  const stripeSetupIntentId = event.type === "setup_intent.succeeded"
+    ? objectString(object, "id")
+    : objectString(object, "setup_intent");
+  const consent = isRecord(object.consent) ? object.consent : {};
+  const stripeHostedConsentAccepted =
+    event.type === "checkout.session.completed" &&
+    objectString(consent, "terms_of_service") === "accepted";
+  if (!stripeCustomerId || !stripeSetupIntentId) {
+    return { ok: false, retryable: false };
+  }
+  const updated = await markEnrollmentPaymentSetupComplete({
+    ...(event.type === "checkout.session.completed"
+      ? { checkoutSessionId: objectString(object, "id") ?? undefined }
+      : {}),
+    enrollmentId,
+    now,
+    repository,
+    stripeHostedConsentAccepted,
+    stripeCustomerId,
+    stripeSetupIntentId,
+  });
+  return updated.ok
+    ? { ok: true }
+    : appDataFailure(updated.error);
 }
 
 async function applyInlineStripeMirror(

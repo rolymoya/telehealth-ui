@@ -16,6 +16,8 @@ import { IntakePrecheckClient } from "@/app/intake/IntakePrecheckClient";
 import { ConsentAcceptanceClient } from "@/app/onboarding/consent/ConsentAcceptanceClient";
 import { MdiIntakeClient } from "@/app/onboarding/mdi/MdiIntakeClient";
 import { RequirePatientSession } from "./session";
+import { CheckoutStart } from "./commerce/CheckoutStart";
+import { CheckoutCompletion } from "./commerce/CheckoutCompletion";
 
 export function PatientApp() {
   return (
@@ -28,6 +30,8 @@ export function PatientApp() {
         <Route path="/verify-email" element={<AuthPage mode="verify-email" />} />
         <Route path="/sign-out" element={<AuthPage mode="sign-out" />} />
         <Route path="/get-started" element={<GetStartedPage />} />
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/checkout/complete" element={<CheckoutCompletion />} />
         <Route path="/intake" element={<IntakePage />} />
         <Route
           path="/onboarding/consent"
@@ -48,6 +52,11 @@ export function PatientApp() {
       </Routes>
     </BrowserRouter>
   );
+}
+
+function CheckoutPage() {
+  const [params] = useSearchParams();
+  return <CheckoutStart productCode={params.get("product")} />;
 }
 
 function Protected({ children }: { children: ReactNode }) {

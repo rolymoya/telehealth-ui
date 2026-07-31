@@ -9,7 +9,21 @@ import {
   type StripeMetadataValidation,
 } from "@/lib/stripe-policy";
 
-export const stripeApiVersion = "2026-05-27.dahlia";
+export const stripeApiVersion = "2026-06-24.dahlia";
+
+export type CheckoutUiMode = "custom" | "hosted";
+
+export type SafeEnrollmentCheckoutSession =
+  | {
+      uiMode: "custom";
+      checkoutSessionId: string;
+      clientSecret: string;
+    }
+  | {
+      uiMode: "hosted";
+      checkoutSessionId: string;
+      checkoutUrl: string;
+    };
 
 export type StripeResult<T> =
   | { ok: true; value: T }
@@ -145,6 +159,135 @@ export function createPaymentMethodSetupCheckoutParams(input: {
   };
 }
 
+export function createEnrollmentCheckoutParams(input: {
+  cancelUrl: string;
+  enrollmentId: string;
+  integrationIdentifier: string;
+  returnUrl: string;
+  stage: "production" | "staging";
+  successUrl: string;
+  uiMode: CheckoutUiMode;
+}): StripeResult<Stripe.Checkout.SessionCreateParams> {
+  const metadata = {
+    apoth_order_id: input.enrollmentId,
+    apoth_stage: input.stage,
+  };
+  const validatedMetadata = validateStripeMetadata(metadata);
+  if (!validatedMetadata.valid) {
+    return validationErr(validatedMetadata);
+  }
+  if (!/^[a-z0-9][a-z0-9_-]{7,99}$/.test(input.integrationIdentifier)) {
+    return {
+      ok: false,
+      error: {
+        code: "invalid_integration_identifier",
+        message: "Stripe integration identifier is invalid",
+      },
+    };
+  }
+
+  const common = {
+    client_reference_id: input.enrollmentId,
+    currency: "usd",
+    customer_creation: "always",
+    integration_identifier: input.integrationIdentifier,
+    metadata,
+    mode: "setup",
+    setup_intent_data: { metadata },
+  } satisfies Partial<Stripe.Checkout.SessionCreateParams>;
+
+  if (input.uiMode === "hosted") {
+    return {
+      ok: true,
+      value: {
+        ...common,
+        cancel_url: input.cancelUrl,
+        consent_collection: {
+          terms_of_service: "required",
+        },
+        custom_text: {
+          submit: {
+            message:
+              "You authorize Apoth to save this payment method and charge it only after clinical approval. No charge occurs today.",
+          },
+        },
+        success_url: input.successUrl,
+      },
+    };
+  }
+
+  // Stripe API 2026-06-24.dahlia calls the custom Checkout surface
+  // "elements" on the wire. Keep the product-facing mode named "custom"
+  // while honoring the pinned SDK/API contract here.
+  return {
+    ok: true,
+    value: {
+      ...common,
+      return_url: input.returnUrl,
+      ui_mode: "elements",
+    },
+  };
+}
+
+export function validateEnrollmentCheckoutSession(input: {
+  clientSecret?: string | null;
+  id?: string | null;
+  url?: string | null;
+  uiMode: CheckoutUiMode;
+}): StripeResult<SafeEnrollmentCheckoutSession> {
+  if (!input.id || !/^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(input.id)) {
+    return unsafeCheckoutSession();
+  }
+
+  if (input.uiMode === "custom") {
+    const clientSecret = input.clientSecret;
+    const clientSecretPrefix = `${input.id}_secret_`;
+    const clientSecretSuffix = clientSecret?.startsWith(clientSecretPrefix)
+      ? clientSecret.slice(clientSecretPrefix.length)
+      : "";
+    if (
+      !clientSecret ||
+      clientSecretSuffix.length < 8 ||
+      clientSecretSuffix.length > 512 ||
+      !/^[\x21-\x7E]+$/.test(clientSecretSuffix)
+    ) {
+      return unsafeCheckoutSession();
+    }
+    return {
+      ok: true,
+      value: {
+        checkoutSessionId: input.id,
+        clientSecret,
+        uiMode: "custom",
+      },
+    };
+  }
+
+  if (!input.url) {
+    return unsafeCheckoutSession();
+  }
+  try {
+    const url = new URL(input.url);
+    if (
+      url.protocol !== "https:" ||
+      (url.hostname !== "checkout.stripe.com" &&
+        !url.hostname.endsWith(".checkout.stripe.com"))
+    ) {
+      return unsafeCheckoutSession();
+    }
+  } catch {
+    return unsafeCheckoutSession();
+  }
+  return {
+    ok: true,
+    value: {
+      checkoutSessionId: input.id,
+      checkoutUrl: input.url,
+      uiMode: "hosted",
+    },
+  };
+}
+
 export function constructStripeWebhookEvent(input: {
   payload: string | Buffer;
   signature: string;
@@ -218,6 +361,16 @@ function descriptorErr(
     error: {
       code: validation.reason,
       message: "Stripe descriptor failed no-PHI validation",
+    },
+  };
+}
+
+function unsafeCheckoutSession(): StripeResult<never> {
+  return {
+    ok: false,
+    error: {
+      code: "unsafe_checkout_session",
+      message: "Stripe Checkout Session response failed validation",
     },
   };
 }

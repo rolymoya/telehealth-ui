@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "./Icons";
 import { Nav } from "./Nav";
+import { checkoutHref } from "@/lib/public-commerce";
 
 export function Hero() {
   return (
@@ -27,7 +28,7 @@ export function Hero() {
 
             <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
               <Link
-                href="/get-started"
+                href={checkoutHref("weight")}
                 className="group inline-flex items-center gap-2.5 rounded-full bg-cream px-6 py-3.5 text-[0.98rem] font-medium text-clay-deep transition-[transform,background] duration-300 ease-out-expo hover:-translate-y-[1px] hover:bg-cream-warm"
               >
                 Start a visit

@@ -77,7 +77,7 @@ test.describe("public compliance assertions", () => {
 
     await expect(page.getByText("Not FDA-approved").first()).toBeVisible();
     await expect(
-      page.getByText("Compounded semaglutide and compounded tirzepatide are not FDA-approved."),
+      page.getByText("Compounded semaglutide and compounded tirzepatide are not FDA-approved.").first(),
     ).toBeVisible();
     await expect(
       page.getByText("They are not the same as Ozempic, Wegovy, Mounjaro, or Zepbound"),

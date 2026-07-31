@@ -13,8 +13,11 @@ import {
 } from "lucide-react";
 
 import { MobileMenu } from "@/components/marketing-v2/MobileMenu";
+import { checkoutHref } from "@/lib/public-commerce";
 
 import styles from "./page.module.css";
+
+const weightCheckoutHref = checkoutHref("weight");
 
 export const metadata: Metadata = {
   title: "Personalized GLP-1 Treatments | Apoth",
@@ -113,7 +116,7 @@ const footerGroups = [
     links: [
       { label: "GLP-1 treatments", href: "/weight-loss" },
       { label: "Weight management", href: "/weight-loss" },
-      { label: "Start a visit", href: "/get-started" },
+      { label: "Start a visit", href: weightCheckoutHref },
       { label: "Patient login", href: "/sign-in" },
     ],
   },
@@ -140,10 +143,10 @@ const footerGroups = [
 function ActionButtons({ compact = false }: { compact?: boolean }) {
   return (
     <div className={styles.actions} data-compact={compact ? "true" : "false"}>
-      <a className={styles.primaryButton} href="/get-started">
+      <a className={styles.primaryButton} href={weightCheckoutHref}>
         Get started
       </a>
-      <a className={styles.secondaryButton} href="/get-started">
+      <a className={styles.secondaryButton} href={weightCheckoutHref}>
         See if you’re eligible
       </a>
     </div>
@@ -181,7 +184,7 @@ export default function WeightLossPage() {
             <a href="/about">About</a>
           </nav>
           <div className={styles.headerActions}>
-            <a className={styles.headerCta} href="/get-started">
+            <a className={styles.headerCta} href={weightCheckoutHref}>
               Get started
             </a>
             <a className={styles.loginButton} href="/sign-in">
@@ -193,7 +196,7 @@ export default function WeightLossPage() {
                 ["How it works", "#how-it-works"],
                 ["FAQs", "#faq"],
               ]}
-              ctaHref="/get-started"
+              ctaHref={weightCheckoutHref}
             />
           </div>
         </div>
@@ -236,7 +239,7 @@ export default function WeightLossPage() {
                 <div className={styles.payLater}>
                   <span>Simple monthly pricing</span>
                 </div>
-                <a className={styles.wideButton} href="/get-started">Get started</a>
+                <a className={styles.wideButton} href={weightCheckoutHref}>Get started</a>
                 <p className={styles.microcopy}>
                   *Price includes clinical care and medication only if prescribed. Eligibility is determined after an online consultation with a licensed provider. No insurance required.
                 </p>
@@ -311,7 +314,7 @@ export default function WeightLossPage() {
                     </div>
                   )}
                   {plan.featured ? (
-                    <a className={styles.cardButton} href="/get-started">See if you qualify</a>
+                    <a className={styles.cardButton} href={weightCheckoutHref}>See if you qualify</a>
                   ) : (
                     <a className={styles.safetyLink} href="#safety">Important safety information</a>
                   )}
@@ -356,7 +359,7 @@ export default function WeightLossPage() {
                     </li>
                   ))}
                 </ol>
-                <a className={styles.howItWorksButton} href="/get-started">Start a visit</a>
+                <a className={styles.howItWorksButton} href={weightCheckoutHref}>Start a visit</a>
               </div>
             </div>
           </div>
@@ -374,7 +377,7 @@ export default function WeightLossPage() {
               <li><Check /> Ongoing consultations to optimize treatment</li>
               <li><Check /> Fast, discreet delivery and responsive support</li>
             </ul>
-            <a className={styles.primaryButton} href="/get-started">Get started</a>
+            <a className={styles.primaryButton} href={weightCheckoutHref}>Get started</a>
           </div>
         </section>
 
@@ -421,7 +424,7 @@ export default function WeightLossPage() {
               <a className={styles.footerLogo} href="/">apoth</a>
               <p>Start a visit or return to your patient account.</p>
               <div className={styles.footerActions}>
-                <a href="/get-started">Start a visit</a>
+                <a href={weightCheckoutHref}>Start a visit</a>
                 <a href="/sign-in">Patient login</a>
               </div>
               <small>Apoth is a technology platform, not a medical provider.</small>

@@ -19,9 +19,14 @@ for (const viewport of viewportCases) {
       await page.goto("/");
 
       await expect(
-        page.getByRole("heading", { name: "A clearer way to get care, online." }),
+        page.getByRole("heading", { name: "Better health has never been easier" }),
       ).toBeInViewport();
-      await expect(page.getByRole("link", { name: "Start a visit" }).first()).toBeInViewport();
+      if (viewport.name === "desktop") {
+        await expect(page.getByRole("link", { name: "Get started" }).first())
+          .toBeInViewport();
+      } else {
+        await expect(page.getByRole("button", { name: "Open menu" })).toBeInViewport();
+      }
       await expectNoHorizontalOverflow(page);
       errors.expectNone();
     });
@@ -43,7 +48,7 @@ for (const viewport of viewportCases) {
   });
 }
 
-test("keyboard focus exposes skip link and reaches the start CTA", async ({ page }) => {
+test("keyboard focus exposes skip link and reaches the direct checkout CTA", async ({ page }) => {
   const errors = collectUnexpectedPageErrors(page);
 
   await page.goto("/");
@@ -54,11 +59,11 @@ test("keyboard focus exposes skip link and reaches the start CTA", async ({ page
   for (let i = 0; i < 6; i += 1) {
     await page.keyboard.press("Tab");
     const focusedName = await page.evaluate(() => document.activeElement?.textContent);
-    if (focusedName?.includes("Start a visit")) {
+    if (focusedName?.includes("Get started")) {
       break;
     }
   }
 
-  await expect(page.getByRole("link", { name: "Start a visit" }).first()).toBeFocused();
+  await expect(page.getByRole("link", { name: "Get started" }).first()).toBeFocused();
   errors.expectNone();
 });

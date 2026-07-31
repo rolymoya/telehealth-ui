@@ -4,6 +4,7 @@ import {
   currentRequiredConsents,
   requiredConsentsBeforeMdi,
   requiredMedicationDisclosureConsents,
+  type RequiredConsentDocument,
 } from "../../shared/consents";
 
 const sendMock = vi.hoisted(() => vi.fn());
@@ -343,7 +344,10 @@ function event(options: {
   };
 }
 
-function acceptedAcks(requiredConsents = currentRequiredConsents) {
+function acceptedAcks(
+  requiredConsents: readonly RequiredConsentDocument[] =
+    currentRequiredConsents,
+) {
   return Object.fromEntries(
     requiredConsents.map((consent) => [
       consentAcknowledgementFieldName(consent),

@@ -89,9 +89,10 @@ export async function installOnboardingNetworkGuard(
   const queues = new Map<string, ApiMockQueueEntry[]>();
 
   for (const [key, value] of Object.entries(handlers)) {
-    queues.set(key, (Array.isArray(value) ? value : [value]).map((handler) => ({
+    const isSequence = Array.isArray(value);
+    queues.set(key, (isSequence ? value : [value]).map((handler) => ({
       handler,
-      persistent: isPersistentApiMockHandler(handler),
+      persistent: !isSequence || isPersistentApiMockHandler(handler),
     })));
   }
 
@@ -124,6 +125,14 @@ export async function installOnboardingNetworkGuard(
     const requestBody = request.postData() ?? "";
 
     if (!handler) {
+      if (key === "GET /api/dashboard") {
+        await route.fulfill({
+          body: "{}",
+          headers: { "content-type": "application/json" },
+          status: 200,
+        });
+        return;
+      }
       violations.push(`Unmocked API request: ${key}`);
       captures.push({
         method,

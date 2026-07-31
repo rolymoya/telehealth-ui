@@ -14,6 +14,12 @@ export default defineConfig(({ mode }) => {
   const userPoolClientId = env.VITE_COGNITO_USER_POOL_CLIENT_ID ||
     env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID ||
     "";
+  const proxy = {
+    "/api": {
+      target: apiTarget,
+      changeOrigin: true,
+    },
+  };
 
   return {
     root: __dirname,
@@ -36,15 +42,11 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5173,
-      proxy: {
-        "/api": {
-          target: apiTarget,
-          changeOrigin: true,
-        },
-      },
+      proxy,
     },
     preview: {
       port: 4173,
+      proxy,
     },
   };
 });

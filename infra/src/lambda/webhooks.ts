@@ -29,6 +29,7 @@ import {
   maxStripeWebhookPayloadBytes,
 } from "../../../src/lib/stripe-webhooks.js";
 import { createDynamoDbWebhookProcessingRepository } from "../../../src/lib/webhook-processing-repository.js";
+import { createDynamoDbEnrollmentRepository } from "../../../src/lib/enrollment/checkout-service.js";
 import {
   header,
   json,
@@ -77,6 +78,7 @@ export async function stripeWebhookHandler(event: ApiGatewayEvent): Promise<ApiG
           : { ok: false as const, retryable: activated.code !== "invalid_stripe_metadata" };
       },
     },
+    enrollmentRepository: createDynamoDbEnrollmentRepository(repository.value),
     stripeMirrorRepository: createDynamoDbStripeMirrorRepository(repository.value),
     enqueue: createSqsWebhookEnqueue(queue.value),
     payload: payload.value,

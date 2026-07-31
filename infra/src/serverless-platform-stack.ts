@@ -1,4 +1,5 @@
 import {
+  ArnFormat,
   CfnOutput,
   Duration,
   Stack,
@@ -39,6 +40,7 @@ import {
   FunctionEventType,
   OriginProtocolPolicy,
   OriginRequestPolicy,
+  ResponseHeadersPolicy,
   ViewerProtocolPolicy,
 } from "aws-cdk-lib/aws-cloudfront";
 import {
@@ -280,6 +282,7 @@ exports.handler = async () => ({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
         this.formatArn({
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           service: "secretsmanager",
           resource: "secret",
           resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
@@ -331,11 +334,13 @@ exports.handler = async () => ({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
         this.formatArn({
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           service: "secretsmanager",
           resource: "secret",
           resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
         }),
         this.formatArn({
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           service: "secretsmanager",
           resource: "secret",
           resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
@@ -532,7 +537,12 @@ exports.handler = async () => ({
       apiName: `apoth-${props.config.stage}-api`,
       createDefaultStage: false,
       corsPreflight: {
-        allowHeaders: ["authorization", "content-type", "x-apoth-csrf"],
+        allowHeaders: [
+          "authorization",
+          "content-type",
+          "x-apoth-checkout-initialization",
+          "x-apoth-csrf",
+        ],
         allowMethods: [CorsHttpMethod.GET, CorsHttpMethod.POST, CorsHttpMethod.OPTIONS],
         allowOrigins: props.config.allowedOrigins,
         allowCredentials: true,
@@ -744,6 +754,7 @@ exports.handler = async () => ({
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
           this.formatArn({
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
             service: "secretsmanager",
             resource: "secret",
             resourceName: `${secretName(props.config.stage, "appSigning")}*`,
@@ -898,6 +909,7 @@ exports.handler = async () => ({
           actions: ["secretsmanager:GetSecretValue"],
           resources: [
             this.formatArn({
+              arnFormat: ArnFormat.COLON_RESOURCE_NAME,
               service: "secretsmanager",
               resource: "secret",
               resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
@@ -975,6 +987,7 @@ exports.handler = async () => ({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
         this.formatArn({
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           service: "secretsmanager",
           resource: "secret",
           resourceName: `${secretName(props.config.stage, "appSigning")}*`,
@@ -1274,6 +1287,7 @@ exports.handler = async () => ({
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
           this.formatArn({
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
             service: "secretsmanager",
             resource: "secret",
             resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
@@ -1297,6 +1311,151 @@ exports.handler = async () => ({
       integration: new HttpLambdaIntegration(
         "BillingSubscriptionCancelIntegration",
         billingSubscriptionCancelFunction,
+      ),
+    });
+
+    const enrollmentFunctionEnvironment = {
+      APP_TABLE_NAME: appTable.tableName,
+      APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+      APOTH_CHECKOUT_UI_MODE: props.config.checkoutUiMode,
+      APOTH_SECRET_APP_SIGNING_ID: secretName(props.config.stage, "appSigning"),
+      APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
+      APOTH_STAGE: props.config.stage,
+      APOTH_STRIPE_INTEGRATION_IDENTIFIER:
+        process.env.APOTH_STRIPE_INTEGRATION_IDENTIFIER ??
+        "apoth_enrollment_qjxmzvra",
+      COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+      COGNITO_USER_POOL_ID: userPool.userPoolId,
+      ...(props.config.stage === "production" &&
+          props.config.checkoutUiMode === "custom"
+        ? { APOTH_ALLOW_PRODUCTION_CUSTOM_CHECKOUT: "true" }
+        : {}),
+    };
+    const createEnrollmentFunction = (
+      id: string,
+      handler: "bindHandler" | "checkoutHandler" | "consentHandler" | "statusHandler",
+      suffix: string,
+    ) => new NodejsFunction(this, id, {
+      functionName: `apoth-${props.config.stage}-enrollment-${suffix}`,
+      runtime: Runtime.NODEJS_20_X,
+      handler,
+      entry: path.join(__dirname, "lambda", "enrollment.ts"),
+      depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+      timeout: Duration.seconds(15),
+      bundling: {
+        esbuildArgs: {
+          "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+        },
+        minify: true,
+        sourceMap: false,
+      },
+      environment: enrollmentFunctionEnvironment,
+      logGroup: new LogGroup(this, `${id}LogGroup`, {
+        logGroupName: `/aws/lambda/apoth-${props.config.stage}-enrollment-${suffix}`,
+        retention: props.config.logRetention,
+        removalPolicy: props.config.removalPolicy,
+      }),
+    });
+    const enrollmentCheckoutFunction = createEnrollmentFunction(
+      "EnrollmentCheckoutFunction",
+      "checkoutHandler",
+      "checkout",
+    );
+    const enrollmentConsentFunction = createEnrollmentFunction(
+      "EnrollmentConsentFunction",
+      "consentHandler",
+      "consent",
+    );
+    const enrollmentStatusFunction = createEnrollmentFunction(
+      "EnrollmentStatusFunction",
+      "statusHandler",
+      "status",
+    );
+    const enrollmentBindFunction = createEnrollmentFunction(
+      "EnrollmentBindFunction",
+      "bindHandler",
+      "bind",
+    );
+    appTable.grant(
+      enrollmentCheckoutFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+    );
+    appTable.grant(
+      enrollmentConsentFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+    );
+    appTable.grant(enrollmentStatusFunction, "dynamodb:GetItem");
+    appTable.grant(
+      enrollmentBindFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
+    );
+    for (const fn of [
+      enrollmentCheckoutFunction,
+      enrollmentConsentFunction,
+      enrollmentStatusFunction,
+      enrollmentBindFunction,
+    ]) {
+      fn.addToRolePolicy(new PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          this.formatArn({
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+            service: "secretsmanager",
+            resource: "secret",
+            resourceName: `${secretName(props.config.stage, "appSigning")}*`,
+          }),
+        ],
+      }));
+    }
+    enrollmentCheckoutFunction.addToRolePolicy(new PolicyStatement({
+      actions: ["secretsmanager:GetSecretValue"],
+      resources: [
+        this.formatArn({
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+          service: "secretsmanager",
+          resource: "secret",
+          resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
+        }),
+      ],
+    }));
+
+    api.addRoutes({
+      path: "/api/enrollment/checkout",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "EnrollmentCheckoutIntegration",
+        enrollmentCheckoutFunction,
+      ),
+    });
+    api.addRoutes({
+      path: "/api/enrollment/consent",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "EnrollmentConsentIntegration",
+        enrollmentConsentFunction,
+      ),
+    });
+    api.addRoutes({
+      path: "/api/enrollment/status",
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration(
+        "EnrollmentStatusIntegration",
+        enrollmentStatusFunction,
+      ),
+    });
+    api.addRoutes({
+      path: "/api/enrollment/bind",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "EnrollmentBindIntegration",
+        enrollmentBindFunction,
       ),
     });
 
@@ -1345,6 +1504,7 @@ exports.handler = async () => ({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
         this.formatArn({
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           service: "secretsmanager",
           resource: "secret",
           resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
@@ -1396,11 +1556,13 @@ exports.handler = async () => ({
       actions: ["secretsmanager:GetSecretValue"],
       resources: [
         this.formatArn({
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           service: "secretsmanager",
           resource: "secret",
           resourceName: `${secretName(props.config.stage, "mdiApi")}*`,
         }),
         this.formatArn({
+          arnFormat: ArnFormat.COLON_RESOURCE_NAME,
           service: "secretsmanager",
           resource: "secret",
           resourceName: `${secretName(props.config.stage, "stripeApi")}*`,
@@ -1456,6 +1618,7 @@ function handler(event) {
     "/about": true,
     "/privacy": true,
     "/terms": true,
+    "/weight-loss": true,
   };
   if (uri.length > 1 && uri.endsWith("/")) {
     uri = uri.slice(0, -1);
@@ -1500,6 +1663,32 @@ function handler(event) {
     );
 
     const patientAppOrigin = S3BucketOrigin.withOriginAccessControl(patientAppBucket);
+    const patientAppSecurityHeaders = new ResponseHeadersPolicy(
+      this,
+      "PatientAppSecurityHeaders",
+      {
+        responseHeadersPolicyName:
+          `apoth-${props.config.stage}-patient-app-security-headers`,
+        securityHeadersBehavior: {
+          contentSecurityPolicy: {
+            override: true,
+            contentSecurityPolicy: [
+                "default-src 'self'",
+                "base-uri 'self'",
+                "object-src 'none'",
+                "frame-ancestors 'none'",
+                "form-action 'self'",
+                "script-src 'self' https://js.stripe.com https://*.js.stripe.com https://maps.googleapis.com",
+                "connect-src 'self' https://api.stripe.com https://checkout.stripe.com https://link.com https://*.link.com https://maps.googleapis.com",
+                "frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://link.com https://*.link.com",
+                "img-src 'self' data: https://*.stripe.com https://link.com https://*.link.com",
+                "style-src 'self' 'unsafe-inline'",
+                "font-src 'self' data:",
+            ].join("; "),
+          },
+        },
+      },
+    );
     const patientAppBehavior = {
       origin: patientAppOrigin,
       allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
@@ -1510,6 +1699,7 @@ function handler(event) {
           function: patientAppRouteFunction,
         },
       ],
+      responseHeadersPolicy: patientAppSecurityHeaders,
       viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
     };
 
@@ -1542,6 +1732,7 @@ function handler(event) {
         },
         "account*": patientAppBehavior,
         "billing*": patientAppBehavior,
+        "checkout*": patientAppBehavior,
         "dashboard*": patientAppBehavior,
         "get-started*": patientAppBehavior,
         "intake*": patientAppBehavior,
@@ -1569,6 +1760,10 @@ function handler(event) {
       intakeBootstrapFunction,
       intakePrivacyNoticeFunction,
       intakePrecheckFunction,
+      enrollmentCheckoutFunction,
+      enrollmentConsentFunction,
+      enrollmentStatusFunction,
+      enrollmentBindFunction,
       mdiIntakeBootstrapFunction,
       mdiIntakeSubmitFunction,
       mdiPatientFunction,
@@ -1583,6 +1778,14 @@ function handler(event) {
     });
     new CfnOutput(this, "AppTableName", { value: appTable.tableName });
     new CfnOutput(this, "ApiEndpoint", { value: api.apiEndpoint });
+    new CfnOutput(this, "CheckoutUiMode", {
+      value: props.config.checkoutUiMode,
+    });
+    if (props.config.stripePublishableKey) {
+      new CfnOutput(this, "StripePublishableKey", {
+        value: props.config.stripePublishableKey,
+      });
+    }
     new CfnOutput(this, "StaticAssetsBucketName", {
       value: staticAssetsBucket.bucketName,
     });

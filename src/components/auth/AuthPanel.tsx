@@ -25,10 +25,12 @@ export type AuthPanelMode =
 
 export function AuthPanel({
   client,
+  initialEmail,
   mode,
   returnTo,
 }: {
   client?: PatientAuthAdapter;
+  initialEmail?: string;
   mode: AuthPanelMode;
   returnTo?: string | null;
 }) {
@@ -50,13 +52,25 @@ export function AuthPanel({
   return (
     <AuthFrame mode={mode}>
       {mode === "sign-up" && (
-        <SignUpForm client={defaultClient.value} returnTo={returnTo} />
+        <SignUpForm
+          client={defaultClient.value}
+          initialEmail={initialEmail}
+          returnTo={returnTo}
+        />
       )}
       {mode === "verify-email" && (
-        <VerifyEmailForm client={defaultClient.value} returnTo={returnTo} />
+        <VerifyEmailForm
+          client={defaultClient.value}
+          initialEmail={initialEmail}
+          returnTo={returnTo}
+        />
       )}
       {mode === "sign-in" && (
-        <SignInForm client={defaultClient.value} returnTo={returnTo} />
+        <SignInForm
+          client={defaultClient.value}
+          initialEmail={initialEmail}
+          returnTo={returnTo}
+        />
       )}
       {mode === "reset-password" && <ResetPasswordForm client={defaultClient.value} />}
       {mode === "sign-out" && <SignOutForm client={defaultClient.value} />}
@@ -97,9 +111,11 @@ function AuthFrame({
 
 function SignUpForm({
   client,
+  initialEmail = "",
   returnTo,
 }: {
   client: PatientAuthAdapter;
+  initialEmail?: string;
   returnTo?: string | null;
 }) {
   const resolvedReturnTo = useResolvedReturnTo(returnTo);
@@ -145,7 +161,13 @@ function SignUpForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
-      <Field label="Email" name="email" type="email" autoComplete="email" />
+      <Field
+        label="Email"
+        name="email"
+        type="email"
+        autoComplete="email"
+        defaultValue={initialEmail}
+      />
       <Field label="Password" name="password" type="password" autoComplete="new-password" />
       <PasswordRequirements />
       <SubmitButton loading={loading}>Create account</SubmitButton>
@@ -245,9 +267,11 @@ function VerifyEmailForm({
 
 function SignInForm({
   client,
+  initialEmail = "",
   returnTo,
 }: {
   client: PatientAuthAdapter;
+  initialEmail?: string;
   returnTo?: string | null;
 }) {
   const resolvedReturnTo = useResolvedReturnTo(returnTo);
@@ -314,7 +338,13 @@ function SignInForm({
 
   return (
     <form key="credentials" onSubmit={onSubmit} className="space-y-5">
-      <Field label="Email" name="email" type="email" autoComplete="email" />
+      <Field
+        label="Email"
+        name="email"
+        type="email"
+        autoComplete="email"
+        defaultValue={initialEmail}
+      />
       <Field label="Password" name="password" type="password" autoComplete="current-password" />
       <SubmitButton loading={loading}>Sign in</SubmitButton>
       <FormStatus status={status} error={error} />

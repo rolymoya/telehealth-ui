@@ -38,6 +38,14 @@ describe("ServerlessPlatformStack", () => {
     expect(stackSource).not.toContain("../../src/lib/secrets/contracts");
   });
 
+  it("synthesizes stage-secret IAM resources with the Secrets Manager ARN format", () => {
+    const resources = synthesizeTemplate().toJSON().Resources;
+    const serialized = JSON.stringify(resources);
+
+    expect(serialized).toContain(":secret:/apoth/staging/");
+    expect(serialized).not.toContain(":secret//apoth/");
+  });
+
   it("creates the required lean serverless resources", () => {
     const template = synthesizeTemplate();
     const resources = template.toJSON().Resources as Record<string, SynthResource>;
@@ -52,13 +60,14 @@ describe("ServerlessPlatformStack", () => {
       },
     });
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 21);
+    template.resourceCountIs("AWS::Lambda::Function", 25);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
     template.resourceCountIs("AWS::CloudWatch::Dashboard", 1);
     template.resourceCountIs("AWS::CloudFront::Distribution", 1);
     template.resourceCountIs("AWS::CloudFront::Function", 2);
+    template.resourceCountIs("AWS::CloudFront::ResponseHeadersPolicy", 1);
     template.resourceCountIs("AWS::CloudFront::OriginAccessControl", 2);
     template.resourceCountIs("AWS::Events::Rule", 3);
     template.resourceCountIs("AWS::S3::Bucket", 2);
@@ -153,10 +162,18 @@ describe("ServerlessPlatformStack", () => {
     });
 
     for (const routeKey of [
+      "POST /api/enrollment/bind",
+      "POST /api/enrollment/checkout",
+      "POST /api/enrollment/consent",
+      "GET /api/enrollment/status",
       "GET /api/dashboard",
       "GET /api/dashboard/workflows/{workflow}",
       "POST /api/billing/payment-method",
       "POST /api/billing/subscription/cancel",
+      "POST /api/enrollment/bind",
+      "POST /api/enrollment/checkout",
+      "POST /api/enrollment/consent",
+      "GET /api/enrollment/status",
       "POST /api/webhooks/stripe",
       "POST /api/webhooks/mdi",
     ]) {
@@ -373,6 +390,31 @@ describe("ServerlessPlatformStack", () => {
     expect(policies).not.toContain("dynamodb:DeleteItem");
   });
 
+  it("grants the enrollment consent Lambda its conditional PutItem operation", () => {
+    const template = synthesizeTemplate();
+
+    template.hasResourceProperties("AWS::IAM::Policy", {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: Match.arrayWith([
+              "dynamodb:GetItem",
+              "dynamodb:PutItem",
+            ]),
+            Effect: "Allow",
+          }),
+        ]),
+      },
+      Roles: Match.arrayWith([
+        {
+          Ref: Match.stringLikeRegexp(
+            "^EnrollmentConsentFunctionServiceRole",
+          ),
+        },
+      ]),
+    });
+  });
+
   it("creates dashboard and billing API lambdas with bounded access", () => {
     const template = synthesizeTemplate();
 
@@ -529,6 +571,10 @@ describe("ServerlessPlatformStack", () => {
             ViewerProtocolPolicy: "redirect-to-https",
           }),
           Match.objectLike({
+            PathPattern: "checkout*",
+            ViewerProtocolPolicy: "redirect-to-https",
+          }),
+          Match.objectLike({
             PathPattern: "dashboard*",
             ViewerProtocolPolicy: "redirect-to-https",
           }),
@@ -552,6 +598,22 @@ describe("ServerlessPlatformStack", () => {
     } | undefined;
     expect(JSON.stringify(distribution?.Properties.DistributionConfig.Origins))
       .toContain("execute-api");
+    const renderedTemplate = JSON.stringify(template.toJSON());
+    expect(renderedTemplate).toContain("ContentSecurityPolicy");
+    expect(renderedTemplate).toContain("https://js.stripe.com");
+    expect(renderedTemplate).toContain("https://hooks.stripe.com");
+    expect(renderedTemplate).toContain("https://api.stripe.com");
+    template.hasResourceProperties("AWS::CloudFront::ResponseHeadersPolicy", {
+      ResponseHeadersPolicyConfig: {
+        SecurityHeadersConfig: {
+          ContentSecurityPolicy: {
+            ContentSecurityPolicy: Match.stringLikeRegexp("https://js\\.stripe\\.com"),
+            Override: true,
+          },
+        },
+        CustomHeadersConfig: Match.absent(),
+      },
+    });
 
     template.hasResourceProperties("AWS::CloudFront::Function", {
       Name: "apoth-staging-static-clean-routes",
@@ -560,6 +622,10 @@ describe("ServerlessPlatformStack", () => {
     template.hasResourceProperties("AWS::CloudFront::Function", {
       Name: "apoth-staging-static-clean-routes",
       FunctionCode: Match.stringLikeRegexp('/404\\.html'),
+    });
+    template.hasResourceProperties("AWS::CloudFront::Function", {
+      Name: "apoth-staging-static-clean-routes",
+      FunctionCode: Match.stringLikeRegexp('/weight-loss'),
     });
     template.hasResourceProperties("AWS::CloudFront::Function", {
       Name: "apoth-staging-patient-app-routes",
@@ -767,13 +833,51 @@ describe("ServerlessPlatformStack", () => {
     expect(getStageConfig("staging")).toMatchObject({
       authEmailDomain: "apothhealth.com",
       authEmailFromAddress: "contact@apothhealth.com",
+      checkoutUiMode: "custom",
       mdiMode: "synthetic",
     });
     expect(getStageConfig("production")).toMatchObject({
       authEmailDomain: "apothhealth.com",
       authEmailFromAddress: "contact@apothhealth.com",
+      checkoutUiMode: "hosted",
       mdiMode: "live",
     });
+  });
+
+  it("keeps hosted rollback configurable and guards production custom mode", () => {
+    const previousMode = process.env.APOTH_CHECKOUT_UI_MODE;
+    const previousApproval = process.env.APOTH_ALLOW_PRODUCTION_CUSTOM_CHECKOUT;
+    try {
+      process.env.APOTH_CHECKOUT_UI_MODE = "hosted";
+      expect(getStageConfig("staging").checkoutUiMode).toBe("hosted");
+
+      process.env.APOTH_CHECKOUT_UI_MODE = "custom";
+      delete process.env.APOTH_ALLOW_PRODUCTION_CUSTOM_CHECKOUT;
+      expect(() => getStageConfig("production")).toThrow(
+        "Production custom checkout requires",
+      );
+
+      process.env.APOTH_ALLOW_PRODUCTION_CUSTOM_CHECKOUT = "true";
+      expect(getStageConfig("production").checkoutUiMode).toBe("custom");
+    } finally {
+      restoreEnv("APOTH_CHECKOUT_UI_MODE", previousMode);
+      restoreEnv(
+        "APOTH_ALLOW_PRODUCTION_CUSTOM_CHECKOUT",
+        previousApproval,
+      );
+    }
+  });
+
+  it("rejects a Stripe publishable key from the wrong stage", () => {
+    const previous = process.env.APOTH_STRIPE_PUBLISHABLE_KEY;
+    try {
+      process.env.APOTH_STRIPE_PUBLISHABLE_KEY = "pk_live_wrong_for_staging";
+      expect(() => getStageConfig("staging")).toThrow(
+        "staging Stripe publishable key must start with pk_test_",
+      );
+    } finally {
+      restoreEnv("APOTH_STRIPE_PUBLISHABLE_KEY", previous);
+    }
   });
 
   it("prevents synthetic MDI mode in production config", () => {
@@ -804,7 +908,10 @@ describe("ServerlessPlatformStack", () => {
     stagingTemplate.hasResourceProperties("AWS::ApiGatewayV2::Api", {
       CorsConfiguration: {
         AllowCredentials: true,
-        AllowHeaders: Match.arrayWith(["x-apoth-csrf"]),
+        AllowHeaders: Match.arrayWith([
+          "x-apoth-checkout-initialization",
+          "x-apoth-csrf",
+        ]),
         AllowOrigins: ["http://localhost:3000"],
       },
     });
@@ -812,7 +919,10 @@ describe("ServerlessPlatformStack", () => {
     productionTemplate.hasResourceProperties("AWS::ApiGatewayV2::Api", {
       CorsConfiguration: {
         AllowCredentials: true,
-        AllowHeaders: Match.arrayWith(["x-apoth-csrf"]),
+        AllowHeaders: Match.arrayWith([
+          "x-apoth-checkout-initialization",
+          "x-apoth-csrf",
+        ]),
         AllowOrigins: ["https://apoth.health"],
       },
     });
@@ -1354,6 +1464,7 @@ type SynthResource = {
       Variables?: Record<string, unknown>;
     };
     EvaluationPeriods?: number;
+    FunctionCode?: string;
     FunctionName?: string;
     Handler?: string;
     InsufficientDataActions?: unknown;
@@ -1775,4 +1886,12 @@ const expectedStagingSecrets = [
 
 function secretTokenPrefix(prefix: "pk" | "sk", mode: "live") {
   return [prefix, mode, ""].join("_");
+}
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
 }

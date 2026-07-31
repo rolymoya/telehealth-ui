@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
 import {
   constructStripeWebhookEvent,
+  createEnrollmentCheckoutParams,
   createPaymentMethodSetupCheckoutParams,
   createPaymentMethodSetupIntentParams,
   createStripeClient,
   createStripeCustomerParams,
   createSubscriptionCheckoutParams,
   stripeApiVersion,
+  validateEnrollmentCheckoutSession,
 } from "@/lib/stripe";
 import {
   buildStripeMetadata,
@@ -143,6 +145,125 @@ describe("Stripe launch helpers", () => {
     });
     expect(params.ok && "subscription_data" in params.value).toBe(false);
     expect(params.ok && "line_items" in params.value).toBe(false);
+  });
+
+  it("creates a custom enrollment Checkout Session with only opaque identifiers", () => {
+    const params = createEnrollmentCheckoutParams({
+      cancelUrl: "https://staging.apoth.example/checkout?product=weight",
+      enrollmentId: "apoth_order_0123456789abcdef0123456789abcdef",
+      integrationIdentifier: "apoth_enrollment_qjxmzvra",
+      returnUrl: "https://staging.apoth.example/checkout/complete",
+      stage: "staging",
+      successUrl: "https://staging.apoth.example/checkout/complete",
+      uiMode: "custom",
+    });
+
+    expect(params).toEqual({
+      ok: true,
+      value: {
+        client_reference_id: "apoth_order_0123456789abcdef0123456789abcdef",
+        currency: "usd",
+        customer_creation: "always",
+        integration_identifier: "apoth_enrollment_qjxmzvra",
+        metadata: {
+          apoth_order_id: "apoth_order_0123456789abcdef0123456789abcdef",
+          apoth_stage: "staging",
+        },
+        mode: "setup",
+        return_url: "https://staging.apoth.example/checkout/complete",
+        setup_intent_data: {
+          metadata: {
+            apoth_order_id: "apoth_order_0123456789abcdef0123456789abcdef",
+            apoth_stage: "staging",
+          },
+        },
+        ui_mode: "elements",
+      },
+    });
+    const serialized = JSON.stringify(params);
+    for (const forbidden of [
+      "cancel_url",
+      "success_url",
+      "payment_method_types",
+      "line_items",
+      "email",
+      "product",
+      "weight",
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
+  });
+
+  it("keeps the hosted enrollment rollback free of custom-only parameters", () => {
+    const params = createEnrollmentCheckoutParams({
+      cancelUrl: "https://apoth.example/checkout?product=weight",
+      enrollmentId: "apoth_order_0123456789abcdef0123456789abcdef",
+      integrationIdentifier: "apoth_enrollment_qjxmzvra",
+      returnUrl: "https://apoth.example/checkout/complete",
+      stage: "production",
+      successUrl: "https://apoth.example/checkout/complete",
+      uiMode: "hosted",
+    });
+
+    expect(params).toMatchObject({
+      ok: true,
+      value: {
+        cancel_url: "https://apoth.example/checkout?product=weight",
+        consent_collection: { terms_of_service: "required" },
+        custom_text: {
+          submit: {
+            message: expect.stringContaining("No charge occurs today"),
+          },
+        },
+        mode: "setup",
+        success_url: "https://apoth.example/checkout/complete",
+      },
+    });
+    expect(params.ok && "ui_mode" in params.value).toBe(false);
+    expect(params.ok && "return_url" in params.value).toBe(false);
+  });
+
+  it("accepts an opaque custom Checkout client secret with printable punctuation", () => {
+    expect(validateEnrollmentCheckoutSession({
+      clientSecret: "cs_test_enrollment_secret_checkout.secret$value",
+      id: "cs_test_enrollment",
+      uiMode: "custom",
+    })).toEqual({
+      ok: true,
+      value: {
+        checkoutSessionId: "cs_test_enrollment",
+        clientSecret: "cs_test_enrollment_secret_checkout.secret$value",
+        uiMode: "custom",
+      },
+    });
+  });
+
+  it("rejects mismatched or malformed custom Checkout client secrets", () => {
+    for (const clientSecret of [
+      "cs_test_other_secret_checkoutsecret",
+      "cs_test_enrollment_secret_short",
+      "cs_test_enrollment_secret_checkout secret",
+      "cs_test_enrollment_secret_checkout\nsecret",
+      `cs_test_enrollment_secret_${"x".repeat(513)}`,
+    ]) {
+      expect(validateEnrollmentCheckoutSession({
+        clientSecret,
+        id: "cs_test_enrollment",
+        uiMode: "custom",
+      })).toMatchObject({
+        error: { code: "unsafe_checkout_session" },
+        ok: false,
+      });
+    }
+
+    expect(validateEnrollmentCheckoutSession({
+      clientSecret: "seti_secret_must_not_be_returned",
+      id: "cs_test_enrollment",
+      uiMode: "custom",
+    })).toMatchObject({
+      error: { code: "unsafe_checkout_session" },
+      ok: false,
+    });
   });
 
   it("rejects PHI-shaped metadata before creating SetupIntent params", () => {

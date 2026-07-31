@@ -19,6 +19,11 @@ Apoth-controlled Stripe metadata may contain only these keys:
 
 Do not add free-text metadata keys. New keys require a policy update and tests.
 
+For anonymous checkout, `apoth_order_id` is derived from a browser-generated
+initialization UUID with the server signing secret. It is not an email,
+account ID, device fingerprint, clinical identifier, or reversible patient
+identifier.
+
 ## Disallowed Data
 
 Never send these to Stripe metadata, product names, price nicknames,
@@ -31,6 +36,12 @@ side effects controlled by Apoth:
 - MDI clinical workflow status beyond opaque patient/case pointers.
 - Raw webhook payloads, request headers, IP addresses, user agents, or support
   free text.
+
+The launch Checkout Session does not send product or treatment names, line
+items, or clinical context to Stripe. The email a patient enters may be passed
+to Stripe through Checkout's dedicated email field for payment setup and
+receipt/account support, but it must never be copied into metadata,
+descriptions, logs, or opaque-ID fields.
 
 ## Descriptor Rules
 
@@ -50,6 +61,10 @@ medication, diagnosis, symptom, or clinician action.
 - Do not log Stripe keys, webhook signing secrets, raw payloads, or full
   metadata maps. Logs may include bounded route/status codes and redacted
   presence booleans only.
+- A custom Checkout Session `client_secret` is response-only. Never persist it
+  in DynamoDB, cookies, local/session storage, URLs, analytics, or logs.
+- Pending enrollment completion is accepted only from a signature-verified
+  `checkout.session.completed` or `setup_intent.succeeded` webhook.
 
 ## Automated Checks
 

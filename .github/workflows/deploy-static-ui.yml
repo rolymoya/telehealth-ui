@@ -84,6 +84,7 @@ jobs:
           static_distribution_id="$(get_output StaticWebDistributionId)"
           cognito_user_pool_id="$(get_output PatientUserPoolId)"
           cognito_user_pool_client_id="$(get_output PatientUserPoolClientId)"
+          stripe_publishable_key="$(get_output StripePublishableKey)"
 
           for name in \
             static_bucket_name \
@@ -91,7 +92,8 @@ jobs:
             static_distribution_domain \
             static_distribution_id \
             cognito_user_pool_id \
-            cognito_user_pool_client_id
+            cognito_user_pool_client_id \
+            stripe_publishable_key
           do
             if [ -z "${!name}" ]; then
               echo "Missing required CloudFormation output: ${name}"
@@ -105,12 +107,14 @@ jobs:
             echo "STATIC_DISTRIBUTION_DOMAIN=${static_distribution_domain}"
             echo "STATIC_DISTRIBUTION_ID=${static_distribution_id}"
             echo "APOTH_STAGE=${APOTH_STAGE}"
+            echo "VITE_APOTH_STAGE=${APOTH_STAGE}"
             echo "NEXT_PUBLIC_COGNITO_REGION=${AWS_REGION}"
             echo "NEXT_PUBLIC_COGNITO_USER_POOL_ID=${cognito_user_pool_id}"
             echo "NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID=${cognito_user_pool_client_id}"
             echo "VITE_COGNITO_REGION=${AWS_REGION}"
             echo "VITE_COGNITO_USER_POOL_ID=${cognito_user_pool_id}"
             echo "VITE_COGNITO_USER_POOL_CLIENT_ID=${cognito_user_pool_client_id}"
+            echo "VITE_STRIPE_PUBLISHABLE_KEY=${stripe_publishable_key}"
             echo "NEXT_PUBLIC_SITE_URL=https://${static_distribution_domain}"
           } >>"${GITHUB_ENV}"
 

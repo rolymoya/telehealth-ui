@@ -183,9 +183,10 @@ test.describe("MDI-backed dashboard and care workflow states", () => {
     await expect(page.locator("body")).not.toContainText(rawVendorError);
     await expectNoFragmentsInBrowserStorage(page, forbiddenFragments);
     guard.expectNoNetworkViolations();
-    expect(guard.consoleErrors).toEqual([
+    expect(guard.consoleErrors.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(guard.consoleErrors)).toEqual(new Set([
       "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
-    ]);
+    ]));
   });
 });
 

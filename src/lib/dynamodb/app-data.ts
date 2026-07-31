@@ -95,6 +95,30 @@ export type AnonymousPrecheckConsumptionRecord = BaseRecord & {
   nonceHash: string;
 };
 
+export type PendingEnrollmentStatus =
+  | "checkout_session_pending"
+  | "payment_setup_complete"
+  | "identity_bound";
+
+export type PendingEnrollmentRecord = BaseRecord & {
+  recordType: "pendingEnrollment";
+  enrollmentId: string;
+  productCode: "weight";
+  status: PendingEnrollmentStatus;
+  checkoutUiMode: "custom" | "hosted";
+  checkoutAttempt: number;
+  expiresAt: string;
+  expiresAtEpochSeconds: number;
+  checkoutSessionId?: string;
+  consentVersion?: string;
+  consentAcceptedAt?: string;
+  paymentSetupCompletedAt?: string;
+  stripeCustomerId?: string;
+  stripeSetupIntentId?: string;
+  cognitoSub?: string;
+  identityBoundAt?: string;
+};
+
 export type OnboardingTreatmentSelectionRecord = BaseRecord & {
   recordType: "onboardingTreatmentSelection";
   cognitoSub: string;
@@ -329,6 +353,7 @@ export type OperationalStatusRecord = BaseRecord & {
 export type AppDataRecord =
   | PatientProfileRecord
   | AnonymousPrecheckConsumptionRecord
+  | PendingEnrollmentRecord
   | OnboardingTreatmentSelectionRecord
   | MdiLinkageRecord
   | MdiReverseLookupRecord
@@ -485,6 +510,10 @@ export function webhookIdempotencyKey(
 
 export function anonymousPrecheckConsumptionKey(nonceHash: string): AppDataKey {
   return { pk: `ANON_PRECHECK#${nonceHash}`, sk: "CONSUMED" };
+}
+
+export function pendingEnrollmentKey(enrollmentId: string): AppDataKey {
+  return { pk: `ENROLLMENT#${enrollmentId}`, sk: "PENDING" };
 }
 
 export function evidenceEventKey(
@@ -2400,6 +2429,28 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         keysMatch(record, anonymousPrecheckConsumptionKey(record.nonceHash))
         ? ok(record)
         : err("validation_failed", "Invalid anonymous precheck consumption record");
+    case "pendingEnrollment":
+      return isPendingEnrollmentId(record.enrollmentId) &&
+        record.productCode === "weight" &&
+        isPendingEnrollmentStatus(record.status) &&
+        (record.checkoutUiMode === "custom" || record.checkoutUiMode === "hosted") &&
+        Number.isInteger(record.checkoutAttempt) &&
+        record.checkoutAttempt >= 0 &&
+        isIsoTimestamp(record.expiresAt) &&
+        Number.isInteger(record.expiresAtEpochSeconds) &&
+        record.expiresAtEpochSeconds === Math.floor(Date.parse(record.expiresAt) / 1000) &&
+        optionalStripeCheckoutSessionId(record.checkoutSessionId) &&
+        optionalConsentVersion(record.consentVersion) &&
+        optionalIsoDate(record.consentAcceptedAt) &&
+        optionalIsoDate(record.paymentSetupCompletedAt) &&
+        optionalStripeCustomerId(record.stripeCustomerId) &&
+        optionalStripeSetupIntentId(record.stripeSetupIntentId) &&
+        (record.cognitoSub === undefined || isCognitoSub(record.cognitoSub)) &&
+        optionalIsoDate(record.identityBoundAt) &&
+        pendingEnrollmentStateIsCoherent(record) &&
+        keysMatch(record, pendingEnrollmentKey(record.enrollmentId))
+        ? ok(record)
+        : err("validation_failed", "Invalid pending enrollment record");
     case "onboardingTreatmentSelection":
       return typeof record.cognitoSub === "string" &&
         isCognitoSub(record.cognitoSub) &&
@@ -3120,6 +3171,21 @@ function optionalStripeSubscriptionId(value: unknown) {
     (typeof value === "string" && isStripeSubscriptionId(value));
 }
 
+function optionalStripeCheckoutSessionId(value: unknown) {
+  return value === undefined ||
+    (typeof value === "string" && isStripeCheckoutSessionId(value));
+}
+
+function optionalStripeSetupIntentId(value: unknown) {
+  return value === undefined ||
+    (typeof value === "string" && isStripeSetupIntentId(value));
+}
+
+function optionalConsentVersion(value: unknown) {
+  return value === undefined ||
+    (typeof value === "string" && /^checkout-\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
 function optionalWebhookEventId(value: unknown) {
   return value === undefined || (typeof value === "string" && isWebhookEventId(value));
 }
@@ -3167,6 +3233,49 @@ function isStripeCustomerId(value: string) {
 
 function isStripeSubscriptionId(value: string) {
   return isSafeIdentifier(value, /^sub_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isStripeCheckoutSessionId(value: string) {
+  return isSafeIdentifier(value, /^cs_(?:test|live)_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isStripeSetupIntentId(value: string) {
+  return isSafeIdentifier(value, /^seti_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/);
+}
+
+function isPendingEnrollmentId(value: unknown): value is string {
+  return typeof value === "string" &&
+    isSafeIdentifier(value, /^apoth_order_[a-f0-9]{32}$/);
+}
+
+function isPendingEnrollmentStatus(
+  value: unknown,
+): value is PendingEnrollmentStatus {
+  return value === "checkout_session_pending" ||
+    value === "payment_setup_complete" ||
+    value === "identity_bound";
+}
+
+function pendingEnrollmentStateIsCoherent(record: PendingEnrollmentRecord) {
+  if (record.status === "checkout_session_pending") {
+    return record.cognitoSub === undefined &&
+      record.identityBoundAt === undefined &&
+      record.paymentSetupCompletedAt === undefined;
+  }
+  if (
+    !record.checkoutSessionId ||
+    !record.consentVersion ||
+    !record.consentAcceptedAt ||
+    !record.paymentSetupCompletedAt ||
+    !record.stripeCustomerId ||
+    !record.stripeSetupIntentId
+  ) {
+    return false;
+  }
+  if (record.status === "payment_setup_complete") {
+    return record.cognitoSub === undefined && record.identityBoundAt === undefined;
+  }
+  return record.cognitoSub !== undefined && record.identityBoundAt !== undefined;
 }
 
 function isStripeBillingOpsReviewReasonCode(
@@ -3837,6 +3946,23 @@ const allowedFields: Record<string, Set<string>> = {
     "expiresAt",
     "expiresAtEpochSeconds",
     "nonceHash",
+  ),
+  pendingEnrollment: allow(
+    "enrollmentId",
+    "productCode",
+    "status",
+    "checkoutUiMode",
+    "checkoutAttempt",
+    "expiresAt",
+    "expiresAtEpochSeconds",
+    "checkoutSessionId",
+    "consentVersion",
+    "consentAcceptedAt",
+    "paymentSetupCompletedAt",
+    "stripeCustomerId",
+    "stripeSetupIntentId",
+    "cognitoSub",
+    "identityBoundAt",
   ),
   onboardingTreatmentSelection: allow(
     "cognitoSub",

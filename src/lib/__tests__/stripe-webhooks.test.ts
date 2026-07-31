@@ -11,6 +11,7 @@ import {
   linkMdiPatientCase,
   linkStripeCustomer,
   markWebhookEventStatus,
+  pendingEnrollmentKey,
   recordCurrentMdiCaseStatusEvidence,
   webhookIdempotencyKey,
 } from "@/lib/dynamodb/app-data";
@@ -22,8 +23,64 @@ import {
 } from "@/lib/stripe-webhooks";
 import { createWebhookProcessingRepository } from "@/lib/webhook-processing-repository";
 import type { WebhookProcessingRepository } from "@/lib/webhooks";
+import { createInMemoryEnrollmentRepository } from "@/lib/enrollment/checkout-service";
 
 describe("Stripe webhook receiver service", () => {
+  it("treats checkout.session.completed as authoritative for pending enrollment setup", async () => {
+    const repository = createInMemoryAppDataRepository();
+    const enrollmentId = "apoth_order_0123456789abcdef0123456789abcdef";
+    expect(repository.put({
+      ...pendingEnrollmentKey(enrollmentId),
+      checkoutAttempt: 0,
+      checkoutSessionId: "cs_test_enrollment",
+      checkoutUiMode: "custom",
+      consentAcceptedAt: "2026-07-29T17:59:00.000Z",
+      consentVersion: "checkout-2026-07-29",
+      createdAt: "2026-07-29T17:58:00.000Z",
+      enrollmentId,
+      expiresAt: "2026-07-30T17:58:00.000Z",
+      expiresAtEpochSeconds: 1785434280,
+      productCode: "weight",
+      recordType: "pendingEnrollment",
+      schemaVersion: 1,
+      status: "checkout_session_pending",
+      updatedAt: "2026-07-29T17:59:00.000Z",
+    })).toMatchObject({ ok: true });
+    const stripe = stripeVerifier(() => stripeEvent({
+      id: "evt_enrollment_checkout_001",
+      type: "checkout.session.completed",
+      object: {
+        customer: "cus_opaque_001",
+        id: "cs_test_enrollment",
+        metadata: { apoth_order_id: enrollmentId, apoth_stage: "staging" },
+        setup_intent: "seti_opaque_001",
+      },
+    }));
+
+    const result = await handleStripeWebhook({
+      enrollmentRepository: createInMemoryEnrollmentRepository(repository),
+      stripeMirrorRepository: createInMemoryStripeMirrorRepository(repository),
+      enqueue: vi.fn(),
+      payload: "{}",
+      receivedAt: "2026-07-29T18:00:00.000Z",
+      secret: { webhookSigningSecret: "whsec_current" },
+      signature: "t=123,v1=good",
+      stripe,
+      webhookRepository: createWebhookProcessingRepository(repository),
+    });
+
+    expect(result).toMatchObject({ ok: true, body: { action: "processed" } });
+    expect(repository.get(pendingEnrollmentKey(enrollmentId))).toMatchObject({
+      ok: true,
+      value: {
+        paymentSetupCompletedAt: "2026-07-29T18:00:00.000Z",
+        status: "payment_setup_complete",
+        stripeCustomerId: "cus_opaque_001",
+        stripeSetupIntentId: "seti_opaque_001",
+      },
+    });
+  });
+
   it("rejects invalid signatures before claiming idempotency or mutating app data", async () => {
     const repository = createInMemoryAppDataRepository();
     const stripe = stripeVerifier(() => {
@@ -1316,6 +1373,7 @@ describe("Stripe webhook receiver service", () => {
 
   it("covers every launch event with an explicit handling contract", () => {
     expect(stripeWebhookEventContracts.map((contract) => contract.type)).toEqual([
+      "checkout.session.completed",
       "setup_intent.succeeded",
       "setup_intent.setup_failed",
       "payment_method.attached",

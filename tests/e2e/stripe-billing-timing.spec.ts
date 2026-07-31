@@ -128,7 +128,7 @@ test.describe("Stripe billing timing and no-PHI metadata", () => {
 
     expectStripeMetadataPolicy([metadata], guard.captures);
     expectNoForbiddenFragmentsInCapturedTraffic(guard.captures, guard.requestUrls);
-    expect(guard.allowedExternalRequests).toEqual([
+    await expect.poll(() => guard.allowedExternalRequests).toEqual([
       "https://checkout.stripe.com/c/pay/cs_test_billing_ready_001",
     ]);
     expect(guard.captures).toEqual([

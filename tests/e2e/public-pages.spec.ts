@@ -6,7 +6,7 @@ import {
 } from "./support/public";
 
 const publicRoutes = [
-  { path: "/", heading: "A clearer way to get care, online." },
+  { path: "/", heading: "Better health has never been easier" },
   { path: "/about", heading: "What Apoth is, what it isn't, and how we're set up." },
   { path: "/privacy", heading: "Privacy Policy" },
   { path: "/terms", heading: "Terms of Service" },
@@ -38,23 +38,21 @@ test.describe("public routes", () => {
 });
 
 test.describe("public navigation and CTAs", () => {
-  test("header navigation covers homepage sections and start flow", async ({ page }) => {
+  test("header navigation covers the weight-loss page and direct checkout entry", async ({ page }) => {
     const errors = collectUnexpectedPageErrors(page);
 
     await page.goto("/");
-    await page.getByRole("navigation", { name: "Primary" }).getByRole("link", {
-      name: "What we treat",
+    await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", {
+      name: "Weight Loss",
     }).click();
-    await expect(page).toHaveURL(/#what-we-treat$/);
+    await expect(page).toHaveURL(/\/weight-loss$/);
     await expect(
-      page.getByRole("heading", { name: /Four categories/ }),
+      page.getByRole("heading", { name: "Personalized GLP-1 Treatments" }),
     ).toBeVisible();
 
-    await page.getByRole("link", { name: "Start a visit" }).first().click();
-    await expect(page).toHaveURL(/\/get-started$/);
-    await expect(
-      page.getByRole("heading", { name: "Start with the privacy notice." }),
-    ).toBeVisible();
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Get started" }).first())
+      .toHaveAttribute("href", "/checkout?product=weight");
 
     errors.expectNone();
   });
@@ -63,9 +61,7 @@ test.describe("public navigation and CTAs", () => {
     const errors = collectUnexpectedPageErrors(page);
 
     await page.goto("/");
-    await page.getByRole("navigation", { name: "Help" }).getByRole("link", {
-      name: "About",
-    }).click();
+    await page.locator("#footer").getByRole("link", { name: "About Apoth" }).click();
     await expect(page).toHaveURL(/\/about$/);
     await expect(
       page.getByRole("heading", {
@@ -74,16 +70,12 @@ test.describe("public navigation and CTAs", () => {
     ).toBeVisible();
 
     await page.goto("/");
-    await page.getByRole("navigation", { name: "Legal" }).getByRole("link", {
-      name: "Privacy policy",
-    }).click();
+    await page.locator("#footer").getByRole("link", { name: "Privacy policy" }).click();
     await expect(page).toHaveURL(/\/privacy$/);
     await expect(page.getByRole("heading", { name: "Privacy Policy" })).toBeVisible();
 
     await page.goto("/");
-    await page.getByRole("navigation", { name: "Legal" }).getByRole("link", {
-      name: "Terms of service",
-    }).click();
+    await page.locator("#footer").getByRole("link", { name: "Terms of service" }).click();
     await expect(page).toHaveURL(/\/terms$/);
     await expect(page.getByRole("heading", { name: "Terms of Service" })).toBeVisible();
 
@@ -98,12 +90,12 @@ test.describe("public navigation and CTAs", () => {
     });
 
     await page.goto("/get-started");
-    await page.getByRole("link", { name: "See what we treat" }).click();
-    await expect(page).toHaveURL(/\/#what-we-treat$/);
+    await page.getByRole("link", { name: "Explore weight loss" }).click();
+    await expect(page).toHaveURL(/\/weight-loss$/);
 
     await page.goto("/get-started");
     await page.getByRole("link", { name: "How a visit goes" }).click();
-    await expect(page).toHaveURL(/\/#how-it-works$/);
+    await expect(page).toHaveURL(/\/weight-loss#how-it-works$/);
 
     errors.expectNone();
   });

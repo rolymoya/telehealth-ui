@@ -14,6 +14,8 @@ export type StageConfig = {
   authEmailFromAddress: string;
   mdiMode: "live" | "synthetic";
   mdiQuestionnaireId: string;
+  checkoutUiMode: "custom" | "hosted";
+  stripePublishableKey: string | null;
   tags: Record<string, string>;
 };
 
@@ -44,6 +46,8 @@ export function getStageConfig(stage: string): StageConfig {
     mdiMode: resolveMdiMode(stage),
     mdiQuestionnaireId: process.env.APOTH_MDI_QUESTIONNAIRE_ID ??
       "mdi_questionnaire_launch",
+    checkoutUiMode: resolveCheckoutUiMode(stage),
+    stripePublishableKey: resolveStripePublishableKey(stage),
     tags: {
       "apoth:app": "telehealth-ui",
       "apoth:stage": stage,
@@ -51,6 +55,43 @@ export function getStageConfig(stage: string): StageConfig {
       "apoth:data-class": "thin-phi-linkage",
     },
   };
+}
+
+function resolveCheckoutUiMode(stage: StageName): "custom" | "hosted" {
+  const configured = process.env.APOTH_CHECKOUT_UI_MODE?.trim();
+  if (configured && configured !== "custom" && configured !== "hosted") {
+    throw new Error("APOTH_CHECKOUT_UI_MODE must be custom or hosted");
+  }
+  const mode: "custom" | "hosted" = configured === "custom" ||
+      configured === "hosted"
+    ? configured
+    : stage === "production" ? "hosted" : "custom";
+  if (
+    stage === "production" &&
+    mode === "custom" &&
+    process.env.APOTH_ALLOW_PRODUCTION_CUSTOM_CHECKOUT !== "true"
+  ) {
+    throw new Error(
+      "Production custom checkout requires APOTH_ALLOW_PRODUCTION_CUSTOM_CHECKOUT=true",
+    );
+  }
+  return mode;
+}
+
+function resolveStripePublishableKey(stage: StageName) {
+  const key = process.env.APOTH_STRIPE_PUBLISHABLE_KEY?.trim() ||
+    process.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim() ||
+    null;
+  if (!key) {
+    return null;
+  }
+  const expectedPrefix = stage === "production" ? "pk_live_" : "pk_test_";
+  if (!key.startsWith(expectedPrefix)) {
+    throw new Error(
+      `${stage} Stripe publishable key must start with ${expectedPrefix}`,
+    );
+  }
+  return key;
 }
 
 function resolveMdiMode(stage: StageName): "live" | "synthetic" {

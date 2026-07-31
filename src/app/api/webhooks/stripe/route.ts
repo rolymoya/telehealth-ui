@@ -13,6 +13,7 @@ import {
   maxStripeWebhookPayloadBytes,
 } from "@/lib/stripe-webhooks";
 import { createDynamoDbWebhookProcessingRepository } from "@/lib/webhook-processing-repository";
+import { createDynamoDbEnrollmentRepository } from "@/lib/enrollment/checkout-service";
 
 export async function POST(request: NextRequest) {
   const signature = request.headers.get("stripe-signature");
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
           : { ok: false as const, retryable: activated.code !== "invalid_stripe_metadata" };
       },
     },
+    enrollmentRepository: createDynamoDbEnrollmentRepository(repository.value),
     stripeMirrorRepository: createDynamoDbStripeMirrorRepository(repository.value),
     enqueue: createSqsWebhookEnqueue(queue.value),
     payload: payload.value,

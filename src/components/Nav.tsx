@@ -1,6 +1,7 @@
 import { UserRound } from "lucide-react";
 
 import { navLinks } from "@/lib/data";
+import { checkoutHref } from "@/lib/public-commerce";
 import { MobileMenu } from "@/components/marketing-v2/MobileMenu";
 import { Wordmark } from "./Icons";
 
@@ -38,7 +39,7 @@ export function Nav({ variant = "light" }: NavProps) {
 
         <div className="flex items-center gap-3">
           <a
-            href="/get-started"
+            href={checkoutHref("weight")}
             className={`hidden min-h-11 items-center justify-center rounded-full px-6 text-sm font-semibold transition-all hover:-translate-y-px sm:inline-flex ${
               isDark ? "bg-white text-[#171719] hover:bg-white/90" : "bg-[#171719] text-white hover:bg-[#343437]"
             }`}
@@ -55,7 +56,10 @@ export function Nav({ variant = "light" }: NavProps) {
           >
             <UserRound className="h-4 w-4" aria-hidden="true" /> Login
           </a>
-          <MobileMenu links={navLinks.map(({ label, href }) => [label, href] as const)} />
+          <MobileMenu
+            links={navLinks.map(({ label, href }) => [label, href] as const)}
+            ctaHref={checkoutHref("weight")}
+          />
         </div>
       </div>
     </header>

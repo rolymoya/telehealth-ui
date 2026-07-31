@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/marketing-v2/ui/Button";
+import { checkoutHref } from "@/lib/public-commerce";
 
 const defaultLinks = [
   ["Weight Loss", "/weight-loss"],
@@ -16,7 +17,10 @@ type MobileMenuProps = {
   ctaHref?: string;
 };
 
-export function MobileMenu({ links = defaultLinks, ctaHref = "/get-started" }: MobileMenuProps) {
+export function MobileMenu({
+  links = defaultLinks,
+  ctaHref = checkoutHref("weight"),
+}: MobileMenuProps) {
   const [open, setOpen] = useState(false);
 
   return (
