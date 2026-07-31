@@ -33,7 +33,7 @@ describe("marketing pages", () => {
       .toHaveAttribute("href", "/privacy");
   });
 
-  it("keeps regulated weight-loss copy and routes eligibility into intake", () => {
+  it("keeps regulated weight-loss copy and routes eligibility into checkout", () => {
     render(<WeightLossPage />);
 
     expect(screen.getAllByRole("link", { name: /get started/i })[0])

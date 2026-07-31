@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { checkoutHref } from "@/lib/public-commerce";
 import { ArrowRight } from "./Icons";
 import { Nav } from "./Nav";
 import { checkoutHref } from "@/lib/public-commerce";

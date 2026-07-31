@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-split.mjs",
+    "dev:marketing": "next dev",
     "build": "next build",
     "build:static": "node scripts/build-static.mjs",
     "aws:sso:staging": "npm --prefix infra run sso:staging",
@@ -26,6 +27,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "3.1097.0",
+    "@aws-sdk/client-dynamodb": "3.1097.0",
+    "@aws-sdk/lib-dynamodb": "3.1097.0",
     "@radix-ui/react-accordion": "^1.2.20",
     "@radix-ui/react-slot": "^1.3.3",
     "@stripe/react-stripe-js": "5.6.1",

@@ -22,7 +22,7 @@ describe("intake static compatibility", () => {
     }
   });
 
-  it("build:static is wired to emit S3 clean-route artifacts", () => {
+  it("build:static emits only the public marketing boundary", () => {
     const packageJson = JSON.parse(readFileSync(
       join(process.cwd(), "package.json"),
       "utf8",
@@ -40,18 +40,14 @@ describe("intake static compatibility", () => {
     expect(buildStaticScript).toContain("scripts/assert-static-compatible.mjs");
     expect(buildStaticScript).toContain("\"next\", [\"build\"]");
     expect(buildStaticScript).toContain("scripts/export-static-routes.mjs");
-    expect(exportScript).toContain("\"/account\"");
-    expect(exportScript).toContain("\"/billing\"");
-    expect(exportScript).toContain("\"/dashboard\"");
-    expect(exportScript).toContain("\"/get-started\"");
-    expect(exportScript).toContain("\"/intake\"");
-    expect(exportScript).toContain("\"/reset-password\"");
-    expect(exportScript).toContain("\"/sign-in\"");
-    expect(exportScript).toContain("\"/sign-up\"");
-    expect(exportScript).toContain("\"/onboarding/consent\"");
-    expect(exportScript).toContain("\"/onboarding/mdi\"");
-    expect(exportScript).toContain("\"/verify-email\"");
+    expect(exportScript).toContain("\"/about\"");
+    expect(exportScript).toContain("\"/privacy\"");
+    expect(exportScript).toContain("\"/terms\"");
     expect(exportScript).toContain("\"/weight-loss\"");
+    expect(exportScript).not.toContain("\"/account\"");
+    expect(exportScript).not.toContain("\"/intake\"");
+    expect(exportScript).not.toContain("\"/onboarding/mdi\"");
+    expect(exportScript).not.toContain("\"/sign-up\"");
     expect(exportScript).toContain("copyPublicAssets");
     expect(exportScript).toContain("_not-found.html");
     expect(exportScript).toContain("404.html");

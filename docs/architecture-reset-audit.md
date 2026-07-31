@@ -1,5 +1,10 @@
 # Architecture Reset Audit
 
+> Historical baseline. The target patient journey in this audit is superseded
+> by `docs/features/checkout-as-signup-white-label-portal.md`. MDI-backed native
+> intake remains a migration/rollback adapter only; new patient acquisition
+> uses hosted Checkout, passwordless account binding, and a white-label portal.
+
 ## Decision Snapshot
 
 Apoth is moving back to a thin-platform launch architecture:

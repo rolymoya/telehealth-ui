@@ -5,6 +5,11 @@ export type StageName = "staging" | "production";
 
 export type StageConfig = {
   stage: StageName;
+  checkoutSignup: {
+    enabled: boolean;
+    integrationIdentifier: string;
+    weightCatalogId: string;
+  };
   region?: string;
   removalPolicy: RemovalPolicy;
   logRetention: RetentionDays;
@@ -35,6 +40,17 @@ export function getStageConfig(stage: string): StageConfig {
 
   return {
     stage,
+    checkoutSignup: isProduction
+      ? {
+          enabled: false,
+          integrationIdentifier: "",
+          weightCatalogId: "",
+        }
+      : {
+          enabled: true,
+          integrationIdentifier: "apoth_checkout_hprmzkta",
+          weightCatalogId: "catalog_weight_staging_v1",
+        },
     removalPolicy: isProduction ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
     logRetention: isProduction ? RetentionDays.ONE_MONTH : RetentionDays.ONE_WEEK,
     deletionProtection: isProduction,
