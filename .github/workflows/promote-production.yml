@@ -355,7 +355,7 @@ jobs:
           test -f out/terms/index.html
           test -f dist/patient-app/patient-index.html
           grep -R -F -q \
-            "${PUBLIC_SITE_ORIGIN}/checkout?product=weight" out
+            "${PUBLIC_SITE_ORIGIN}/get-started?product=weight" out
 
       - name: Back up current production UI
         id: backup

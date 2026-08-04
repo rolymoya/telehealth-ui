@@ -146,7 +146,7 @@ jobs:
           test -f dist/patient-app/patient-index.html
           test -d dist/patient-app/patient-assets
           grep -R -F -q \
-            "${PUBLIC_SITE_ORIGIN}/checkout?product=weight" out
+            "${PUBLIC_SITE_ORIGIN}/get-started?product=weight" out
 
       - name: Back up current deployed static UI
         id: backup
