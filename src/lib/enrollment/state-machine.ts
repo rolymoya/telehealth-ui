@@ -73,11 +73,11 @@ export function applyEnrollmentTransition(
 
   if (
     candidate.portalHandoff !== "unavailable" &&
-    (candidate.identity !== "verified" || candidate.paymentSetup !== "setup_succeeded")
+    candidate.identity !== "verified"
   ) {
     return err(
       "portal_handoff_not_authorized",
-      "Portal handoff requires verified identity and successful payment setup",
+      "Portal handoff requires verified identity",
     );
   }
 

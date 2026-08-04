@@ -3242,7 +3242,7 @@ describe("DynamoDB app-data helpers", () => {
       cognitoSub: "cognito-sub-001",
       consentKind: "privacy_notice",
       now,
-      version: "privacy-2026-06-thin-phi-v2",
+      version: "privacy-2026-08-portal-boundary-v3",
     });
 
     expect(getRequiredConsentEvidenceStatus(repository, {

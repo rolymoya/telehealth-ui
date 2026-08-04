@@ -1,63 +1,147 @@
 # Product
 
-## Register
+<!-- impeccable:product-schema 1 -->
 
-brand
+## Platform
+
+web
 
 ## Users
 
-Adults considering or returning to telehealth care, browsing on phones and laptops, often outside of a clinical setting (kitchen table, commute, bed). Mixed health and tech literacy; some are cautious about online medicine, some have been burned by clinical portals or pharma-feeling sites. They arrive wondering "is this for me, can I trust it, what does it actually cost, how soon can I be seen." The job is decide-and-act: understand the offering in under a minute, and either start intake or leave with a clear next step.
+The launch audience is adults considering or returning to clinician-guided
+weight-loss care. They browse on phones and laptops, often outside a clinical
+setting, with mixed health and technical literacy. Some are cautious about
+online medicine or have had poor experiences with clinical portals. They need
+to understand whether the service fits them, what it costs, when payment can
+occur, how quickly care can begin, and who is responsible for each part of the
+experience.
 
-After signup, the same patient needs a quiet account surface for finishing intake, checking case status, managing billing, and reaching the MDI-backed care workflow without feeling dropped into an institutional portal.
+After signup, the same patient needs a quiet account surface for verifying
+their identity, understanding enrollment and billing status, and securely
+entering the selected white-label clinical portal without feeling abandoned at
+a vendor handoff.
 
 ## Product Purpose
 
-A patient-facing telehealth surface that helps patients self-serve their way into care. It starts as a marketing and conversion surface, then becomes a lightweight account dashboard for onboarding, case status, billing, and MDI-backed care access.
+Apoth is the patient-facing technology and commerce layer for weight-loss
+telehealth. It helps a visitor choose to begin, review privacy, complete a
+short non-clinical precheck, create a passwordless account through Amazon
+Cognito, and enter an independent provider's white-label clinical portal.
+After clinical intake, Apoth coordinates $0-due payment-method setup and, only
+after approval, a separate acceptance of the exact recurring treatment offer.
 
-Success looks like: visitors describe the brand as "warm and clear" rather than "medical" or "salesy", intake starts on the home page rather than buried three clicks deep, and trust signals (clinicians, pricing, safety) are visible without feeling like a compliance disclosure. Logged-in patients should always know what step they are in, what Apoth owns, what MD Integrations owns, what happens next, and whether they have been charged.
+Success means a visitor can understand the offer and start enrollment in under
+a minute; patients always know their current step, next action, responsible
+party, and charge status; and Apoth completes the handoff without becoming a
+second clinical record.
 
-## Product Boundary
+## Positioning
 
-Apoth owns the technology and commercial layer:
+Apoth provides a coherent, self-service weight-loss journey while remaining a
+deliberately thin orchestration layer. It joins marketing, identity, consent,
+payment-method setup, billing status, and secure portal launch without
+collecting the clinical questionnaire or presenting Apoth as the medical
+provider. Payment setup is separated from billing activation: the patient is
+not charged before the independent clinical provider approves care.
 
-- public marketing and legal pages
-- patient account identity through Cognito
-- intake UI for MDI-provided questions
-- submission of patient and case data to MD Integrations
-- minimal app records that link Cognito, MDI, and Stripe IDs
-- Stripe payment method capture, subscription/billing orchestration, and billing portal access
-- dashboard framing for status, next steps, and MDI-backed workflow access
+## Operating Context
 
-Apoth does not practice medicine, prescribe, dispense medication, or act as the clinical chart. MD Integrations is the clinical system of record. The pharmacy partner handles medication fulfillment. Apoth should not persist questionnaire answers after submission to MDI unless a future legal and architecture decision changes that posture.
+The patient journey begins on the public marketing site, primarily at `/` or
+`/weight-loss`, and enters enrollment at `/get-started?product=weight`. Privacy
+acknowledgement and the bounded precheck happen before passwordless email-code
+account verification through Cognito. The verified patient then uses an
+authenticated, single-use launch into the selected clinical portal. Hosted
+Stripe Checkout is used later to save a payment method with $0 due; it does not
+start billing. Clinical approval produces an exact treatment offer that the
+patient must separately accept before the first charge or subscription.
 
-## Brand Personality
+The clinical portal owns eligibility questions, intake, clinician review, the
+clinical record, and care workflow. Apoth owns the framing around identity,
+commerce, status, and the handoff. Stripe owns payment instruments and billing
+artifacts. A separate 503A compounding pharmacy partner owns fulfillment.
+Patients should not need to understand the integration architecture, but they
+must never be misled about which entity provides care, charges them, or
+dispenses medication.
 
-Warm, candid, modern. The voice is a knowledgeable friend who happens to work in healthcare, not a hospital and not an influencer. Plain-spoken with real specificity (named conditions, real prices, real wait times) rather than soft-focus wellness language. Confident enough to say what we don't do. Emotional goals: relief, recognition ("oh, this is for someone like me"), and the small private satisfaction of having handled something.
+The repository still contains MDI intake and workflow routes while migration is
+underway. MD Integrations is a legacy adapter, not the target patient
+experience or the durable product boundary.
 
-## Anti-references
+## Capabilities and Constraints
 
-- **Hospital and EHR portals** (MyChart, Epic-styled patient sites, hospital homepages). Clinical-blue, institutional, dense, beige forms.
-- **Generic health-tech SaaS templates.** Gradient hero blobs, three-up feature cards, pastel illustrations of smiling doctors with stethoscopes, "AI-powered" buzzwords.
-- **Corporate pharma / medical conglomerate** (Pfizer/Merck-style sites). Navy-and-white, suit-and-handshake photography, regulatory tone, press-release voice.
-- **Shouty DTC wellness.** Neon CTAs, countdown banners, "limited time!", influencer testimonials wallpapered everywhere, hard-sell urgency.
+- Apoth Health LLC, an Illinois company, is a technology platform. It does not
+  practice medicine, prescribe, make clinical decisions, or dispense
+  medication.
+- The selected white-label portal provider is still undecided. Its approved
+  compliance and BAA path is a launch dependency.
+- Apoth must not render or persist clinical questionnaire answers. The clinical
+  portal is the clinical system of record.
+- Amazon Cognito owns patient identity and passwordless email-code
+  verification. DynamoDB stores only minimal account, consent, status, billing,
+  and opaque provider-linkage records.
+- Stripe Checkout collects a payment method in setup mode after clinical
+  intake. Due at setup is $0. No charge or subscription may be activated before
+  clinical approval and separate acceptance of the exact offer. Stripe metadata
+  may contain only opaque, non-PHI identifiers because Stripe is not BAA-eligible.
+- Portal access must be authenticated, short-lived, and single-use. Clinical
+  state comes from signed provider events or short-lived launches rather than a
+  local copy of the clinical workflow.
+- Reliable event handling uses AWS serverless services, including Lambda,
+  DynamoDB idempotency, and SQS/DLQ where durable retry is required.
+- The launch architecture excludes Persona/KYC, RDS/Postgres, Redis, always-on
+  workers, App Runner, NAT gateways, and VPC endpoints unless a future product
+  or architecture decision reopens their need.
+- Compounded medications require clear not-FDA-approved disclosure and a
+  distinction from brand-name products. Public legal copy remains subject to
+  healthcare-counsel and LegitScript review.
+- The pharmacy partner's name and the target white-label clinical portal
+  provider remain open decisions.
 
-## Design Principles
+## Brand Commitments
 
-1. **Plain-spoken over clinical.** Write like a person who understands medicine, not a portal that documents it. If it sounds like a consent form or a brochure, rewrite it.
-2. **Calm confidence, not loud reassurance.** Trust comes from specifics (named clinicians, transparent pricing, real timelines), not badges, ribbons, or "trusted by millions."
-3. **Real over stock.** Photography, names, and details should feel sourced from the actual service. No generic doctors-with-tablets imagery, no illustrated avatars filling space.
-4. **One clear action per surface.** Every page knows what it wants the visitor to do next. Decoration that competes with that action is decoration we cut.
-5. **Made, not templated.** The marks of craft (typography decisions, considered spacing, intentional motion) are the proof that the care behind the product is also considered. Looking made is a trust signal.
-6. **System of record clarity.** Patients should understand when they are interacting with Apoth, MD Integrations, Stripe, or the pharmacy partner. The UI should hide unnecessary integration complexity, but never blur who provides clinical care or who charges the patient.
-7. **Thin by design.** Do not collect, duplicate, or display clinical data just because an API makes it available. Pull the minimum needed to guide the patient through the current step.
+The product name is Apoth. Its voice is warm, candid, modern, and
+plain-spoken: a knowledgeable guide rather than a hospital, pharmaceutical
+company, or wellness influencer. Trust should come from concrete, reviewable
+facts and honest boundaries, including what Apoth does not do. Copy must avoid
+pressure tactics, invented reassurance, and any implication that Apoth
+provides medical care.
+
+## Evidence on Hand
+
+- Implemented public product surfaces at `/` and `/weight-loss`, with current
+  offer, pricing, process, safety, and disclosure copy in `src/app` and
+  `src/lib/data.ts`.
+- Implemented enrollment, account, billing, and portal-launch behavior in
+  `src/app`, `src/patient`, and `src/lib/enrollment`, with invariants covered by
+  unit and end-to-end tests.
+- Product and lifestyle image assets under `public/images`, including weight-
+  loss hero, vial, syringe, and lifestyle imagery.
+- Architecture, data-boundary, billing, and compliance evidence in `docs`,
+  `RULES.md`, and `AGENTS.md`.
+- No verified clinician profiles, testimonials, measured outcomes, named
+  pharmacy partner, or other clinical proof are approved for use at this time.
+  Future work must not fabricate them.
+
+## Product Principles
+
+1. **Make the next step unmistakable.** A patient should always understand
+   where they are, what happens next, and whether any charge has occurred.
+2. **Keep institutional boundaries honest.** Apoth, the independent clinical
+   provider, Stripe, and the pharmacy partner have distinct responsibilities
+   that the product must not blur.
+3. **Stay thin by design.** Collect and retain only what Apoth needs for
+   identity, commerce, status, consent evidence, and secure portal linkage.
+4. **Earn trust with specifics.** Use confirmed prices, timing, policies, and
+   ownership facts; label open decisions and never invent proof.
+5. **Design for reliable handoffs.** Enrollment, verification, provider launch,
+   webhooks, and billing transitions must be idempotent, recoverable, and clear
+   to the patient when delayed.
 
 ## Accessibility & Inclusion
 
-WCAG 2.2 AA across the marketing surface. Specific commitments:
-
-- 4.5:1 minimum contrast for body text, 3:1 for large text and UI affordances, validated against the OKLCH palette in DESIGN.md.
-- Full keyboard navigation with visible, brand-aligned focus rings (not browser default outlines, but not invisible either).
-- Reduced-motion variants for any scroll-driven or transition-heavy effect; respect `prefers-reduced-motion`.
-- Color-blind-safe palette: information never carried by color alone (icons, labels, or shape paired with hue).
-- Semantic HTML and ARIA labeling on form fields, navigation, and any custom interactive components; tested with VoiceOver and NVDA on the booking entry points.
-- Patient-leaning defaults given a mixed-literacy audience: comfortable body type size (16px floor, target 17–18px on key reading surfaces), generous tap targets, plain-language labels with disclosure for clinical detail rather than the reverse.
+Public and authenticated web surfaces target WCAG 2.2 AA. The product must
+support full keyboard navigation, visible focus states, reduced-motion
+preferences, semantic structure, accessible form labeling, and information
+that is not conveyed by color alone. Given mixed health and technical literacy,
+patient-facing language should remain plain, controls should be comfortably
+touchable, and key reading surfaces should not assume high clinical literacy.

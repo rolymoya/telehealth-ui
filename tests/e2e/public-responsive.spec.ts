@@ -48,7 +48,7 @@ for (const viewport of viewportCases) {
   });
 }
 
-test("keyboard focus exposes skip link and reaches the direct checkout CTA", async ({ page }) => {
+test("keyboard focus exposes skip link and reaches the staged enrollment CTA", async ({ page }) => {
   const errors = collectUnexpectedPageErrors(page);
 
   await page.goto("/");

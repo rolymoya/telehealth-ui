@@ -9,6 +9,9 @@ methods.
 ## Required Configuration
 
 - `STRIPE_RECURRING_PRICE_ID` must be set for the deployed stage.
+- `APOTH_BILLING_PRICE_CENTS` must equal that Stripe Price's `unit_amount`.
+- `APOTH_BILLING_AUTHORIZATION_VERSION` must identify the current recurring
+  authorization copy, for example `billing-offer-v1`.
 - The value must be a single Stripe recurring Price ID for the Apoth account
   workflow, for example `price_...`.
 - Do not select the Price ID from condition, medication, diagnosis,
@@ -28,17 +31,22 @@ methods.
    - `billingStatus` is `payment_method_collected`.
    - `stripeCustomerId` is present.
    - `stripeSubscriptionId` is absent.
-4. Deliver the selected MDI unlock signal for the same synthetic MDI case:
-   - MDI mirrored status is `billing_ready`.
+4. Deliver the selected provider unlock signal for the same synthetic case:
+   - The mirrored provider status is `billing_ready`.
    - The unlock decision evidence is `activate_billing`.
-5. Confirm exactly one Stripe subscription is created:
+5. Open `/billing/activate` and confirm the exact due-now and monthly amounts
+   match the configured Stripe Price. Accept the separate recurring
+   authorization and submit it.
+6. Confirm exactly one Stripe subscription is created:
    - The subscription uses `STRIPE_RECURRING_PRICE_ID`.
+   - Runtime validation retrieved that Price and matched its active flag, USD
+     currency, monthly interval, and amount before creation.
    - The subscription is attached to the synthetic Stripe customer.
    - Local `billingStatus` becomes `active`.
    - Local `stripeSubscriptionId`, `stripeCurrentPeriodStart`, and
      `stripeCurrentPeriodEnd` are mirrored.
-6. Replay the same unlock event or webhook delivery.
-7. Confirm no second subscription is created and local state still points to the
+7. Replay the same unlock event, offer submission, or webhook delivery.
+8. Confirm no second subscription is created and local state still points to the
    first subscription.
 
 ## Webhook Checks
@@ -51,7 +59,7 @@ methods.
   subscription.
 - `customer.subscription.updated` with `cancel_at_period_end: true` should
   mirror `cancel_pending` locally.
-- Missing `STRIPE_RECURRING_PRICE_ID`, an invalid Stripe secret, missing webhook
+- Missing or mismatched price/amount configuration, an invalid Stripe secret, missing webhook
   signing secret, or an unavailable app-data table must fail closed with
   patient-safe `billing_unavailable` behavior.
 
@@ -79,6 +87,8 @@ For the synthetic account, expected evidence includes:
 
 - `stripe_payment_method_collected` once for payment-method readiness.
 - `mdi_billing_unlock_decision` with `billing_action: activate_billing`.
+- One versioned `billingOfferAcceptance` record bound to the exact case, Price,
+  displayed amount, and authorization version.
 - `stripe_billing_activated` once for the created subscription.
 
 For replay, expect no additional Stripe subscription and no conflicting
@@ -92,6 +102,10 @@ resolve to the same stored subscription.
   and the route or webhook returns retryable billing-unavailable behavior.
 - Send the unlock before payment-method collection. Expected: no subscription,
   decision remains waiting for payment method, and no active billing mirror.
+- Send the unlock after payment-method collection but before exact-offer
+  acceptance. Expected: `offer_acceptance_required` and no Stripe subscription.
+- Set `APOTH_BILLING_PRICE_CENTS` to an amount different from the live Stripe
+  Price. Expected: `invalid_stripe_price`, no subscription, and no charge.
 - Send a clinical closure after activation in test mode. Expected: Stripe
   cancellation is attempted, local billing mirror moves to `canceled`, and
   evidence remains bounded to opaque IDs and status codes.

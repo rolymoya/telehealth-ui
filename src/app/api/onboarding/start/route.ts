@@ -7,6 +7,7 @@ import {
 import { resolveAppSigningSecret } from "@/lib/app-signing-secret";
 import { resolveCognitoAuthConfig } from "@/lib/auth";
 import { resolveOnboardingStartRedirect } from "@/lib/onboarding-start";
+import { isPublicProductCode } from "@/lib/public-commerce";
 import {
   anonymousPrecheckContextCookieName,
   clearedAnonymousPrecheckContextCookieHeader,
@@ -34,12 +35,16 @@ export async function GET(request: NextRequest) {
     return noStoreJson({ error: "onboarding_unavailable" }, 503);
   }
 
+  const product = request.nextUrl.searchParams.get("product");
+  const pathname = isPublicProductCode(product)
+    ? `/get-started?product=${encodeURIComponent(product)}`
+    : "/get-started";
   const result = await resolveOnboardingStartRedirect({
     ...(anonymousContext.payload
       ? { anonymousPrecheckContext: anonymousContext.payload }
       : {}),
     config: config.value,
-    pathname: "/get-started",
+    pathname,
     repository: repository.value,
     token,
   });

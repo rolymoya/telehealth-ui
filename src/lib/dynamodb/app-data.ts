@@ -127,6 +127,19 @@ export type OnboardingTreatmentSelectionRecord = BaseRecord & {
   treatment: LaunchOfferingSlug;
 };
 
+export type BillingOfferAcceptanceRecord = BaseRecord & {
+  recordType: "billingOfferAcceptance";
+  acceptedAt: string;
+  authorizationVersion: string;
+  cognitoSub: string;
+  currency: "usd";
+  interval: "month";
+  mdiCaseId: string;
+  offerId: string;
+  stripePriceId: string;
+  unitAmountCents: number;
+};
+
 export type MdiLinkageRecord = BaseRecord & {
   recordType: "mdiLinkage";
   cognitoSub: string;
@@ -355,6 +368,7 @@ export type AppDataRecord =
   | AnonymousPrecheckConsumptionRecord
   | PendingEnrollmentRecord
   | OnboardingTreatmentSelectionRecord
+  | BillingOfferAcceptanceRecord
   | MdiLinkageRecord
   | MdiReverseLookupRecord
   | MdiPatientCreateAttemptRecord
@@ -460,6 +474,10 @@ export function mdiCaseCreateAttemptKey(cognitoSub: string): AppDataKey {
 
 export function onboardingTreatmentSelectionKey(cognitoSub: string): AppDataKey {
   return { pk: `PATIENT#${cognitoSub}`, sk: "MDI#QUESTIONNAIRE_SELECTION" };
+}
+
+export function billingOfferAcceptanceKey(cognitoSub: string): AppDataKey {
+  return { pk: `PATIENT#${cognitoSub}`, sk: "BILLING#OFFER_ACCEPTANCE" };
 }
 
 export function stripeLinkageKey(cognitoSub: string): AppDataKey {
@@ -797,6 +815,34 @@ export function createOnboardingTreatmentSelectionRecord(input: {
     questionnaireId: input.questionnaireId,
     selectedAt: input.now,
     treatment: input.treatment,
+    createdAt: input.now,
+    updatedAt: input.now,
+  };
+}
+
+export function createBillingOfferAcceptanceRecord(input: {
+  acceptedAt: string;
+  authorizationVersion: string;
+  cognitoSub: string;
+  mdiCaseId: string;
+  now: string;
+  offerId: string;
+  stripePriceId: string;
+  unitAmountCents: number;
+}): BillingOfferAcceptanceRecord {
+  return {
+    ...billingOfferAcceptanceKey(input.cognitoSub),
+    recordType: "billingOfferAcceptance",
+    schemaVersion: 1,
+    acceptedAt: input.acceptedAt,
+    authorizationVersion: input.authorizationVersion,
+    cognitoSub: input.cognitoSub,
+    currency: "usd",
+    interval: "month",
+    mdiCaseId: input.mdiCaseId,
+    offerId: input.offerId,
+    stripePriceId: input.stripePriceId,
+    unitAmountCents: input.unitAmountCents,
     createdAt: input.now,
     updatedAt: input.now,
   };
@@ -2460,6 +2506,20 @@ function validateByType(record: AppDataRecord): AppDataResult<AppDataRecord> {
         keysMatch(record, onboardingTreatmentSelectionKey(record.cognitoSub))
         ? ok(record)
         : err("validation_failed", "Invalid onboarding treatment selection record");
+    case "billingOfferAcceptance":
+      return isCognitoSub(record.cognitoSub) &&
+        isIsoTimestamp(record.acceptedAt) &&
+        /^billing-offer-v[1-9][0-9]*$/.test(record.authorizationVersion) &&
+        record.currency === "usd" &&
+        record.interval === "month" &&
+        isMdiCaseId(record.mdiCaseId) &&
+        /^offer_[a-f0-9]{32,64}$/.test(record.offerId) &&
+        /^price_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/.test(record.stripePriceId) &&
+        Number.isInteger(record.unitAmountCents) &&
+        record.unitAmountCents > 0 &&
+        keysMatch(record, billingOfferAcceptanceKey(record.cognitoSub))
+        ? ok(record)
+        : err("validation_failed", "Invalid billing offer acceptance record");
     case "mdiLinkage":
       return typeof record.cognitoSub === "string" &&
         typeof record.mdiPatientId === "string" &&
@@ -3969,6 +4029,17 @@ const allowedFields: Record<string, Set<string>> = {
     "questionnaireId",
     "selectedAt",
     "treatment",
+  ),
+  billingOfferAcceptance: allow(
+    "acceptedAt",
+    "authorizationVersion",
+    "cognitoSub",
+    "currency",
+    "interval",
+    "mdiCaseId",
+    "offerId",
+    "stripePriceId",
+    "unitAmountCents",
   ),
   mdiLinkage: allow("cognitoSub", "mdiPatientId", "mdiCaseId"),
   mdiReverseLookup: allow("cognitoSub", "pointerType", "mdiPatientId", "mdiCaseId"),

@@ -418,7 +418,7 @@ describe("MDI intake lambda handlers", () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
-      redirect: "/onboarding/mdi",
+      redirect: "/portal/launch",
       status: "linked",
     });
     const selectionWrite = sendMock.mock.calls.find(([command]) => {
@@ -469,7 +469,7 @@ describe("MDI intake lambda handlers", () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
-      redirect: "/onboarding/mdi",
+      redirect: "/portal/launch",
       status: "linked",
     });
     expect(fetchMock).not.toHaveBeenCalled();

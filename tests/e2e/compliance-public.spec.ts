@@ -55,7 +55,7 @@ test.describe("public compliance assertions", () => {
 
     await expect(page.getByText("Apoth is a technology platform.")).toBeVisible();
     await expect(
-      page.getByText("MD Integrations is the clinical system of record"),
+      page.getByText("The selected provider portal is the clinical system of record"),
     ).toBeVisible();
     await expect(
       page.getByText("Apoth is not a medical provider, does not practice medicine"),

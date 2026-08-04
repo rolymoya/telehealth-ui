@@ -12,6 +12,12 @@ describe("protected route middleware", () => {
     expect(response.headers.get("location")).toBe(
       "https://apoth.test/sign-in?returnTo=%2Fdashboard%3Ftab%3Dcurrent",
     );
+
+    const portalResponse = proxy(new NextRequest("https://apoth.test/portal/launch"));
+    expect(portalResponse.status).toBe(307);
+    expect(portalResponse.headers.get("location")).toBe(
+      "https://apoth.test/sign-in?returnTo=%2Fportal%2Flaunch",
+    );
   });
 
   it("allows public routes and protected routes with a session cookie through", () => {

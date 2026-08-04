@@ -16,6 +16,9 @@ export function PortalLaunch() {
             <p className="mt-6 max-w-xl text-lg leading-7 text-black/58">
               Your clinical questionnaire and ongoing care live in our secure patient portal. Apoth keeps only the account, billing, and portal linkage needed to get you there.
             </p>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-black/50">
+              You will return to Apoth after intake to save a payment method. Due then is $0. No subscription starts until clinical approval and your separate acceptance of the exact recurring price.
+            </p>
             <form action="/api/portal/launch" method="post" className="mt-8">
               <input name="intent" type="hidden" value="launch" />
               <button className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-[#171719] px-7 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-[#303033] sm:w-auto" type="submit">
@@ -30,7 +33,7 @@ export function PortalLaunch() {
               {[
                 "Share your health history in the patient portal.",
                 "An independent licensed provider reviews your information.",
-                "You are charged only if treatment is approved and your plan begins.",
+                "Review the exact treatment and price before any recurring charge begins.",
               ].map((copy, index) => (
                 <li className="flex gap-4" key={copy}>
                   <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/70 text-xs font-bold">{index + 1}</span>

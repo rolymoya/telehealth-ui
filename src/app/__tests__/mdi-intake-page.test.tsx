@@ -8,13 +8,8 @@ import questionnaireFlow from "../../../tests/fixtures/mdi/questionnaire-flow.js
 const questionnaire = questionnaireFlow.questionnaire;
 
 describe("MDI intake page", () => {
-  it("renders the static clinical intake shell", () => {
-    render(<MdiHandoffPage />);
-
-    expect(screen.getByRole("heading", { name: /^MDI questionnaire$/i }))
-      .toBeInTheDocument();
-    expect(screen.getByText(/Medication disclosure comes after submission/i))
-      .toBeInTheDocument();
+  it("redirects the legacy questionnaire route to the provider portal", () => {
+    expect(() => MdiHandoffPage()).toThrowError("NEXT_REDIRECT");
   });
 
   it("renders fixture questions after bootstrap and submits transient responses with CSRF", async () => {

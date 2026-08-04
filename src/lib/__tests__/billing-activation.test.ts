@@ -7,10 +7,15 @@ import {
   type BillingActivationStripeClient,
 } from "@/lib/billing-activation";
 import {
+  createBillingOffer,
+  type BillingOfferConfig,
+} from "@/lib/billing-offer";
+import {
   requiredConsentsBeforeBillingOrPrescribing,
 } from "@/lib/consents";
 import {
   createInMemoryAppDataRepository,
+  createBillingOfferAcceptanceRecord,
   createPatientProfileRecord,
   getStripeLinkage,
   linkMdiPatientCase,
@@ -27,6 +32,11 @@ const mdiPatientId = "mdi_patient_billingactivation_001";
 const mdiCaseId = "mdi_case_billingactivation_001";
 const now = "2026-06-23T12:00:00.000Z";
 const priceId = "price_launch_recurring_001";
+const offerConfig: BillingOfferConfig = {
+  authorizationVersion: "billing-offer-v1",
+  stripePriceId: priceId,
+  unitAmountCents: 9_900,
+};
 
 describe("billing activation after MDI clinical unlock", () => {
   it("does not create a subscription before the billing unlock state", async () => {
@@ -37,7 +47,7 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now,
-      priceId,
+      offerConfig,
       repository: createInMemoryBillingActivationRepository(repository),
       stage: "staging",
       stripe,
@@ -62,13 +72,59 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now,
-      priceId,
+      offerConfig,
       repository: createInMemoryBillingActivationRepository(repository),
       stage: "staging",
       stripe,
     });
 
     expect(result).toEqual({ ok: true, status: "await_payment_method" });
+    expect(stripe.subscriptions.create).not.toHaveBeenCalled();
+  });
+
+  it("does not activate billing until the patient accepts the exact approved offer", async () => {
+    const repository = seededRepository({
+      billingStatus: "payment_method_collected",
+      caseStatus: "billing_ready",
+      offerAcceptance: false,
+    });
+    const stripe = stripeMock();
+
+    await expect(activateBillingAfterClinicalUnlock({
+      cognitoSub,
+      mdiCaseId,
+      now,
+      offerConfig,
+      repository: createInMemoryBillingActivationRepository(repository),
+      stage: "staging",
+      stripe,
+    })).resolves.toEqual({ ok: true, status: "offer_acceptance_required" });
+    expect(stripe.subscriptions.create).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the configured amount does not match the Stripe Price", async () => {
+    const repository = seededRepository({
+      billingStatus: "payment_method_collected",
+      caseStatus: "billing_ready",
+    });
+    const stripe = stripeMock();
+    stripe.prices.retrieve.mockResolvedValueOnce({
+      active: true,
+      currency: "usd",
+      recurring: { interval: "month" },
+      type: "recurring",
+      unit_amount: 19_900,
+    });
+
+    await expect(activateBillingAfterClinicalUnlock({
+      cognitoSub,
+      mdiCaseId,
+      now,
+      offerConfig,
+      repository: createInMemoryBillingActivationRepository(repository),
+      stage: "staging",
+      stripe,
+    })).resolves.toEqual({ ok: false, code: "invalid_stripe_price" });
     expect(stripe.subscriptions.create).not.toHaveBeenCalled();
   });
 
@@ -80,7 +136,7 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now,
-      priceId,
+      offerConfig,
       repository: createInMemoryBillingActivationRepository(repository),
       stage: "staging",
       stripe,
@@ -132,7 +188,7 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now,
-      priceId,
+      offerConfig,
       repository: createInMemoryBillingActivationRepository(repository),
       stage: "staging",
       stripe,
@@ -163,7 +219,7 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now,
-      priceId,
+      offerConfig,
       repository: createInMemoryBillingActivationRepository(repository),
       stage: "staging",
       stripe,
@@ -172,7 +228,7 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now: "2026-06-23T12:00:01.000Z",
-      priceId,
+      offerConfig,
       repository: createInMemoryBillingActivationRepository(repository),
       stage: "staging",
       stripe,
@@ -196,7 +252,7 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now,
-      priceId,
+      offerConfig,
       repository: {
         ...baseRepository,
         async linkStripeCustomer(input) {
@@ -233,7 +289,7 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now,
-      priceId,
+      offerConfig,
       repository: {
         ...baseRepository,
         async getMdiCaseStatusMirror(mdiCaseIdInput) {
@@ -274,7 +330,7 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now,
-      priceId,
+      offerConfig,
       repository: {
         ...baseRepository,
         async getMdiCaseStatusMirror(mdiCaseIdInput) {
@@ -310,7 +366,7 @@ describe("billing activation after MDI clinical unlock", () => {
       cognitoSub,
       mdiCaseId,
       now,
-      priceId,
+      offerConfig,
       repository: {
         ...baseRepository,
         async recordEvidenceEvent() {
@@ -339,7 +395,7 @@ describe("billing activation after MDI clinical unlock", () => {
         cognitoSub,
         mdiCaseId,
         now,
-        priceId,
+        offerConfig,
         repository: createInMemoryBillingActivationRepository(repository),
         stage: "staging",
         stripe,
@@ -617,6 +673,7 @@ function seededRepository(input: {
   billingConsent?: boolean;
   billingStatus?: "payment_method_pending" | "payment_method_collected" | "active" | "past_due" | "cancel_pending" | "canceled";
   caseStatus?: "approved" | "billing_ready" | "declined";
+  offerAcceptance?: boolean;
   treatment?: LaunchOfferingSlug;
 }) {
   const repository = createInMemoryAppDataRepository([
@@ -679,6 +736,19 @@ function seededRepository(input: {
   if (input.billingConsent !== false) {
     seedBillingDisclosure(repository, input.treatment ?? "weight");
   }
+  if (input.caseStatus === "billing_ready" && input.offerAcceptance !== false) {
+    const offer = createBillingOffer({ config: offerConfig, mdiCaseId });
+    expect(repository.put(createBillingOfferAcceptanceRecord({
+      acceptedAt: now,
+      authorizationVersion: offer.authorizationVersion,
+      cognitoSub,
+      mdiCaseId,
+      now,
+      offerId: offer.offerId,
+      stripePriceId: offer.stripePriceId,
+      unitAmountCents: offer.unitAmountCents,
+    }), { ifNotExists: true }).ok).toBe(true);
+  }
   return repository;
 }
 
@@ -730,6 +800,15 @@ function stripeMock() {
   return {
     charges: { create: vi.fn() },
     paymentIntents: { create: vi.fn() },
+    prices: {
+      retrieve: vi.fn(async () => ({
+        active: true,
+        currency: "usd",
+        recurring: { interval: "month" },
+        type: "recurring",
+        unit_amount: offerConfig.unitAmountCents,
+      })),
+    },
     subscriptions: {
       cancel: vi.fn(async () => ({ id: "sub_existing_001", status: "canceled" })),
       create: vi.fn(async () => ({
@@ -749,6 +828,7 @@ function stripeMock() {
   } as unknown as BillingActivationStripeClient & {
     charges: { create: ReturnType<typeof vi.fn> };
     paymentIntents: { create: ReturnType<typeof vi.fn> };
+    prices: { retrieve: ReturnType<typeof vi.fn> };
     subscriptions: {
       cancel: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;

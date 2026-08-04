@@ -60,7 +60,7 @@ describe("ServerlessPlatformStack", () => {
       },
     });
     template.resourceCountIs("AWS::SecretsManager::Secret", 3);
-    template.resourceCountIs("AWS::Lambda::Function", 25);
+    template.resourceCountIs("AWS::Lambda::Function", 29);
     template.resourceCountIs("AWS::ApiGatewayV2::Api", 1);
     template.resourceCountIs("AWS::ApiGatewayV2::Authorizer", 1);
     template.resourceCountIs("AWS::CloudWatch::Alarm", expectedAlarmNames.length);
@@ -156,6 +156,19 @@ describe("ServerlessPlatformStack", () => {
       AuthorizationType: "NONE",
     });
 
+    for (const routeKey of [
+      "POST /api/auth/email-otp/start",
+      "POST /api/auth/email-otp/confirm",
+      "GET /api/billing/offer",
+      "POST /api/billing/offer",
+      "POST /api/portal/launch",
+    ]) {
+      template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
+        RouteKey: routeKey,
+        AuthorizationType: "NONE",
+      });
+    }
+
     template.hasResourceProperties("AWS::ApiGatewayV2::Route", {
       RouteKey: "POST /api/onboarding/consent",
       AuthorizationType: "NONE",
@@ -188,6 +201,10 @@ describe("ServerlessPlatformStack", () => {
     const template = synthesizeTemplate();
     const expectedRouteKeys = [
       "POST /api/auth/session",
+      "POST /api/auth/email-otp/start",
+      "POST /api/auth/email-otp/confirm",
+      "GET /api/billing/offer",
+      "POST /api/billing/offer",
       "POST /api/billing/payment-method",
       "POST /api/billing/subscription/cancel",
       "GET /api/dashboard",
@@ -200,6 +217,7 @@ describe("ServerlessPlatformStack", () => {
       "POST /api/onboarding/mdi/patient",
       "POST /api/onboarding/mdi/submit",
       "GET /api/onboarding/start",
+      "POST /api/portal/launch",
       "POST /api/webhooks/mdi",
       "POST /api/webhooks/stripe",
     ];
@@ -480,6 +498,7 @@ describe("ServerlessPlatformStack", () => {
         Variables: Match.objectLike({
           APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
           APOTH_STAGE: "staging",
+          APOTH_BILLING_PRICE_CENTS: Match.stringLikeRegexp("^[1-9][0-9]+$"),
           APOTH_WEBHOOK_QUEUE_URL: Match.anyValue(),
           APP_TABLE_NAME: Match.anyValue(),
           STRIPE_RECURRING_PRICE_ID: Match.stringLikeRegexp("^price_"),
@@ -497,6 +516,7 @@ describe("ServerlessPlatformStack", () => {
           APOTH_SECRET_MDI_API_ID: "/apoth/staging/mdi/api",
           APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
           APOTH_STAGE: "staging",
+          APOTH_BILLING_PRICE_CENTS: Match.stringLikeRegexp("^[1-9][0-9]+$"),
           APP_TABLE_NAME: Match.anyValue(),
           STRIPE_RECURRING_PRICE_ID: Match.stringLikeRegexp("^price_"),
         }),
@@ -850,6 +870,7 @@ describe("ServerlessPlatformStack", () => {
       },
       EnabledMfas: Match.absent(),
       MfaConfiguration: "OFF",
+      UserPoolTier: "ESSENTIALS",
       Policies: {
         PasswordPolicy: {
           MinimumLength: 12,
@@ -857,6 +878,9 @@ describe("ServerlessPlatformStack", () => {
           RequireNumbers: true,
           RequireSymbols: false,
           RequireUppercase: true,
+        },
+        SignInPolicy: {
+          AllowedFirstAuthFactors: ["PASSWORD", "EMAIL_OTP"],
         },
       },
       UsernameAttributes: ["email"],
@@ -867,12 +891,69 @@ describe("ServerlessPlatformStack", () => {
       ExplicitAuthFlows: Match.arrayWith([
         "ALLOW_USER_PASSWORD_AUTH",
         "ALLOW_USER_SRP_AUTH",
+        "ALLOW_USER_AUTH",
         "ALLOW_REFRESH_TOKEN_AUTH",
       ]),
       GenerateSecret: Match.absent(),
       PreventUserExistenceErrors: "ENABLED",
     });
     expect(JSON.stringify(template.toJSON())).toContain("identity/contact@apothhealth.com");
+  });
+
+  it("deploys passwordless email verification with bounded Cognito access", () => {
+    const template = synthesizeTemplate();
+
+    for (const [functionName, handler] of [
+      ["apoth-staging-email-otp-start", "index.startHandler"],
+      ["apoth-staging-email-otp-confirm", "index.confirmHandler"],
+    ]) {
+      template.hasResourceProperties("AWS::Lambda::Function", {
+        FunctionName: functionName,
+        Handler: handler,
+        Runtime: "nodejs20.x",
+        Environment: {
+          Variables: Match.objectLike({
+            APOTH_SECRET_APP_SIGNING_ID: "/apoth/staging/app/signing",
+            COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
+            COGNITO_USER_POOL_ID: Match.anyValue(),
+          }),
+        },
+      });
+    }
+
+    const policies = JSON.stringify(
+      Object.values(template.findResources("AWS::IAM::Policy")),
+    );
+    expect(policies).toContain("cognito-idp:AdminCreateUser");
+    expect(policies).toContain("cognito-idp:ListUsers");
+    expect(policies).not.toContain("cognito-idp:AdminSetUserPassword");
+  });
+
+  it("deploys fail-closed portal launch and exact-offer billing APIs", () => {
+    const template = synthesizeTemplate();
+
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-portal-launch",
+      Handler: "index.launchHandler",
+      Environment: {
+        Variables: Match.objectLike({
+          APOTH_PORTAL_LAUNCH_ENABLED: "false",
+          APOTH_PORTAL_PROVIDER: "synthetic",
+          APOTH_PORTAL_PROVISIONING_ENABLED: "false",
+        }),
+      },
+    });
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "apoth-staging-billing-offer",
+      Handler: "index.offerHandler",
+      Environment: {
+        Variables: Match.objectLike({
+          APOTH_BILLING_AUTHORIZATION_VERSION: "billing-offer-v1",
+          APOTH_BILLING_PRICE_CENTS: Match.stringLikeRegexp("^[1-9][0-9]+$"),
+          STRIPE_RECURRING_PRICE_ID: Match.stringLikeRegexp("^price_"),
+        }),
+      },
+    });
   });
 
   it("keeps the auth email sender on the verified Apoth domain", () => {

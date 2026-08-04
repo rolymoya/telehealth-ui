@@ -589,7 +589,7 @@ describe("intake and onboarding API route boundary", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body).toEqual({
-      redirect: "/onboarding/mdi",
+      redirect: "/portal/launch",
       status: "linked",
     });
     expect(JSON.stringify(body)).not.toMatch(/PATIENT_NAME_SENTINEL|patient@example\.test|60601/);

@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
 
   const response = noStoreJson({
     status: "linked",
-    redirect: "/onboarding/mdi",
+    redirect: "/portal/launch",
   });
   response.cookies.set(mdiQuestionnaireContextCookieName, cookieValue, {
     httpOnly: true,

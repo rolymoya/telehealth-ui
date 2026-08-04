@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "How Apoth handles account, billing, intake handoff, linkage, and support information, including the HIPAA Notice of Privacy Practices.",
 };
 
-const lastUpdated = "June 23, 2026";
+const lastUpdated = "August 4, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -124,9 +124,10 @@ export default function PrivacyPage() {
                   liability company (&ldquo;Apoth,&rdquo; &ldquo;we,&rdquo;
                   &ldquo;us,&rdquo; or &ldquo;our&rdquo;). Apoth is a
                   telehealth technology platform. We operate the account,
-                  commerce, intake user interface, and minimal care-workflow
-                  linkage layer. We are not a medical provider and we do not
-                  dispense medication.
+                  commerce orchestration, and minimal care-workflow linkage
+                  layer. The selected provider portal, not Apoth, collects the
+                  clinical questionnaire. We are not a medical provider and we
+                  do not dispense medication.
                 </p>
                 <p>
                   Clinical care is provided by independent licensed clinicians
@@ -137,9 +138,10 @@ export default function PrivacyPage() {
                   1996, as amended (&ldquo;HIPAA&rdquo;). Before production PHI
                   is handled for the Physician Group, Apoth must have the
                   required business-associate agreement and vendor evidence in
-                  place. MD Integrations is the clinical system of record for
-                  questionnaire answers, clinician review, treatment decisions,
-                  and clinical messages.
+                  place. The selected provider portal is the clinical system
+                  of record for questionnaire answers, clinician review,
+                  treatment decisions, and clinical messages. MD Integrations
+                  remains a migration adapter where applicable.
                 </p>
                 <p>
                   Medication is dispensed by a licensed pharmacy partner that
@@ -169,34 +171,36 @@ export default function PrivacyPage() {
                 <ul>
                   <li>
                     <strong>Account and contact information</strong> — your
-                    name, date of birth, email address, phone number, mailing
-                    address, and government-issued ID where required for
-                    identity verification.
+                    email address, account-verification status, and
+                    communications preferences where required to operate your
+                    account. The provider portal separately collects the
+                    identity, demographic, and contact details needed for
+                    clinical care.
                   </li>
                   <li>
-                    <strong>Clinical intake information in transit</strong> —
+                    <strong>Clinical intake information</strong> —
                     the questionnaire answers, symptoms, history, medication
                     information, allergies, uploads, and messages you submit for
-                    clinician review. Apoth may process this information briefly
-                    to send it to MD Integrations, but Apoth does not keep
-                    questionnaire answers as its own local clinical record after
-                    submission. This information is PHI when handled for the
-                    Physician Group.
+                    clinician review are collected in the selected provider
+                    portal. Apoth does not render or persist those questionnaire
+                    answers as its own local clinical record. This information
+                    is PHI when handled for the Physician Group.
                   </li>
                   <li>
                     <strong>Minimal workflow records</strong> — opaque IDs and
-                    statuses needed to link your Apoth account to MD
-                    Integrations, the pharmacy workflow, and billing, such as
-                    MDI patient/case IDs, Stripe customer/subscription IDs,
+                    statuses needed to link your Apoth account to the provider
+                    portal, pharmacy workflow, and billing, such as provider
+                    patient/case IDs, Stripe customer/subscription IDs,
                     consent timestamps, onboarding state, billing state, and
                     non-clinical support history.
                   </li>
                   <li>
-                    <strong>Payment information</strong> — your billing address
-                    and the last four digits of your payment method. Full
-                    payment card numbers are processed by our PCI-compliant
-                    payment processor and are not stored on Apoth&apos;s
-                    servers.
+                    <strong>Payment information</strong> — payment details are
+                    collected and processed by our PCI-compliant payment
+                    processor. Apoth stores only opaque customer, setup,
+                    subscription, and billing-status identifiers needed to
+                    operate the service. Full payment card numbers are not
+                    stored on Apoth&apos;s servers.
                   </li>
                   <li>
                     <strong>Communications</strong> — emails, support tickets,
@@ -295,10 +299,10 @@ export default function PrivacyPage() {
                   </li>
                   <li>
                     <strong>With service providers.</strong> Vendors that host
-                    our infrastructure, process payments, verify identity where
-                    required, deliver email and SMS, run approved analytics, or
-                    provide customer support. Vendors that handle PHI sign a
-                    approved BAA/compliance path with us or with the Physician
+                    our infrastructure, process payments, deliver email and
+                    SMS, run approved aggregate analytics, or provide customer
+                    support. Vendors that handle PHI have an approved
+                    BAA/compliance path with us or with the Physician
                     Group as applicable before production PHI is handled.
                     Payment processor metadata is limited to opaque, non-PHI
                     identifiers.
@@ -429,11 +433,12 @@ export default function PrivacyPage() {
               <Section id="cookies" title="8. Cookies and analytics">
                 <p>
                   We use a small number of strictly-necessary cookies to keep
-                  you signed in and to operate the site. We use
-                  privacy-respecting analytics to understand how the site is
-                  used in aggregate. We do not use third-party advertising
-                  cookies on pages that handle PHI. Where required by law, we
-                  request your consent before setting non-essential cookies.
+                  you signed in and to operate the site. We may use approved,
+                  privacy-respecting analytics on public pages to understand
+                  aggregate usage. Patient, account, intake, provider-launch,
+                  and billing routes do not load third-party advertising
+                  pixels. Where required by law, we request your consent before
+                  setting non-essential cookies.
                 </p>
                 <p>
                   You can manage cookies through your browser settings.

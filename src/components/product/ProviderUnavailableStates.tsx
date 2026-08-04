@@ -13,12 +13,12 @@ export function MdiUnavailableState({
       tone="mdi"
       title="The care workflow is temporarily unavailable."
       body={handoffComplete
-        ? "Apoth could not reopen the MDI-backed workflow right now. If your answers were already handed off to MDI, Apoth does not keep questionnaire answers on this page."
-        : "Apoth could not open the MDI-backed workflow right now. Medical questionnaire answers are collected in MDI as the clinical system of record, not stored on this Apoth page."}
+        ? "Apoth could not reopen the provider portal right now. If your answers were already handed off, Apoth does not keep questionnaire answers on this page."
+        : "Apoth could not open the provider portal right now. Medical questionnaire answers are collected there as the clinical system of record, not stored on this Apoth page."}
       actions={[
         onRetry
           ? { label: "Try again", onClick: onRetry }
-          : { href: "/onboarding/mdi", label: "Try again" },
+          : { href: "/portal/launch", label: "Try again" },
         { href: "/dashboard", label: "Dashboard", variant: "secondary" },
       ]}
     />

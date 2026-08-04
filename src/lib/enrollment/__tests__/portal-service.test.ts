@@ -12,10 +12,11 @@ const now = new Date("2026-07-29T02:00:00.000Z");
 const cognitoSub = "11111111-2222-4333-8444-555555555555";
 
 describe("portal launch service", () => {
-  it("provisions and redirects only a verified, payment-bound account", async () => {
-    const repository = seededRepository();
+  it("provisions and redirects a verified account before payment setup", async () => {
+    const repository = createInMemoryEnrollmentRepository();
     const result = await launchPatientPortal({
       cognitoSub,
+      enrollmentBootstrap: { catalogCode: "catalog_weight_internal" },
       launchEnabled: true,
       provisioningEnabled: true,
       provider: createSyntheticPortalProvider({
@@ -32,16 +33,20 @@ describe("portal launch service", () => {
       /^https:\/\/care\.staging\.apothhealth\.com\/session\/synthetic_launch_/,
     );
 
-    const enrollment = await repository.getEnrollment("enrollment_1234567890");
+    const pointer = await repository.getActiveAccountEnrollment(cognitoSub);
+    expect(pointer.ok && pointer.value).toBeTruthy();
+    const enrollment = await repository.getEnrollment(
+      pointer.ok && pointer.value ? pointer.value.enrollmentId : "missing",
+    );
     expect(enrollment.ok && enrollment.value).toMatchObject({
       identity: "verified",
-      paymentSetup: "setup_succeeded",
+      paymentSetup: "pending",
       portalHandoff: "issued",
     });
     expect(enrollment.ok && enrollment.value?.expiresAtEpochSeconds).toBeUndefined();
     const linkage = await repository.getPortalLinkage(cognitoSub);
     expect(linkage.ok && linkage.value).toMatchObject({
-      enrollmentId: "enrollment_1234567890",
+      enrollmentId: pointer.ok && pointer.value?.enrollmentId,
       provider: "synthetic",
       state: "ready",
     });
@@ -145,15 +150,12 @@ function verifiedEnrollment(): EnrollmentRecord {
       expiresAtEpochSeconds: Math.floor(now.getTime() / 1000) + 3600,
       now: now.toISOString(),
     }),
-    billing: "payment_method_collected",
-    checkout: "completed",
+    billing: "not_started",
+    checkout: "created",
     cognitoSub,
     expiresAtEpochSeconds: undefined,
     identity: "verified",
-    paymentSetup: "setup_succeeded",
-    stripeCheckoutSessionId: "cs_test_1234567890",
-    stripeCustomerId: "cus_1234567890",
-    stripeSetupIntentId: "seti_1234567890",
+    paymentSetup: "pending",
     version: 5,
   };
 }

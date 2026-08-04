@@ -71,6 +71,6 @@ describe("checkout-as-signup UI", () => {
     expect(form).toHaveAttribute("action", "/api/portal/launch");
     expect(form).toHaveAttribute("method", "post");
     expect(container.querySelector('input[name="intent"]')).toHaveValue("launch");
-    expect(screen.getByText(/charged only if treatment is approved/i)).toBeInTheDocument();
+    expect(screen.getByText(/review the exact treatment and price before any recurring charge begins/i)).toBeInTheDocument();
   });
 });

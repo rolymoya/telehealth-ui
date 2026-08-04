@@ -6,16 +6,17 @@ import { marketingHref } from "@/patient/config";
 type CommerceStage = "checkout" | "verify" | "portal";
 
 const steps = [
-  { key: "checkout", label: "Checkout" },
-  { key: "verify", label: "Confirm email" },
-  { key: "portal", label: "Medical intake" },
+  { key: "program", label: "Program" },
+  { key: "precheck", label: "Precheck" },
+  { key: "account", label: "Account" },
+  { key: "portal", label: "Clinical intake" },
 ] as const;
 
 export function CommerceShell(input: {
   children: ReactNode;
   stage: CommerceStage;
 }) {
-  const activeIndex = steps.findIndex((step) => step.key === input.stage);
+  const activeIndex = input.stage === "portal" ? 3 : input.stage === "verify" ? 2 : 0;
   return (
     <div className="min-h-screen bg-[#f6f6f7] text-[#171719]">
       <header className="border-b border-black/[0.06] bg-white">
@@ -24,13 +25,13 @@ export function CommerceShell(input: {
             <Wordmark />
           </a>
           <span className="inline-flex items-center gap-2 text-xs font-semibold text-black/55">
-            <LockKeyhole className="h-4 w-4" aria-hidden="true" /> Secure checkout
+            <LockKeyhole className="h-4 w-4" aria-hidden="true" /> Secure patient flow
           </span>
         </div>
       </header>
 
       <div className="border-b border-black/[0.05] bg-[#fbfbfc]">
-        <ol className="mx-auto flex max-w-[720px] items-center px-5 py-4" aria-label="Signup progress">
+        <ol className="mx-auto flex max-w-[820px] items-center px-5 py-4" aria-label="Enrollment progress">
           {steps.map((step, index) => (
             <Fragment key={step.key}>
               <li
@@ -49,7 +50,9 @@ export function CommerceShell(input: {
                 >
                   {index + 1}
                 </span>
-                <span className="hidden sm:inline">{step.label}</span>
+                <span className={index === activeIndex ? "inline" : "hidden sm:inline"}>
+                  {step.label}
+                </span>
               </li>
               {index < steps.length - 1 ? (
                 <li className="mx-3 h-px flex-1 bg-black/10 sm:mx-4" aria-hidden="true" />

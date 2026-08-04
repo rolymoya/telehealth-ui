@@ -79,7 +79,7 @@ describe("checkout-as-signup enrollment state machine", () => {
     });
   });
 
-  it("requires both verified identity and Stripe setup before portal handoff", () => {
+  it("requires verified identity, but not Stripe setup, before portal handoff", () => {
     const enrollment = createPendingEnrollment();
 
     expect(applyEnrollmentTransition(enrollment, {
@@ -93,7 +93,6 @@ describe("checkout-as-signup enrollment state machine", () => {
       ...enrollment,
       cognitoSub: "cognito-sub-opaque-001",
       identity: "verified",
-      paymentSetup: "setup_succeeded",
     }, {
       changes: { portalHandoff: "ready" },
     });

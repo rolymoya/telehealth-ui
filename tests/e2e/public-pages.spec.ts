@@ -39,7 +39,7 @@ test.describe("public routes", () => {
 });
 
 test.describe("public navigation and CTAs", () => {
-  test("header navigation covers the weight-loss page and direct checkout entry", async ({ page }) => {
+  test("header navigation covers weight-loss education and staged enrollment entry", async ({ page }) => {
     const errors = collectUnexpectedPageErrors(page);
 
     await page.goto("/");
@@ -53,7 +53,7 @@ test.describe("public navigation and CTAs", () => {
 
     await page.goto("/");
     await expect(page.getByRole("link", { name: "Get started" }).first())
-      .toHaveAttribute("href", expectedPatientHref("/checkout?product=weight"));
+      .toHaveAttribute("href", expectedPatientHref("/get-started?product=weight"));
 
     errors.expectNone();
   });

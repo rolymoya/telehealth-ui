@@ -99,7 +99,7 @@ function AuthFrame({
         </p>
         <p className="mt-8 max-w-measure border-t border-white/20 pt-6 text-[0.92rem] leading-6 text-white/70">
           Apoth provides the technology platform. Licensed clinicians working
-          with MDI handle clinical care decisions.
+          through the independent provider portal handle clinical care decisions.
         </p>
       </div>
       <div className="rounded-[26px] border border-black/[0.05] bg-white p-6 shadow-soft sm:p-9">

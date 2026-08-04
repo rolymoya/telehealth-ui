@@ -1,11 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { accountHref, checkoutHref } from "@/lib/public-commerce";
+import { accountHref, checkoutHref, onboardingHref } from "@/lib/public-commerce";
 
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
 describe("public commerce links", () => {
+  it("routes public product CTAs to precheck before payment setup", () => {
+    vi.stubEnv("NEXT_PUBLIC_ACCOUNT_ORIGIN", "https://account.apoth.example/path-ignored");
+
+    expect(onboardingHref("weight"))
+      .toBe("https://account.apoth.example/get-started?product=weight");
+  });
+
   it("routes product checkout to the configured patient-app origin", () => {
     vi.stubEnv("NEXT_PUBLIC_ACCOUNT_ORIGIN", "https://account.apoth.example/path-ignored");
 

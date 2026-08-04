@@ -17,7 +17,7 @@ describe("BillingSetupClient", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<BillingSetupClient />);
-    await user.click(screen.getByRole("button", { name: "Prepare payment method" }));
+    await user.click(screen.getByRole("button", { name: "Save payment method" }));
     await user.click(screen.getByRole("button", { name: "Preparing" }));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -36,7 +36,7 @@ describe("BillingSetupClient", () => {
     }, 409)));
 
     render(<BillingSetupClient />);
-    await user.click(screen.getByRole("button", { name: "Prepare payment method" }));
+    await user.click(screen.getByRole("button", { name: "Save payment method" }));
 
     expect(await screen.findByRole("heading", {
       name: "Billing is not available for this case.",
@@ -55,7 +55,7 @@ describe("BillingSetupClient", () => {
     })));
 
     render(<BillingSetupClient navigate={navigate} />);
-    await user.click(screen.getByRole("button", { name: "Prepare payment method" }));
+    await user.click(screen.getByRole("button", { name: "Save payment method" }));
 
     expect(navigate).toHaveBeenCalledWith("https://checkout.stripe.com/c/pay/cs_opaque_001");
     expect(screen.queryByText(/cs_opaque_001/)).not.toBeInTheDocument();
@@ -68,7 +68,7 @@ describe("BillingSetupClient", () => {
     })));
 
     render(<BillingSetupClient />);
-    await user.click(screen.getByRole("button", { name: "Prepare payment method" }));
+    await user.click(screen.getByRole("button", { name: "Save payment method" }));
 
     expect(await screen.findByRole("heading", {
       name: "Billing setup is temporarily unavailable.",
@@ -84,7 +84,7 @@ describe("BillingSetupClient", () => {
     })));
 
     render(<BillingSetupClient navigate={navigate} />);
-    await user.click(screen.getByRole("button", { name: "Prepare payment method" }));
+    await user.click(screen.getByRole("button", { name: "Save payment method" }));
 
     expect(navigate).not.toHaveBeenCalled();
     expect(await screen.findByRole("heading", {
@@ -100,7 +100,7 @@ describe("BillingSetupClient", () => {
     }, 401)));
 
     render(<BillingSetupClient navigate={navigate} />);
-    await user.click(screen.getByRole("button", { name: "Prepare payment method" }));
+    await user.click(screen.getByRole("button", { name: "Save payment method" }));
 
     expect(navigate).toHaveBeenCalledWith("/sign-in?returnTo=%2Fbilling");
   });

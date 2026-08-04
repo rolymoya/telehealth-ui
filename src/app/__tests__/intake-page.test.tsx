@@ -11,7 +11,7 @@ describe("intake page", () => {
     expect(screen.getByRole("heading", {
       name: /privacy notice, then a short precheck/i,
     })).toBeInTheDocument();
-    expect(screen.getByText(/Medical questionnaire answers are collected later by MD Integrations/i))
+    expect(screen.getByText(/Medical questionnaire answers are collected later in the provider portal/i))
       .toBeInTheDocument();
   });
 
@@ -90,10 +90,7 @@ describe("intake page", () => {
           status: "ready_for_mdi_intake",
         });
       }
-      return jsonResponse({
-        redirect: "/onboarding/mdi",
-        status: "linked",
-      });
+      return jsonResponse({ status: "unexpected_request" }, { status: 500 });
     });
 
     render(
@@ -105,6 +102,7 @@ describe("intake page", () => {
 
     const stateSelect = await screen.findByLabelText(/State of residence/i);
     expect(stateSelect.querySelectorAll("option")).toHaveLength(51);
+    expect(screen.queryByRole("option", { name: "Peptides" })).not.toBeInTheDocument();
 
     await user.selectOptions(stateSelect, "IL");
     await user.type(screen.getByLabelText("Age"), "34");
@@ -135,44 +133,13 @@ describe("intake page", () => {
       state: "IL",
     });
     expect(String(precheckCall?.[0])).not.toContain("weight");
-    expect(await screen.findByRole("heading", {
-      name: /add patient details for the clinical handoff/i,
-    })).toBeInTheDocument();
-
-    await user.type(screen.getByLabelText("First name"), "Pat");
-    await user.type(screen.getByLabelText("Last name"), "Example");
-    await user.type(screen.getByLabelText("Date of birth"), "1990-01-02");
-    await user.type(screen.getByLabelText("Email"), "patient@example.test");
-    await user.type(screen.getByLabelText("Phone"), "312-555-0101");
-    await user.selectOptions(screen.getByLabelText(/Clinical profile sex/i), "2");
-    await user.type(screen.getByLabelText("Address"), "1 Example St");
-    await user.type(screen.getByLabelText("City"), "Chicago");
-    await user.selectOptions(screen.getByLabelText("State"), "IL");
-    await user.type(screen.getByLabelText("ZIP code"), "60601");
-    expect(screen.getByLabelText(/Care category/i)).toHaveValue("weight");
-    await user.click(screen.getByRole("button", { name: /continue to clinical intake/i }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/onboarding/mdi/patient", expect.objectContaining({
-        credentials: "include",
-        headers: {
-          "content-type": "application/json",
-          "x-apoth-csrf": "csrf_mdi_patient",
-        },
-        method: "POST",
-      }));
-    });
-    const patientCall = fetchMock.mock.calls.find(
-      ([url]) => String(url) === "/api/onboarding/mdi/patient",
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/portal/launch"));
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/onboarding/mdi/patient",
+      expect.anything(),
     );
-    expect(JSON.parse(String(patientCall?.[1]?.body))).toMatchObject({
-      dateOfBirth: "1990-01-02",
-      email: "patient@example.test",
-      firstName: "Pat",
-      lastName: "Example",
-      treatment: "weight",
-    });
-    expect(navigate).toHaveBeenCalledWith("/onboarding/mdi");
+    expect(screen.queryByLabelText(/first name|date of birth|address|clinical profile sex/i))
+      .not.toBeInTheDocument();
     expect(window.localStorage.getItem("age")).toBeNull();
     expect(window.localStorage.getItem("offering")).toBeNull();
     expect(window.localStorage.getItem("state")).toBeNull();
@@ -188,26 +155,70 @@ describe("intake page", () => {
       return jsonResponse({ status: "ready_for_mdi_intake" });
     });
 
-    render(<IntakePrecheckClient fetchImpl={fetchMock as typeof fetch} />);
+    render(
+      <IntakePrecheckClient
+        fetchImpl={fetchMock as typeof fetch}
+        productCode="weight"
+      />,
+    );
 
     await user.selectOptions(
       await screen.findByLabelText(/State of residence/i),
       "IL",
     );
     await user.type(screen.getByLabelText("Age"), "34");
-    await user.selectOptions(screen.getByLabelText(/Care category/i), "weight");
+    expect(screen.getByText("Weight management")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Care category/i)).not.toBeInTheDocument();
     const noRadios = screen.getAllByRole("radio", { name: "No" });
     await user.click(noRadios[0]);
     await user.click(noRadios[1]);
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("heading", {
-      name: /create an account to continue/i,
+      name: /verify your email to continue/i,
     })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Create account" }))
-      .toHaveAttribute("href", "/sign-up?returnTo=%2Fget-started");
-    expect(screen.getByRole("link", { name: "Sign in" }))
-      .toHaveAttribute("href", "/sign-in?returnTo=%2Fget-started");
+    expect(screen.getByLabelText("Email address")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Email me a code" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /password for an existing account/i }))
+      .toHaveAttribute("href", "/sign-in?returnTo=%2Fget-started%3Fproduct%3Dweight");
+  });
+
+  it("hands authenticated weight patients to the provider portal without rendering a clinical profile form", async () => {
+    const user = userEvent.setup();
+    const navigate = vi.fn();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/intake/bootstrap") {
+        return jsonResponse({ csrfToken: "csrf_123", status: "ready_for_precheck" });
+      }
+      return jsonResponse({
+        mdiPatientCsrfToken: "legacy_token_not_used",
+        status: "ready_for_provider_portal",
+      });
+    });
+
+    render(
+      <IntakePrecheckClient
+        fetchImpl={fetchMock as typeof fetch}
+        navigate={navigate}
+        productCode="weight"
+      />,
+    );
+
+    await user.selectOptions(await screen.findByLabelText(/State of residence/i), "IL");
+    await user.type(screen.getByLabelText("Age"), "34");
+    const noRadios = screen.getAllByRole("radio", { name: "No" });
+    await user.click(noRadios[0]);
+    await user.click(noRadios[1]);
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/portal/launch"));
+    expect(screen.queryByRole("heading", {
+      name: /add patient details for the clinical handoff/i,
+    })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/onboarding/mdi/patient",
+      expect.anything(),
+    );
   });
 
   it("returns to privacy notice when privacy expires during precheck submit", async () => {
@@ -276,7 +287,7 @@ describe("intake page", () => {
     expect(window.localStorage.getItem("state")).toBeNull();
   });
 
-  it("redirects already linked precheck-complete patients to the MDI step during bootstrap", async () => {
+  it("redirects already linked precheck-complete patients to the provider portal during bootstrap", async () => {
     const navigate = vi.fn();
     const fetchMock = vi.fn(async () => jsonResponse({
       csrfToken: "csrf_123",
@@ -296,12 +307,12 @@ describe("intake page", () => {
     );
 
     await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith("/onboarding/mdi");
+      expect(navigate).toHaveBeenCalledWith("/portal/launch");
     });
     expect(screen.queryByLabelText(/State of residence/i)).not.toBeInTheDocument();
   });
 
-  it("opens patient profile for precheck-complete patients without MDI linkage", async () => {
+  it("never renders a local patient profile for precheck-complete patients", async () => {
     const navigate = vi.fn();
     const fetchMock = vi.fn(async () => jsonResponse({
       csrfToken: "csrf_123",
@@ -321,10 +332,10 @@ describe("intake page", () => {
       />,
     );
 
-    expect(await screen.findByRole("heading", {
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/portal/launch"));
+    expect(screen.queryByRole("heading", {
       name: /add patient details for the clinical handoff/i,
-    })).toBeInTheDocument();
-    expect(navigate).not.toHaveBeenCalledWith("/onboarding/mdi");
+    })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/State of residence/i)).not.toBeInTheDocument();
   });
 
@@ -334,6 +345,15 @@ describe("intake page", () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
       if (String(input) === "/api/intake/bootstrap") {
         return jsonResponse({ csrfToken: "csrf_123", status: "ready_for_precheck" });
+      }
+      if (String(input) === "/api/auth/email-otp/start") {
+        return jsonResponse({
+          status: "verification_code_sent",
+          transactionHandle: "otp_handle_0123456789abcdef",
+        });
+      }
+      if (String(input) === "/api/auth/email-otp/confirm") {
+        return jsonResponse({ status: "account_verified" });
       }
       return jsonResponse({ code: "missing_session" }, { status: 401 });
     });
@@ -357,12 +377,27 @@ describe("intake page", () => {
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("heading", {
-      name: /create an account to continue/i,
+      name: /verify your email to continue/i,
     })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Create account" }))
-      .toHaveAttribute("href", "/sign-up?returnTo=%2Fget-started");
-    expect(screen.getByRole("link", { name: "Sign in" }))
+    expect(screen.getByRole("link", { name: /password for an existing account/i }))
       .toHaveAttribute("href", "/sign-in?returnTo=%2Fget-started");
+
+    await user.type(screen.getByLabelText("Email address"), "patient@example.test");
+    await user.click(screen.getByRole("button", { name: "Email me a code" }));
+    await user.type(await screen.findByLabelText(/Six-digit verification code/i), "123456");
+    await user.click(screen.getByRole("button", { name: "Verify and continue" }));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/get-started"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/email-otp/start", expect.objectContaining({
+      headers: expect.objectContaining({
+        "x-apoth-auth-intent": "start-precheck-email-otp",
+      }),
+    }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/email-otp/confirm", expect.objectContaining({
+      headers: expect.objectContaining({
+        "x-apoth-auth-intent": "confirm-precheck-email-otp",
+      }),
+    }));
     expect(navigate).not.toHaveBeenCalledWith("/sign-in?returnTo=%2Fintake");
     expect(navigate).not.toHaveBeenCalledWith("/onboarding/consent");
   });

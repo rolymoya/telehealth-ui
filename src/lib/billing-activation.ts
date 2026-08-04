@@ -30,6 +30,12 @@ import {
   type BillingDisclosureGateStatus,
 } from "@/lib/billing-disclosure-gate";
 import { createStripeSubscriptionParams } from "@/lib/stripe";
+import {
+  billingOfferAcceptanceGate,
+  createBillingOffer,
+  type BillingOffer,
+  type BillingOfferConfig,
+} from "@/lib/billing-offer";
 
 export type BillingActivationStage = "production" | "staging";
 
@@ -50,7 +56,16 @@ type StripeSubscriptionUpdate = (
   options?: Stripe.RequestOptions,
 ) => Promise<Stripe.Subscription>;
 
+type StripePriceRetrieve = (
+  id: string,
+  params?: Stripe.PriceRetrieveParams,
+  options?: Stripe.RequestOptions,
+) => Promise<Stripe.Price>;
+
 export type BillingActivationStripeClient = {
+  prices: {
+    retrieve: StripePriceRetrieve;
+  };
   subscriptions: {
     cancel: StripeSubscriptionCancel;
     create: StripeSubscriptionCreate;
@@ -83,9 +98,10 @@ export type BillingActivationResult =
   | { ok: true; status: "await_payment_method" }
   | { ok: true; status: "clinical_closed" }
   | { ok: true; status: "medication_disclosure_required" }
+  | { ok: true; status: "offer_acceptance_required" }
   | { ok: true; status: "already_subscribed"; stripeSubscriptionId: string }
   | { ok: true; status: "subscription_created"; stripeSubscriptionId: string }
-  | { ok: false; code: "invalid_stripe_metadata" | "storage_unavailable" | "stripe_unavailable" };
+  | { ok: false; code: "invalid_stripe_metadata" | "invalid_stripe_price" | "storage_unavailable" | "stripe_unavailable" };
 
 export type BillingCancellationResult =
   | { ok: true; status: "not_active" }
@@ -191,7 +207,7 @@ export async function activateBillingAfterClinicalUnlock(input: {
   cognitoSub: string;
   mdiCaseId: string;
   now: string;
-  priceId: string;
+  offerConfig: BillingOfferConfig;
   repository: BillingActivationRepository;
   stage: BillingActivationStage;
   stripe: BillingActivationStripeClient;
@@ -237,6 +253,28 @@ export async function activateBillingAfterClinicalUnlock(input: {
     return { ok: true, status: "medication_disclosure_required" };
   }
 
+  const offer = createBillingOffer({
+    config: input.offerConfig,
+    mdiCaseId: context.mdiLinkage.mdiCaseId,
+  });
+  const offerGate = await billingOfferAcceptanceGate(input.repository, {
+    cognitoSub: input.cognitoSub,
+    mdiCaseId: context.mdiLinkage.mdiCaseId,
+    offerId: offer.offerId,
+    stripePriceId: offer.stripePriceId,
+  });
+  if (offerGate.status === "storage_unavailable") {
+    return { ok: false, code: "storage_unavailable" };
+  }
+  if (offerGate.status !== "accepted") {
+    return { ok: true, status: "offer_acceptance_required" };
+  }
+
+  const stripePrice = await validateStripePrice(input.stripe, offer);
+  if (!stripePrice.ok) {
+    return stripePrice;
+  }
+
   const metadata = stripeMetadataForPatient({
     cognitoSub: input.cognitoSub,
     mdiCaseId: context.mdiLinkage.mdiCaseId,
@@ -246,7 +284,7 @@ export async function activateBillingAfterClinicalUnlock(input: {
   const params = createStripeSubscriptionParams({
     customerId: existing.stripeCustomerId,
     metadata,
-    priceId: input.priceId,
+    priceId: offer.stripePriceId,
   });
   if (!params.ok) {
     return { ok: false, code: "invalid_stripe_metadata" };
@@ -633,6 +671,33 @@ async function handlePostSubscriptionWriteConflict(input: {
     };
   }
   return { ok: false, code: "storage_unavailable" };
+}
+
+async function validateStripePrice(
+  stripe: BillingActivationStripeClient,
+  offer: BillingOffer,
+): Promise<
+  | { ok: true }
+  | { ok: false; code: "invalid_stripe_price" | "stripe_unavailable" }
+> {
+  let price: Stripe.Price;
+  try {
+    price = await stripe.prices.retrieve(offer.stripePriceId);
+  } catch {
+    return { ok: false, code: "stripe_unavailable" };
+  }
+
+  if (
+    !price.active ||
+    price.currency !== offer.currency ||
+    price.type !== "recurring" ||
+    price.unit_amount !== offer.unitAmountCents ||
+    price.recurring?.interval !== offer.interval
+  ) {
+    return { ok: false, code: "invalid_stripe_price" };
+  }
+
+  return { ok: true };
 }
 
 function billingStatusForStripeSubscription(status: string | null): BillingStatus {

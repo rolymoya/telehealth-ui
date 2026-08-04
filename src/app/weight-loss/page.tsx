@@ -13,11 +13,11 @@ import {
 } from "lucide-react";
 
 import { MobileMenu } from "@/components/marketing-v2/MobileMenu";
-import { checkoutHref } from "@/lib/public-commerce";
+import { onboardingHref } from "@/lib/public-commerce";
 
 import styles from "./page.module.css";
 
-const weightCheckoutHref = checkoutHref("weight");
+const weightOnboardingHref = onboardingHref("weight");
 
 export const metadata: Metadata = {
   title: "Personalized GLP-1 Treatments | Apoth",
@@ -116,7 +116,7 @@ const footerGroups = [
     links: [
       { label: "GLP-1 treatments", href: "/weight-loss" },
       { label: "Weight management", href: "/weight-loss" },
-      { label: "Start a visit", href: weightCheckoutHref },
+      { label: "Start a visit", href: weightOnboardingHref },
       { label: "Patient login", href: "/sign-in" },
     ],
   },
@@ -143,10 +143,10 @@ const footerGroups = [
 function ActionButtons({ compact = false }: { compact?: boolean }) {
   return (
     <div className={styles.actions} data-compact={compact ? "true" : "false"}>
-      <a className={styles.primaryButton} href={weightCheckoutHref}>
+      <a className={styles.primaryButton} href={weightOnboardingHref}>
         Get started
       </a>
-      <a className={styles.secondaryButton} href={weightCheckoutHref}>
+      <a className={styles.secondaryButton} href={weightOnboardingHref}>
         See if you’re eligible
       </a>
     </div>
@@ -184,7 +184,7 @@ export default function WeightLossPage() {
             <a href="/about">About</a>
           </nav>
           <div className={styles.headerActions}>
-            <a className={styles.headerCta} href={weightCheckoutHref}>
+            <a className={styles.headerCta} href={weightOnboardingHref}>
               Get started
             </a>
             <a className={styles.loginButton} href="/sign-in">
@@ -196,7 +196,7 @@ export default function WeightLossPage() {
                 ["How it works", "#how-it-works"],
                 ["FAQs", "#faq"],
               ]}
-              ctaHref={weightCheckoutHref}
+              ctaHref={weightOnboardingHref}
             />
           </div>
         </div>
@@ -239,9 +239,9 @@ export default function WeightLossPage() {
                 <div className={styles.payLater}>
                   <span>Simple monthly pricing</span>
                 </div>
-                <a className={styles.wideButton} href={weightCheckoutHref}>Get started</a>
+                <a className={styles.wideButton} href={weightOnboardingHref}>Get started</a>
                 <p className={styles.microcopy}>
-                  *Price includes clinical care and medication only if prescribed. Eligibility is determined after an online consultation with a licensed provider. No insurance required.
+                  *Self-pay price includes clinical care, standard injection supplies, medication, and expedited shipping only if prescribed. Due before intake: $0. Plans renew monthly after you accept the exact approved treatment and price. Labs, if separately required, are not included. No insurance required.
                 </p>
               </div>
 
@@ -314,7 +314,7 @@ export default function WeightLossPage() {
                     </div>
                   )}
                   {plan.featured ? (
-                    <a className={styles.cardButton} href={weightCheckoutHref}>See if you qualify</a>
+                    <a className={styles.cardButton} href={weightOnboardingHref}>See if you qualify</a>
                   ) : (
                     <a className={styles.safetyLink} href="#safety">Important safety information</a>
                   )}
@@ -323,7 +323,7 @@ export default function WeightLossPage() {
             </div>
 
             <div className={styles.treatmentFinePrint}>
-              <p>*Price includes medication only when prescribed. Clinical eligibility is determined by a licensed provider. Plans renew monthly and may be canceled before the next renewal.</p>
+              <p>*Self-pay price includes clinical care, standard supplies, medication, and expedited shipping only when prescribed. Labs, if separately required, are not included. Plans renew monthly only after you accept the exact treatment and price, and may be canceled before the next renewal.</p>
               <p>Apoth connects patients with licensed medical providers and state-licensed pharmacies. The FDA does not review compounded medications for safety or effectiveness. Results vary. Actual product packaging may differ.</p>
             </div>
             <div className={styles.carouselButtons} aria-hidden="true">
@@ -359,7 +359,7 @@ export default function WeightLossPage() {
                     </li>
                   ))}
                 </ol>
-                <a className={styles.howItWorksButton} href={weightCheckoutHref}>Start a visit</a>
+                <a className={styles.howItWorksButton} href={weightOnboardingHref}>Start a visit</a>
               </div>
             </div>
           </div>
@@ -377,7 +377,7 @@ export default function WeightLossPage() {
               <li><Check /> Ongoing consultations to optimize treatment</li>
               <li><Check /> Fast, discreet delivery and responsive support</li>
             </ul>
-            <a className={styles.primaryButton} href={weightCheckoutHref}>Get started</a>
+            <a className={styles.primaryButton} href={weightOnboardingHref}>Get started</a>
           </div>
         </section>
 
@@ -424,7 +424,7 @@ export default function WeightLossPage() {
               <a className={styles.footerLogo} href="/">apoth</a>
               <p>Start a visit or return to your patient account.</p>
               <div className={styles.footerActions}>
-                <a href={weightCheckoutHref}>Start a visit</a>
+                <a href={weightOnboardingHref}>Start a visit</a>
                 <a href="/sign-in">Patient login</a>
               </div>
               <small>Apoth is a technology platform, not a medical provider.</small>

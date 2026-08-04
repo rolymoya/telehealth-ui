@@ -57,7 +57,7 @@ test.describe("Stripe billing timing and no-PHI metadata", () => {
     });
 
     await page.goto("/billing");
-    await page.getByRole("button", { name: "Prepare payment method" }).click();
+    await page.getByRole("button", { name: "Save payment method" }).click();
 
     await expect(page.getByText("Billing is still locked.")).toBeVisible();
     await expect(page.getByText("No charge or active subscription was created.")).toBeVisible();
@@ -94,7 +94,7 @@ test.describe("Stripe billing timing and no-PHI metadata", () => {
     await expect(page.getByText("billing_pending_approval")).toBeVisible();
     await expect(page.getByRole("link", { name: /billing|payment/i })).toHaveCount(0);
     await expect(billingDestinationLinks(page)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Prepare payment method" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save payment method" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Cancel subscription" })).toHaveCount(0);
     expectNoCheckoutOrSubscriptionCreation(guard.captures);
     await guard.expectNoForbiddenFragments(forbiddenFragments);
@@ -123,7 +123,7 @@ test.describe("Stripe billing timing and no-PHI metadata", () => {
     const stripeRedirect = page.waitForRequest((request) =>
       request.url().startsWith("https://checkout.stripe.com/c/pay/cs_test_billing_ready_001")
     );
-    await page.getByRole("button", { name: "Prepare payment method" }).click();
+    await page.getByRole("button", { name: "Save payment method" }).click();
     await stripeRedirect;
 
     expectStripeMetadataPolicy([metadata], guard.captures);
@@ -150,7 +150,7 @@ test.describe("Stripe billing timing and no-PHI metadata", () => {
     });
 
     await page.goto("/billing");
-    await page.getByRole("button", { name: "Prepare payment method" }).click();
+    await page.getByRole("button", { name: "Save payment method" }).click();
 
     await expect(page.getByText("Billing is not available for this case.")).toBeVisible();
     await expect(page.getByText("No charge or active subscription was created.")).toBeVisible();
@@ -179,7 +179,7 @@ test.describe("Stripe billing timing and no-PHI metadata", () => {
     await expect(page.getByText("Billing active")).toHaveCount(0);
     await expect(page.getByRole("link", { name: /billing|payment/i })).toHaveCount(0);
     await expect(billingDestinationLinks(page)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Prepare payment method" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save payment method" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Cancel subscription" })).toHaveCount(0);
     await guard.expectNoForbiddenFragments(forbiddenFragments);
     guard.expectNoNetworkViolations();

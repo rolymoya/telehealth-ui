@@ -1,4 +1,4 @@
-export type OnboardingStep = "consent" | "intake" | "mdi" | "billing" | "complete";
+export type OnboardingStep = "consent" | "intake" | "portal" | "billing" | "activation" | "complete";
 
 type GateOnboardingStatus =
   | "profile_pending"
@@ -36,16 +36,18 @@ export type RouteGateDecision =
 export const onboardingStepOrder = [
   "consent",
   "intake",
-  "mdi",
+  "portal",
   "billing",
+  "activation",
   "complete",
 ] as const satisfies readonly OnboardingStep[];
 
 const stepRoutes = {
   consent: "/onboarding/consent",
   intake: "/intake",
-  mdi: "/onboarding/mdi",
+  portal: "/portal/launch",
   billing: "/billing",
+  activation: "/billing/activate",
   complete: "/dashboard",
 } as const satisfies Record<OnboardingStep, string>;
 
@@ -100,16 +102,28 @@ export function earliestIncompleteOnboardingStep(
   }
 
   if (
-    snapshot.onboardingStatus === "mdi_submitted" ||
-    snapshot.onboardingStatus !== "billing_ready" ||
-    !snapshot.mdiPatientId ||
-    !snapshot.mdiCaseId
+    snapshot.onboardingStatus === "intake_ready" ||
+    snapshot.onboardingStatus === "mdi_submitted"
   ) {
-    return "mdi";
+    return "portal";
   }
 
-  if (!isBillingComplete(snapshot.billingStatus)) {
+  if (snapshot.onboardingStatus === "clinical_review") {
+    return isBillingComplete(snapshot.billingStatus) ? "complete" : "billing";
+  }
+
+  if (
+    snapshot.onboardingStatus === "billing_ready" &&
+    !isBillingComplete(snapshot.billingStatus)
+  ) {
     return "billing";
+  }
+
+  if (
+    snapshot.onboardingStatus === "billing_ready" &&
+    snapshot.billingStatus === "payment_method_collected"
+  ) {
+    return "activation";
   }
 
   return "complete";
@@ -155,11 +169,18 @@ function stepForPath(pathname: string): OnboardingStep | null {
   if (path === "/intake" || path.startsWith("/intake/")) {
     return "intake";
   }
-  if (path === "/onboarding/mdi" || path.startsWith("/onboarding/mdi/")) {
-    return "mdi";
+  if (
+    path === "/portal/launch" ||
+    path.startsWith("/portal/launch/") ||
+    path === "/onboarding/mdi" ||
+    path.startsWith("/onboarding/mdi/")
+  ) {
+    return "portal";
   }
   if (path === "/billing" || path.startsWith("/billing/")) {
-    return "billing";
+    return path === "/billing/activate" || path.startsWith("/billing/activate/")
+      ? "activation"
+      : "billing";
   }
   if (
     path === "/account" ||

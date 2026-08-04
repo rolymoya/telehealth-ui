@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import {
+  isPublicProductCode,
+  type PublicProductCode,
+} from "@/lib/public-commerce";
 
 type StartState =
   | { status: "checking" }
@@ -8,23 +12,33 @@ type StartState =
   | { status: "signed_out" }
   | { status: "unavailable" };
 
-const intakeHref = "/intake";
-const signInHref = "/sign-in?returnTo=%2Fget-started";
-
 export function GetStartedStartClient({
   fetchImpl = fetch,
   navigate = defaultNavigate,
+  productCode,
 }: {
   fetchImpl?: typeof fetch;
   navigate?: (destination: string) => void;
+  productCode?: PublicProductCode | null;
 }) {
+  const selectedProduct = productCode ?? productCodeFromLocation();
+  const startPath = selectedProduct
+    ? `/get-started?product=${encodeURIComponent(selectedProduct)}`
+    : "/get-started";
+  const intakeHref = selectedProduct
+    ? `/intake?product=${encodeURIComponent(selectedProduct)}`
+    : "/intake";
+  const signInHref = `/sign-in?returnTo=${encodeURIComponent(startPath)}`;
+  const startApiHref = selectedProduct
+    ? `/api/onboarding/start?product=${encodeURIComponent(selectedProduct)}`
+    : "/api/onboarding/start";
   const [state, setState] = useState<StartState>({ status: "checking" });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
     setState({ status: "checking" });
-    void fetchImpl("/api/onboarding/start", {
+    void fetchImpl(startApiHref, {
       credentials: "include",
       headers: {
         accept: "application/json",
@@ -53,14 +67,14 @@ export function GetStartedStartClient({
     return () => {
       active = false;
     };
-  }, [attempt, fetchImpl, navigate]);
+  }, [attempt, fetchImpl, navigate, startApiHref]);
 
   function retry() {
     setAttempt((current) => current + 1);
   }
 
   if (state.status === "signed_out") {
-    return <StartLinks />;
+    return <StartLinks intakeHref={intakeHref} signInHref={signInHref} />;
   }
 
   if (state.status === "unavailable") {
@@ -100,7 +114,13 @@ export function GetStartedStartClient({
   );
 }
 
-export function StartLinks() {
+export function StartLinks({
+  intakeHref = "/intake",
+  signInHref = "/sign-in?returnTo=%2Fget-started",
+}: {
+  intakeHref?: string;
+  signInHref?: string;
+} = {}) {
   return (
     <div className="rounded-[26px] border border-black/[0.05] bg-white p-6 shadow-soft sm:p-9">
       <p className="text-eyebrow uppercase text-ash">Start a visit</p>
@@ -114,6 +134,14 @@ export function StartLinks() {
       </div>
     </div>
   );
+}
+
+function productCodeFromLocation(): PublicProductCode | null {
+  if (typeof globalThis.location === "undefined") {
+    return null;
+  }
+  const value = new URLSearchParams(globalThis.location.search).get("product");
+  return isPublicProductCode(value) ? value : null;
 }
 
 function PrimaryLink({
@@ -173,7 +201,7 @@ async function safeJson(response: Response) {
 }
 
 function isSafeStartDestination(destination: string) {
-  return /^\/(?:onboarding\/consent(?:\?gate=medication)?|intake|onboarding\/mdi|billing)$/.test(destination);
+  return /^\/(?:onboarding\/consent(?:\?gate=medication)?|intake|portal\/launch|billing|billing\/activate|dashboard)$/.test(destination);
 }
 
 function defaultNavigate(destination: string) {

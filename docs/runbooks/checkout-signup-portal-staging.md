@@ -1,21 +1,21 @@
-# Staging Runbook — Checkout, Signup, and Intake Handoff
+# Staging Runbook — Precheck, Passwordless Account, and Portal Handoff
 
 ## Required Configuration
 
 - `APOTH_STAGE=staging`
-- `APOTH_CHECKOUT_UI_MODE=custom`
-- `APOTH_STRIPE_PUBLISHABLE_KEY=pk_test_...` for infrastructure output
-- `VITE_APOTH_STAGE=staging`
-- `VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...` for the patient-app build
-- `APOTH_STRIPE_INTEGRATION_IDENTIFIER=apoth_enrollment_qjxmzvra` unless Stripe
-  assigned a different stable identifier
-- Populated staging Stripe and app-signing Secrets Manager records
-- Stripe webhook endpoint subscribed to:
-  `checkout.session.completed`, `setup_intent.succeeded`, and the existing
-  billing event set
+- A valid app-signing secret in Secrets Manager
+- Cognito Essentials tier with `EMAIL_OTP` and `ALLOW_USER_AUTH` enabled
+- `APOTH_CHECKOUT_CATALOG_WEIGHT_ID=catalog_...`
+- `APOTH_PORTAL_PROVIDER=synthetic` for staging only
+- `APOTH_PORTAL_LAUNCH_ORIGIN=https://...` on an approved staging origin
+- `APOTH_PORTAL_LAUNCH_ENABLED=true` and
+  `APOTH_PORTAL_PROVISIONING_ENABLED=true` only when intentionally exercising
+  the synthetic staging portal
+- Stripe test credentials plus `STRIPE_RECURRING_PRICE_ID`,
+  `APOTH_BILLING_PRICE_CENTS`, and `APOTH_BILLING_AUTHORIZATION_VERSION`
 
-Do not use a live publishable key in staging. The patient app fails closed when
-the key is missing or its stage prefix is wrong.
+Never enable the synthetic portal provider in production. Do not use live
+payment credentials or real patient information in staging.
 
 ## Pre-deploy Verification
 
@@ -33,60 +33,72 @@ npm --prefix infra run synth:staging
 npm run build:static
 ```
 
-Inspect the synthesized change set for the four `/api/enrollment/*` routes,
-four enrollment Lambda handlers, `/checkout*` patient-app behavior, the CSP
-response policy, DynamoDB TTL use, and bounded IAM grants.
-
-## Deploy
-
-1. Set `APOTH_CHECKOUT_UI_MODE=hosted` and deploy the CDK staging stack so the
-   backend supports both response types while the hosted response remains
-   active.
-2. Build the patient app with the staging `pk_test_` key.
-3. Upload `out/` to the marketing bucket and `dist/patient-app/` to the patient
-   app bucket using the repository deployment procedure.
-4. Invalidate the changed CloudFront HTML and patient assets.
-5. Set `APOTH_CHECKOUT_UI_MODE=custom`, redeploy the staging stack, and confirm
-   the `CheckoutUiMode` output is `custom`.
+Inspect the synthesized change set for the email-OTP start/confirm routes,
+onboarding-start binding, portal-launch route, billing-offer GET/POST route,
+Cognito email-OTP policy, DynamoDB access, app-signing-secret access, and
+bounded Cognito `ListUsers`/`AdminCreateUser` permissions.
 
 ## Manual Acceptance
 
-Use a new private browser window:
+Use a new private browser window and only synthetic values:
 
-1. Open the staging weight page and confirm every “Get started” action reaches
-   `/checkout?product=weight`.
-2. Confirm the page shows the exact plan, `$99 per month after clinical
-   approval`, and `$0 due today`.
-3. Confirm available Apple Pay, Google Pay, Link, and card methods are rendered
-   by Stripe. Wallet availability depends on browser/device/domain eligibility.
-4. Cancel a wallet sheet. The checkout must remain usable and must not show a
-   payment error.
-5. Submit with a Stripe test payment method and accepted consent. Double-click
-   the final button and confirm only one SetupIntent/Checkout attempt results.
-6. Confirm the completion page waits for the webhook before showing account
-   verification.
-7. Complete the Cognito email code flow. Confirm the app continues to
-   `/intake`.
-8. Inspect DynamoDB: the pending enrollment is `identity_bound`, contains
-   opaque pointers only, and the Stripe linkage is
-   `payment_method_collected`.
-9. Inspect Stripe: there is no PaymentIntent charge or subscription. Metadata
-   contains only `apoth_order_id` and `apoth_stage`.
-10. Refresh checkout and completion pages. Confirm the attempt resumes without
-    a duplicate Session or an exposed `client_secret` in URL, storage, or logs.
+1. Open `/weight-loss`. Confirm every live weight CTA reaches
+   `/get-started?product=weight`.
+2. Confirm the public page shows the realistic monthly range, what is included,
+   lab exclusions, `$0` due before intake, renewal timing, cancellation terms,
+   and the compounded-medication disclosure.
+3. Start the visit. Confirm `/intake?product=weight` shows the privacy notice
+   before any precheck fields.
+4. Complete the short precheck. Confirm no clinical-history or medication
+   questionnaire appears and no answer is written to local/session storage.
+5. Enter the synthetic email and complete the six-digit Cognito email code.
+   Confirm no password is requested.
+6. Confirm `/get-started?product=weight` consumes the signed precheck context,
+   binds it to the Cognito subject, and continues to `/portal/launch`.
+7. Confirm the portal route POSTs an explicit launch intent and redirects only
+   to the configured HTTPS origin. Replays may create new single-use launches
+   but must not create duplicate provider linkage.
+8. Complete the synthetic provider intake and deliver a signed
+   `billing_ready` event for the same opaque case.
+9. Open `/billing`, save a Stripe test payment method, and confirm due today is
+   `$0`. Verify there is no subscription or charge.
+10. Open `/billing/activate`. Confirm the exact first and monthly amount, accept
+    the separate authorization, and submit it once.
+11. Confirm activation retrieves the live Stripe Price, matches its active
+    flag, USD currency, monthly interval, and amount, then creates exactly one
+    subscription.
+12. Replay the offer submission and provider/Stripe events. Confirm no duplicate
+    subscription, charge, linkage, or evidence record is created.
 
-## Operational Checks
+## Privacy and Security Checks
 
-- CloudWatch enrollment functions have no unhandled errors.
-- Stripe webhook events are processed once; retry/DLQ alarms remain clear.
-- Browser developer tools show no CSP violations for Stripe.js, Elements,
-  wallets, Link, or 3DS.
-- API responses and CloudFront checkout HTML use `cache-control: no-store`
-  where appropriate; the completion URL is clean after load.
+- Patient, account, intake, portal, and billing pages return private no-store,
+  no-referrer, and no-index headers.
+- No third-party advertising pixels load on those routes.
+- OTP challenges and precheck state appear only in encrypted/signed HttpOnly
+  cookies, never local storage, URLs, application logs, or analytics.
+- Stripe metadata contains opaque IDs and stage only. It contains no email,
+  product, condition, medication, or questionnaire content.
+- The portal redirect includes no readable clinical data and rejects an
+  unapproved origin.
+
+## Failure Drills
+
+- Disable portal launch. Expected: patient-safe unavailable state and no
+  provisioning attempt.
+- Remove the app-signing secret. Expected: privacy/precheck and OTP flows fail
+  closed without setting a usable cookie.
+- Use an expired or incorrect OTP. Expected: no session cookie and a bounded
+  patient-safe error.
+- Attempt portal launch without consent, residency, weight selection, or auth.
+  Expected: 401/403 and no provider side effect.
+- Mismatch `APOTH_BILLING_PRICE_CENTS` and the Stripe Price. Expected:
+  `invalid_stripe_price`, no subscription, and no charge.
 
 ## Rollback
 
-Set `APOTH_CHECKOUT_UI_MODE=hosted`, synthesize, and redeploy the staging stack.
-The UI redirects directly to Stripe-hosted Checkout and retains the same
-consent, webhook, Cognito binding, and clinical billing gates. Do not weaken CSP,
-disable signature verification, or create a subscription as a rollback.
+Set both portal enable flags and billing activation to `false`, then synthesize
+and redeploy. Public staged enrollment and account binding can remain available
+while portal launch and charging fail closed. Do not restore checkout-first
+collection, weaken origin/signature checks, or bypass exact-offer acceptance as
+a rollback.

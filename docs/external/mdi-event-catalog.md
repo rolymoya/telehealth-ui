@@ -1,5 +1,10 @@
 # MDI Event And Questionnaire Catalog
 
+> Legacy migration-adapter reference. The target patient journey launches the
+> selected white-label provider portal, which renders and stores its own
+> questionnaire. Do not use this catalog to reintroduce a native Apoth
+> questionnaire UI.
+
 ## Source And Validation Status
 
 This catalog is derived from the local MD Integrations Postman collection at
@@ -36,8 +41,8 @@ but not the submitted response payload.
 | Patient create/read/search | `/partner/patients` routes | MDI patient pointer, app linkage fields, workflow status, related case list. | Create before case/questionnaire submission; search/read for reconciliation. | P0 | Create or link MDI patient after account/consent gate. | `mdi_patient_id`, status, linkage timestamps only. | T-022, T-055 |
 | Patient workflow | Patient workflow and notification opt-in/out events | Patient pointer, workflow name, operational status, timestamp. | May arrive before or after case events. | P1 | Update dashboard status and reconciliation hints. | Workflow status only. | T-079, T-058 |
 | Case lifecycle | `/partner/cases` routes and status webhooks | MDI case pointer, status transition, provider timestamp, event ID. | Must be idempotent and tolerant of duplicate/out-of-order delivery. | P0 | Create case, store pointer, route status updates to dashboard/billing gates. | `mdi_case_id`, event envelope, status, timestamps. | T-022, T-057, T-058, T-079 |
-| Questionnaire catalog | `/partner/questionnaires`, `/partner/questionnaires/:id`, `/partner/questionnaires/:id/questions` | Questionnaire ID/version, question metadata, controls, option metadata. | Fetch after offering/case context is known. | P0 | Render MDI-provided questions in Apoth intake UI. | Render from MDI; do not persist question text or responses. Store only approved non-clinical pointers/status. | T-022, T-056 |
-| Questionnaire submission | Case/questionnaire submission route shape from MDI collection | Patient pointer, case pointer, question IDs, response values. | Submit after consent, residency, eligibility, and case setup gates. | P0 | Send responses to MDI and immediately discard local payload. | Submission pointer and completion status only. | T-022, T-056 |
+| Questionnaire catalog | `/partner/questionnaires`, `/partner/questionnaires/:id`, `/partner/questionnaires/:id/questions` | Questionnaire ID/version, question metadata, controls, option metadata. | Legacy adapter only; not used by the target portal journey. | P0 | Keep for migration/rollback compatibility. Do not render MDI-provided questions in the target Apoth UI. | Store only approved non-clinical pointers/status. | T-022, T-056 |
+| Questionnaire submission | Case/questionnaire submission route shape from MDI collection | Patient pointer, case pointer, question IDs, response values. | Legacy adapter only; not used by the target portal journey. | P0 | Preserve direct-to-MDI submission only for migration/rollback paths and immediately discard local payload. | Submission pointer and completion status only. | T-022, T-056 |
 | Voucher and offerings | `/partner/vouchers`, `/partner/offerings`, voucher events | Offering/voucher IDs, status, amount/reference fields. | Needed before final payment/fulfillment decisions if MDI owns offer/voucher state. | P1 | Reconcile plan/product eligibility and charge references. | Opaque voucher/offering pointers and status only. | T-078, T-080 |
 | Partner charges | Partner additional charge and vouched amount charge events | Charge reference, amount, currency, patient/case pointers, timestamp. | May arrive after case approval or fulfillment milestone. | P0 | Decide payment unlock and Stripe orchestration trigger. | Charge reference, amount, currency, opaque pointers; no clinical labels. | T-078, T-081 |
 | Files and orders | Case file events, order status/tracking events | File/order pointer, status, optional URL or tracking pointer. | Files may be clinical PHI; orders may lag case status. | P1 | Store pointer/status; fetch or embed through MDI only when required. | Opaque pointer/status only; no file bodies or clinical content. | T-079, T-083 |

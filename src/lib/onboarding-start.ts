@@ -20,7 +20,9 @@ import {
 import {
   anonymousPrecheckConsumptionKey,
   createAnonymousPrecheckConsumptionRecord,
+  createOnboardingTreatmentSelectionRecord,
   createPatientProfileRecord,
+  onboardingTreatmentSelectionKey,
   patientProfileKey,
   type AppDataRecord,
   type AppDataRepository,
@@ -40,6 +42,7 @@ import {
   anonymousPrecheckNonceHash,
   type AnonymousPrecheckContextPayload,
 } from "../../shared/intake/anonymous-precheck-context";
+import type { LaunchOfferingSlug } from "../../shared/intake/precheck";
 
 export type OnboardingStartRepository = AppDataReadRepository & {
   put<T extends AppDataRecord>(
@@ -228,9 +231,18 @@ export async function bindAnonymousPrecheckContext(
     if (consumed.value.cognitoSub !== input.cognitoSub) {
       return { ok: true, value: { recoverAtIntake: true } };
     }
+    const selection = await ensurePrecheckTreatmentSelection(repository, input);
+    if (!selection.ok) {
+      return selection;
+    }
     return isSameAccountReplayRecovered(profile?.value ?? null, input.context.residencyState)
       ? { ok: true, value: {} }
       : { ok: true, value: { recoverAtIntake: true } };
+  }
+
+  const selection = await ensurePrecheckTreatmentSelection(repository, input);
+  if (!selection.ok) {
+    return selection;
   }
 
   const consumption = createAnonymousPrecheckConsumptionRecord({
@@ -299,6 +311,45 @@ export async function bindAnonymousPrecheckContext(
   return consumedOnly.error.kind === "conditional_conflict"
     ? recoverAfterConsumptionConflict(repository, input)
     : consumedOnly;
+}
+
+async function ensurePrecheckTreatmentSelection(
+  repository: OnboardingStartRepository,
+  input: {
+    cognitoSub: string;
+    context: AnonymousPrecheckContextPayload;
+    now: string;
+  },
+): Promise<AppDataResult<void>> {
+  const existing = await repository.get(onboardingTreatmentSelectionKey(input.cognitoSub));
+  if (!existing.ok) {
+    return existing as AppDataResult<void>;
+  }
+  if (existing.value) {
+    return existing.value.recordType === "onboardingTreatmentSelection" &&
+        existing.value.treatment === input.context.selectedTreatment
+      ? { ok: true, value: undefined }
+      : appDataErr("validation_failed", "Precheck program conflicts with the saved program");
+  }
+
+  const created = await repository.put(createOnboardingTreatmentSelectionRecord({
+    cognitoSub: input.cognitoSub,
+    now: input.now,
+    questionnaireId: `mdi_questionnaire_${input.context.selectedTreatment.replaceAll("-", "_")}`,
+    treatment: input.context.selectedTreatment as LaunchOfferingSlug,
+  }), { ifNotExists: true });
+  if (created.ok) {
+    return { ok: true, value: undefined };
+  }
+  if (created.error.kind !== "conditional_conflict") {
+    return created as AppDataResult<void>;
+  }
+
+  const raced = await repository.get(onboardingTreatmentSelectionKey(input.cognitoSub));
+  return raced.ok && raced.value?.recordType === "onboardingTreatmentSelection" &&
+      raced.value.treatment === input.context.selectedTreatment
+    ? { ok: true, value: undefined }
+    : appDataErr("conditional_conflict", "Precheck program could not be bound to the account");
 }
 
 export async function ensurePatientProfile(

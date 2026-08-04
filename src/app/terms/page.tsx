@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Terms of Service for Apoth, including the telehealth disclosure and the refunds and cancellation policy.",
 };
 
-const lastUpdated = "June 23, 2026";
+const lastUpdated = "August 4, 2026";
 
 export default function TermsPage() {
   return (
@@ -218,9 +218,10 @@ export default function TermsPage() {
               <Section id="nature" title="3. Nature of the service">
                 <p>
                   Apoth is a technology platform. We build and operate the
-                  website, patient account area, intake user interface, billing
+                  website, patient account area, precheck, billing
                   orchestration, customer support, and minimal linkage records
-                  that make telehealth visits possible.{" "}
+                  that make telehealth visits possible. The selected provider
+                  portal collects the clinical questionnaire.{" "}
                   <strong>
                     Apoth is not a medical provider, does not practice
                     medicine, and does not dispense medication.
@@ -232,9 +233,10 @@ export default function TermsPage() {
                   Clinical decisions — including whether to prescribe, what to
                   prescribe, and how to follow up — are made independently by
                   licensed clinicians of the Physician Group described below.
-                  MD Integrations is the clinical system of record for
-                  questionnaire answers, clinician review, treatment decisions,
-                  and clinical messages.
+                  The selected provider portal is the clinical system of record
+                  for questionnaire answers, clinician review, treatment
+                  decisions, and clinical messages. MD Integrations remains a
+                  migration adapter where applicable.
                   Medication is dispensed by a licensed pharmacy partner that
                   is a separate legal entity.
                 </p>
@@ -313,11 +315,18 @@ export default function TermsPage() {
 
               <Section id="fees" title="7. Fees and billing">
                 <p>
-                  Fees are displayed on the website at the time of purchase.
-                  By starting a visit or enrolling in a subscription, you
-                  authorize Apoth (or its payment processor) to charge your
-                  selected payment method for all applicable fees, taxes, and
-                  shipping where charged separately.
+                  Public pages show a realistic price range before intake. The
+                  exact price depends on the plan approved for you. Starting a
+                  visit, completing the precheck, or saving a payment method
+                  does not authorize a charge or subscription. The payment
+                  method setup step shows $0 due.
+                </p>
+                <p>
+                  After clinical approval, Apoth displays the exact first and
+                  recurring amount for the approved offer. You must separately
+                  accept that amount and the recurring authorization before
+                  Apoth or its payment processor creates the first charge or
+                  subscription.
                 </p>
                 <p>
                   Most categories are sold as recurring monthly subscriptions
@@ -650,11 +659,11 @@ export default function TermsPage() {
                 <ul>
                   <li>
                     <strong>Before clinician approval.</strong> Apoth does not
-                    activate subscription billing before the selected clinical
-                    approval event. If an authorization, pending payment, or
-                    mistaken pre-approval charge must be reversed because you
-                    are not accepted for care, it will be voided or refunded in
-                    full.
+                    activate subscription billing before both the selected
+                    clinical approval event and your separate acceptance of the
+                    exact offer. Saving a payment method is not a charge. If a
+                    mistaken pre-approval charge occurs, it will be voided or
+                    refunded in full.
                   </li>
                   <li>
                     <strong>Before the pharmacy ships.</strong> If you cancel

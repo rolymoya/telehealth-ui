@@ -24,7 +24,7 @@ export default function GetStartedPage() {
             <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
               Review the privacy notice, answer a short precheck, then create
               or sign in to your account if online intake is a fit. Clinical
-              questionnaire answers come later through MD Integrations.
+              questionnaire answers are collected in the independent provider’s secure portal.
             </p>
             <div className="mt-8 flex flex-wrap gap-4 text-[0.95rem] font-semibold text-[#171719]">
               <Link className="underline decoration-black/25 underline-offset-4 hover:decoration-black" href="/weight-loss">

@@ -102,7 +102,7 @@ describe("custom checkout start", () => {
     expect(await screen.findByRole("heading", {
       name: "Set up your account. Pay nothing today.",
     })).toBeInTheDocument();
-    expect(screen.getByText("$99")).toBeInTheDocument();
+    expect(screen.getByText("$99–$199")).toBeInTheDocument();
     expect(screen.getByText("$0.00")).toBeInTheDocument();
     expect(screen.getByText("Apple Pay")).toBeInTheDocument();
 

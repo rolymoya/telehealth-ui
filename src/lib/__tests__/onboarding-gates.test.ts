@@ -61,27 +61,27 @@ describe("onboarding route gates", () => {
     ).toEqual("intake");
   });
 
-  it("routes intake-ready patients with residency state to the MDI step", () => {
+  it("routes intake-ready patients with residency state to the provider portal", () => {
     expect(
       earliestIncompleteOnboardingStep({
         consentAccepted: true,
         onboardingStatus: "intake_ready",
         residencyState: "IL",
       }),
-    ).toEqual("mdi");
+    ).toEqual("portal");
   });
 
-  it("routes MDI handoff gaps to the MDI step", () => {
+  it("routes legacy handoff gaps to the provider portal", () => {
     expect(
       earliestIncompleteOnboardingStep({
         consentAccepted: true,
         onboardingStatus: "mdi_submitted",
         mdiPatientId: "mdi_patient_001",
       }),
-    ).toEqual("mdi");
+    ).toEqual("portal");
   });
 
-  it("keeps clinical review patients in the MDI step until billing is explicitly ready", () => {
+  it("collects a payment method after intake reaches clinical review", () => {
     expect(
       earliestIncompleteOnboardingStep({
         consentAccepted: true,
@@ -89,7 +89,7 @@ describe("onboarding route gates", () => {
         mdiCaseId: "mdi_case_001",
         mdiPatientId: "mdi_patient_001",
       }),
-    ).toEqual("mdi");
+    ).toEqual("billing");
   });
 
   it("routes billing-ready patients without billing status to billing", () => {
@@ -103,19 +103,19 @@ describe("onboarding route gates", () => {
     ).toEqual("billing");
   });
 
-  it("permits dashboard after payment method collection or active billing", () => {
-    for (const billingStatus of ["payment_method_collected", "active"] as const) {
-      expect(
-        decideProtectedRouteAccess({
-          authenticated: true,
-          pathname: "/dashboard",
-          snapshot: {
-            ...completeSnapshot,
-            billingStatus,
-          },
-        }),
-      ).toEqual({ decision: "allow" });
-    }
+  it("routes approved patients with a saved payment method to exact-offer acceptance", () => {
+    expect(earliestIncompleteOnboardingStep({
+      ...completeSnapshot,
+      billingStatus: "payment_method_collected",
+    })).toEqual("activation");
+  });
+
+  it("permits dashboard only after billing is active", () => {
+    expect(decideProtectedRouteAccess({
+      authenticated: true,
+      pathname: "/dashboard",
+      snapshot: completeSnapshot,
+    })).toEqual({ decision: "allow" });
   });
 
   it("redirects skip-ahead attempts to the earliest incomplete step", () => {
@@ -137,7 +137,7 @@ describe("onboarding route gates", () => {
     expect(
       decideProtectedRouteAccess({
         authenticated: true,
-        pathname: "/onboarding/mdi",
+        pathname: "/portal/launch",
         snapshot: {
           consentAccepted: true,
           onboardingStatus: "intake_ready",

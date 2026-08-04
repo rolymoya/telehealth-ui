@@ -22,11 +22,11 @@ export default function IntakePage() {
             <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
               Start by acknowledging the privacy notice, then answer a few
               basics so Apoth can route you before account setup. Medical
-              questionnaire answers are collected later by MD Integrations.
+              questionnaire answers are collected later in the provider portal.
             </p>
             <p className="mt-6 text-[1rem] text-ink/65">
               This is not a clinical decision. A licensed clinician decides
-              whether care is appropriate after reviewing your MDI intake.
+              whether care is appropriate after reviewing your secure intake.
             </p>
           </div>
           <IntakePrecheckClient />

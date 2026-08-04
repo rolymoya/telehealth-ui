@@ -16,13 +16,13 @@ export type PublicStripeConfig =
     };
 
 export function marketingHref(path: `/${string}`) {
-  const configured = import.meta.env.VITE_MARKETING_ORIGIN?.trim();
+  const configured = import.meta.env?.VITE_MARKETING_ORIGIN?.trim();
   if (!configured) {
-    return import.meta.env.DEV ? `http://127.0.0.1:3000${path}` : path;
+    return import.meta.env?.DEV ? `http://127.0.0.1:3000${path}` : path;
   }
   try {
     const url = new URL(configured);
-    const isLocalDevelopment = import.meta.env.DEV &&
+    const isLocalDevelopment = import.meta.env?.DEV &&
       url.protocol === "http:" &&
       (url.hostname === "127.0.0.1" || url.hostname === "localhost");
     return (url.protocol === "https:" || isLocalDevelopment) &&
@@ -37,17 +37,17 @@ export function marketingHref(path: `/${string}`) {
 
 export function publicPatientConfig(): PublicPatientConfig {
   return {
-    cognitoRegion: import.meta.env.VITE_COGNITO_REGION ?? "",
-    userPoolClientId: import.meta.env.VITE_COGNITO_USER_POOL_CLIENT_ID ?? "",
-    userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID ?? "",
+    cognitoRegion: import.meta.env?.VITE_COGNITO_REGION ?? "",
+    userPoolClientId: import.meta.env?.VITE_COGNITO_USER_POOL_CLIENT_ID ?? "",
+    userPoolId: import.meta.env?.VITE_COGNITO_USER_POOL_ID ?? "",
   };
 }
 
 export function publicStripeConfig(): PublicStripeConfig {
-  const stage = import.meta.env.VITE_APOTH_STAGE === "production"
+  const stage = import.meta.env?.VITE_APOTH_STAGE === "production"
     ? "production" as const
     : "staging" as const;
-  const publishableKey = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
+  const publishableKey = import.meta.env?.VITE_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
   if (!publishableKey) {
     return { ok: false, reason: "missing" };
   }

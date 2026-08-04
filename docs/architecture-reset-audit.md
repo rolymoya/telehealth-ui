@@ -3,7 +3,8 @@
 > Historical baseline. The target patient journey in this audit is superseded
 > by `docs/features/checkout-as-signup-white-label-portal.md`. MDI-backed native
 > intake remains a migration/rollback adapter only; new patient acquisition
-> uses hosted Checkout, passwordless account binding, and a white-label portal.
+> uses privacy acknowledgement, a short precheck, passwordless account binding,
+> and a white-label portal before $0-due payment-method setup.
 
 ## Decision Snapshot
 
@@ -11,8 +12,9 @@ Apoth is moving back to a thin-platform launch architecture:
 
 - Apoth owns patient accounts.
 - Cognito is the auth provider.
-- MDI is the clinical system of record.
-- Apoth does not persist questionnaire answers after submission.
+- The selected white-label provider portal is the clinical system of record;
+  MDI remains only as a legacy migration adapter.
+- Apoth does not render or persist questionnaire answers.
 - Persona/KYC is out of launch scope.
 - Launch target is tens of patients, with a path to hundreds/thousands.
 - Infrastructure target is under $100/month at launch scale.

@@ -1,16 +1,16 @@
 import { PackageCheck } from "lucide-react";
 
 import { Wordmark } from "./Icons";
-import { checkoutHref } from "@/lib/public-commerce";
+import { onboardingHref } from "@/lib/public-commerce";
 
-const weightCheckoutHref = checkoutHref("weight");
+const weightOnboardingHref = onboardingHref("weight");
 
 const footerGroups = [
   {
     heading: "Care",
     links: [
       { label: "GLP-1 treatments", href: "/weight-loss" },
-      { label: "Start a visit", href: weightCheckoutHref },
+      { label: "Start a visit", href: weightOnboardingHref },
       { label: "Patient login", href: "/sign-in" },
       { label: "Patient dashboard", href: "/dashboard" },
     ],
@@ -51,7 +51,7 @@ export function Footer() {
               pharmacy shipping rules support care.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <a className="inline-flex min-h-10 items-center rounded-full bg-white px-5 text-xs font-semibold text-[#171719] hover:bg-white/90" href={weightCheckoutHref}>
+              <a className="inline-flex min-h-10 items-center rounded-full bg-white px-5 text-xs font-semibold text-[#171719] hover:bg-white/90" href={weightOnboardingHref}>
                 Start a visit
               </a>
               <a className="inline-flex min-h-10 items-center rounded-full border border-white/25 px-5 text-xs font-semibold hover:bg-white/10" href="/sign-in">

@@ -294,7 +294,7 @@ describe("consent acceptance", () => {
       }),
     ).resolves.toEqual({
       ok: true,
-      value: { destination: "/onboarding/mdi" },
+      value: { destination: "/portal/launch" },
     });
 
     expect(getRequiredConsentEvidenceStatus(repository, {
@@ -339,7 +339,7 @@ describe("consent acceptance", () => {
       }),
     ).resolves.toEqual({
       ok: true,
-      value: { destination: "/onboarding/mdi" },
+      value: { destination: "/portal/launch" },
     });
 
     expect(getRequiredConsentEvidenceStatus(repository, {

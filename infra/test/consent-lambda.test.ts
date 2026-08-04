@@ -262,7 +262,7 @@ describe("consent lambda handler", () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
-      destination: "/onboarding/mdi",
+      destination: "/portal/launch",
       status: "consent_recorded",
     });
     expect(sendMock.mock.calls.some(([command]) =>
@@ -312,7 +312,7 @@ describe("consent lambda handler", () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
-      destination: "/onboarding/mdi",
+      destination: "/portal/launch",
       status: "consent_recorded",
     });
     const transaction = sendMock.mock.calls.find(([command]) =>

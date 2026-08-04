@@ -1,79 +1,59 @@
 import { expect, test } from "@playwright/test";
 
-test("initializes hosted checkout as account creation with no amount due today", async ({ page }) => {
-  await page.route("**/api/enrollment/checkout", async (route) => {
-    const request = route.request();
-    expect(request.method()).toBe("POST");
-    expect(request.headers()["x-apoth-checkout-initialization"])
-      .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
-    expect(JSON.parse(request.postData() ?? "{}")).toEqual({ product: "weight" });
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        checkoutUrl: "https://checkout.stripe.com/c/pay/cs_test_enrollment_001",
-        status: "checkout_session_created",
-        uiMode: "hosted",
-      }),
-    });
+test("retires card-first checkout and sends direct links to the precheck", async ({ page }) => {
+  let checkoutRequests = 0;
+  await page.route("**/api/enrollment/checkout", (route) => {
+    checkoutRequests += 1;
+    return route.abort();
   });
-  await page.route("https://checkout.stripe.com/**", (route) => route.fulfill({
-    contentType: "text/html",
-    body: [
-      "<title>Stripe test checkout</title>",
-      "<main>",
-      "<h1>Secure account checkout</h1>",
-      "<p>Due today: $0</p>",
-      "<p>Your payment method is saved for later. No charge occurs today.</p>",
-      "</main>",
-    ].join(""),
+  await page.route("**/api/onboarding/start?product=weight", (route) => route.fulfill({
+    contentType: "application/json",
+    status: 401,
+    body: JSON.stringify({ error: "authentication_required" }),
   }));
 
   await page.goto("/checkout?product=weight");
 
-  await expect(page).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_enrollment_001");
-  await expect(page.getByRole("heading", { name: "Secure account checkout" })).toBeVisible();
-  await expect(page.getByText("Due today: $0")).toBeVisible();
-  await expect(page.getByText(/No charge occurs today/)).toBeVisible();
+  await expect(page).toHaveURL(/\/get-started\?product=weight$/);
+  await expect(page.getByRole("heading", { name: "Start with the privacy notice." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start precheck" }))
+    .toHaveAttribute("href", "/intake?product=weight");
+  expect(checkoutRequests).toBe(0);
 });
 
-test("converges from verified setup through patient-scoped identity binding", async ({ page }) => {
-  const apiRequests: Array<{ body: string | null; method: string; path: string }> = [];
-  await page.route("**/api/enrollment/status", (route) => route.fulfill({
-    contentType: "application/json",
-    body: JSON.stringify({
-      identityBound: false,
-      paymentSetupComplete: true,
-      status: "payment_setup_complete",
-    }),
-  }));
-  await page.route("**/api/enrollment/bind", async (route) => {
-    apiRequests.push(requestSummary(route.request()));
-    await route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({
-        redirect: "/intake",
-        status: "identity_bound",
-      }),
-    });
-  });
+test("preserves the selected program through anonymous precheck and account creation", async ({ page }) => {
   await page.route("**/api/intake/bootstrap", (route) => route.fulfill({
     contentType: "application/json",
-    status: 403,
-    body: JSON.stringify({ code: "privacy_notice_required" }),
+    body: JSON.stringify({ csrfToken: "csrf_anon_e2e", status: "ready_for_anonymous_precheck" }),
   }));
+  await page.route("**/api/intake/precheck", async (route) => {
+    expect(JSON.parse(route.request().postData() ?? "{}")).toMatchObject({ offering: "weight" });
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ status: "ready_for_account_creation" }),
+    });
+  });
 
-  await page.goto("/checkout/complete");
+  await page.goto("/intake?product=weight");
 
-  await expect(page).toHaveURL(/\/intake$/);
-  await expect(page.getByRole("heading", {
-    name: "Privacy notice, then a short precheck.",
-  })).toBeVisible();
-  expect(apiRequests).toEqual([
-    { body: "{}", method: "POST", path: "/api/enrollment/bind" },
-  ]);
+  await expect(page.getByText("Weight management")).toBeVisible();
+  await expect(page.getByLabel("Care category")).toHaveCount(0);
+  await page.getByLabel("State of residence").selectOption("IL");
+  await page.getByRole("spinbutton", { name: "Age" }).fill("34");
+  await page.locator('input[name="emergencySymptoms"][value="no"]').check();
+  await page.locator('input[name="blockingContraindication"][value="no"]').check();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await expect(page.getByRole("heading", { name: "Verify your email to continue." })).toBeVisible();
+  await expect(page.getByLabel("Email address")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Email me a code" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /password for an existing account/i }))
+    .toHaveAttribute("href", "/sign-in?returnTo=%2Fget-started%3Fproduct%3Dweight");
+  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+  await expect(page.locator('input[autocomplete*="cc-"]')).toHaveCount(0);
 });
 
-test("keeps the active native intake and account routes", async ({ page }) => {
+test("keeps the active native account and portal routes", async ({ page }) => {
   await page.route("**/api/dashboard", (route) => route.fulfill({
     contentType: "application/json",
     body: JSON.stringify({ status: "authenticated" }),
@@ -83,24 +63,13 @@ test("keeps the active native intake and account routes", async ({ page }) => {
     status: 403,
     body: JSON.stringify({ code: "privacy_notice_required" }),
   }));
-  await page.route("**/api/onboarding/mdi/bootstrap", (route) => route.fulfill({
-    contentType: "application/json",
-    body: JSON.stringify({
-      caseId: "mdi_case_commerce_e2e",
-      csrfToken: "csrf_mdi_commerce_e2e",
-      patientId: "mdi_patient_commerce_e2e",
-      questionnaireId: "questionnaire_commerce_e2e",
-      questions: [],
-      status: "ready",
-    }),
-  }));
 
   for (const route of [
     { path: "/get-started", heading: "Start with the privacy notice." },
     { path: "/intake", heading: "Privacy notice, then a short precheck." },
     { path: "/sign-up", heading: "Create your account." },
     { path: "/onboarding/consent", heading: "Review telehealth and platform terms." },
-    { path: "/onboarding/mdi", heading: "MDI questionnaire" },
+    { path: "/portal/launch", heading: "Continue to your medical intake." },
     { path: "/medication-management", heading: "Medication management" },
   ]) {
     await page.goto(route.path);
@@ -108,11 +77,3 @@ test("keeps the active native intake and account routes", async ({ page }) => {
     await expect(page.getByRole("heading", { name: route.heading })).toBeVisible();
   }
 });
-
-function requestSummary(request: import("@playwright/test").Request) {
-  return {
-    body: request.postData(),
-    method: request.method(),
-    path: new URL(request.url()).pathname,
-  };
-}

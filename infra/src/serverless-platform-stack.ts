@@ -11,6 +11,7 @@ import path from "node:path";
 import {
   AccountRecovery,
   CfnUserPool,
+  FeaturePlan,
   Mfa,
   UserPool,
   UserPoolClient,
@@ -105,6 +106,7 @@ export class ServerlessPlatformStack extends Stack {
       accountRecovery: AccountRecovery.EMAIL_ONLY,
       autoVerify: { email: true },
       deletionProtection: props.config.deletionProtection,
+      featurePlan: FeaturePlan.ESSENTIALS,
       mfa: Mfa.OFF,
       passwordPolicy: {
         minLength: 12,
@@ -114,6 +116,12 @@ export class ServerlessPlatformStack extends Stack {
         requireSymbols: false,
       },
       removalPolicy: props.config.removalPolicy,
+      signInPolicy: {
+        allowedFirstAuthFactors: {
+          emailOtp: true,
+          password: true,
+        },
+      },
     });
     const userPoolResource = userPool.node.defaultChild as CfnUserPool;
     userPoolResource.emailConfiguration = {
@@ -130,6 +138,7 @@ export class ServerlessPlatformStack extends Stack {
       userPool,
       userPoolClientName: `apoth-${props.config.stage}-web`,
       authFlows: {
+        user: true,
         userSrp: true,
         userPassword: true,
       },
@@ -1007,6 +1016,67 @@ exports.handler = async () => ({
       ),
     });
 
+    const portalLaunchFunction = new NodejsFunction(
+      this,
+      "PortalLaunchFunction",
+      {
+        functionName: `apoth-${props.config.stage}-portal-launch`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "launchHandler",
+        entry: path.join(__dirname, "lambda", "portal.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(20),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_ACCOUNT_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_CHECKOUT_CATALOG_WEIGHT_ID:
+            process.env.APOTH_CHECKOUT_CATALOG_WEIGHT_ID ?? "catalog_weight_launch",
+          APOTH_PORTAL_LAUNCH_ENABLED:
+            process.env.APOTH_PORTAL_LAUNCH_ENABLED ?? "false",
+          APOTH_PORTAL_LAUNCH_ORIGIN:
+            process.env.APOTH_PORTAL_LAUNCH_ORIGIN ??
+              (props.config.stage === "production"
+                ? "https://care.apothhealth.com"
+                : "https://care.staging.apothhealth.com"),
+          APOTH_PORTAL_PROVIDER: process.env.APOTH_PORTAL_PROVIDER ?? "synthetic",
+          APOTH_PORTAL_PROVISIONING_ENABLED:
+            process.env.APOTH_PORTAL_PROVISIONING_ENABLED ?? "false",
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+        },
+        logGroup: new LogGroup(this, "PortalLaunchFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-portal-launch`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      portalLaunchFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
+    );
+
+    api.addRoutes({
+      path: "/api/portal/launch",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "PortalLaunchIntegration",
+        portalLaunchFunction,
+      ),
+    });
+
     const authSessionPostFunction = new NodejsFunction(
       this,
       "AuthSessionPostFunction",
@@ -1076,6 +1146,84 @@ exports.handler = async () => ({
       integration: new HttpLambdaIntegration(
         "AuthSessionDeleteIntegration",
         authSessionDeleteFunction,
+      ),
+    });
+
+    const emailOtpEnvironment = {
+      APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+      APOTH_SECRET_APP_SIGNING_ID: secretName(props.config.stage, "appSigning"),
+      APOTH_STAGE: props.config.stage,
+      COGNITO_REGION: this.region,
+      COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+      COGNITO_USER_POOL_ID: userPool.userPoolId,
+    };
+    const createEmailOtpFunction = (
+      id: string,
+      handler: "confirmHandler" | "startHandler",
+      suffix: string,
+    ) => new NodejsFunction(this, id, {
+      functionName: `apoth-${props.config.stage}-email-otp-${suffix}`,
+      runtime: Runtime.NODEJS_20_X,
+      handler,
+      entry: path.join(__dirname, "lambda", "email-otp.ts"),
+      depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+      timeout: Duration.seconds(15),
+      bundling: {
+        esbuildArgs: {
+          "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+        },
+        minify: true,
+        sourceMap: false,
+      },
+      environment: emailOtpEnvironment,
+      logGroup: new LogGroup(this, `${id}LogGroup`, {
+        logGroupName: `/aws/lambda/apoth-${props.config.stage}-email-otp-${suffix}`,
+        retention: props.config.logRetention,
+        removalPolicy: props.config.removalPolicy,
+      }),
+    });
+    const emailOtpStartFunction = createEmailOtpFunction(
+      "EmailOtpStartFunction",
+      "startHandler",
+      "start",
+    );
+    const emailOtpConfirmFunction = createEmailOtpFunction(
+      "EmailOtpConfirmFunction",
+      "confirmHandler",
+      "confirm",
+    );
+    for (const fn of [emailOtpStartFunction, emailOtpConfirmFunction]) {
+      fn.addToRolePolicy(new PolicyStatement({
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          this.formatArn({
+            arnFormat: ArnFormat.COLON_RESOURCE_NAME,
+            service: "secretsmanager",
+            resource: "secret",
+            resourceName: `${secretName(props.config.stage, "appSigning")}*`,
+          }),
+        ],
+      }));
+    }
+    emailOtpStartFunction.addToRolePolicy(new PolicyStatement({
+      actions: ["cognito-idp:AdminCreateUser", "cognito-idp:ListUsers"],
+      resources: [userPool.userPoolArn],
+    }));
+
+    api.addRoutes({
+      path: "/api/auth/email-otp/start",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "EmailOtpStartIntegration",
+        emailOtpStartFunction,
+      ),
+    });
+    api.addRoutes({
+      path: "/api/auth/email-otp/confirm",
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "EmailOtpConfirmIntegration",
+        emailOtpConfirmFunction,
       ),
     });
 
@@ -1285,7 +1433,59 @@ exports.handler = async () => ({
       "dynamodb:TransactWriteItems",
     );
 
-    for (const fn of [billingPaymentMethodFunction, billingSubscriptionCancelFunction]) {
+    const billingOfferFunction = new NodejsFunction(
+      this,
+      "BillingOfferFunction",
+      {
+        functionName: `apoth-${props.config.stage}-billing-offer`,
+        runtime: Runtime.NODEJS_20_X,
+        handler: "offerHandler",
+        entry: path.join(__dirname, "lambda", "billing.ts"),
+        depsLockFilePath: path.join(__dirname, "..", "package-lock.json"),
+        timeout: Duration.seconds(15),
+        bundling: {
+          esbuildArgs: {
+            "--alias:server-only": path.join(__dirname, "lambda", "server-only-empty.ts"),
+          },
+          minify: true,
+          sourceMap: false,
+        },
+        environment: {
+          APP_TABLE_NAME: appTable.tableName,
+          APOTH_ALLOWED_ORIGIN: props.config.allowedOrigins[0] ?? "",
+          APOTH_BILLING_ACTIVATION_ENABLED:
+            process.env.APOTH_BILLING_ACTIVATION_ENABLED ?? "false",
+          APOTH_BILLING_AUTHORIZATION_VERSION:
+            process.env.APOTH_BILLING_AUTHORIZATION_VERSION ?? "billing-offer-v1",
+          APOTH_BILLING_PRICE_CENTS:
+            process.env.APOTH_BILLING_PRICE_CENTS ?? "19900",
+          APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
+          APOTH_STAGE: props.config.stage,
+          COGNITO_USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
+          COGNITO_USER_POOL_ID: userPool.userPoolId,
+          STRIPE_RECURRING_PRICE_ID: process.env.STRIPE_RECURRING_PRICE_ID ??
+            "price_launch_placeholder",
+        },
+        logGroup: new LogGroup(this, "BillingOfferFunctionLogGroup", {
+          logGroupName: `/aws/lambda/apoth-${props.config.stage}-billing-offer`,
+          retention: props.config.logRetention,
+          removalPolicy: props.config.removalPolicy,
+        }),
+      },
+    );
+    appTable.grant(
+      billingOfferFunction,
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
+    );
+
+    for (const fn of [
+      billingOfferFunction,
+      billingPaymentMethodFunction,
+      billingSubscriptionCancelFunction,
+    ]) {
       fn.addToRolePolicy(new PolicyStatement({
         actions: ["secretsmanager:GetSecretValue"],
         resources: [
@@ -1314,6 +1514,15 @@ exports.handler = async () => ({
       integration: new HttpLambdaIntegration(
         "BillingSubscriptionCancelIntegration",
         billingSubscriptionCancelFunction,
+      ),
+    });
+
+    api.addRoutes({
+      path: "/api/billing/offer",
+      methods: [HttpMethod.GET, HttpMethod.POST],
+      integration: new HttpLambdaIntegration(
+        "BillingOfferIntegration",
+        billingOfferFunction,
       ),
     });
 
@@ -1484,6 +1693,8 @@ exports.handler = async () => ({
           APOTH_STAGE: props.config.stage,
           APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
           APOTH_WEBHOOK_QUEUE_URL: webhookQueue.queueUrl,
+          APOTH_BILLING_PRICE_CENTS: process.env.APOTH_BILLING_PRICE_CENTS ??
+            "19900",
           STRIPE_RECURRING_PRICE_ID: process.env.STRIPE_RECURRING_PRICE_ID ??
             "price_launch_placeholder",
         },
@@ -1537,6 +1748,8 @@ exports.handler = async () => ({
           APOTH_STAGE: props.config.stage,
           APOTH_SECRET_MDI_API_ID: secretName(props.config.stage, "mdiApi"),
           APOTH_SECRET_STRIPE_API_ID: secretName(props.config.stage, "stripeApi"),
+          APOTH_BILLING_PRICE_CENTS: process.env.APOTH_BILLING_PRICE_CENTS ??
+            "19900",
           STRIPE_RECURRING_PRICE_ID: process.env.STRIPE_RECURRING_PRICE_ID ??
             "price_launch_placeholder",
         },

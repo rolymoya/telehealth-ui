@@ -18,12 +18,15 @@ describe("protected app pages", () => {
     ["dashboard", DashboardPage],
     ["intake", IntakePage],
     ["consent", ConsentPage],
-    ["mdi", MdiHandoffPage],
   ])("keeps %s as a static shell without server-side route access", async (_name, Page) => {
     vi.mocked(requireProtectedPageAccess).mockClear();
 
     await Page();
 
     expect(requireProtectedPageAccess).not.toHaveBeenCalled();
+  });
+
+  it("redirects the legacy MDI route to the provider portal", () => {
+    expect(() => MdiHandoffPage()).toThrowError("NEXT_REDIRECT");
   });
 });

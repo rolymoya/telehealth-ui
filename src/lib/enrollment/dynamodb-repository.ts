@@ -222,6 +222,34 @@ export function createDynamoDbEnrollmentRepository(input: {
       }
     },
 
+    async createVerifiedEnrollmentBinding(bindingInput) {
+      const enrollmentValidation = validateEnrollmentPersistenceRecord(
+        bindingInput.enrollment,
+      );
+      const pointerValidation = validateEnrollmentPersistenceRecord(bindingInput.pointer);
+      if (
+        !enrollmentValidation.ok ||
+        !pointerValidation.ok ||
+        bindingInput.enrollment.identity !== "verified" ||
+        bindingInput.enrollment.cognitoSub !== bindingInput.pointer.cognitoSub ||
+        bindingInput.enrollment.enrollmentId !== bindingInput.pointer.enrollmentId ||
+        bindingInput.enrollment.expiresAtEpochSeconds !== undefined
+      ) {
+        return err("validation_failed", "Verified enrollment binding is invalid");
+      }
+      try {
+        await input.client.send(new TransactWriteCommand({
+          TransactItems: [
+            newPut(input.tableName, bindingInput.enrollment),
+            newPut(input.tableName, bindingInput.pointer),
+          ],
+        }));
+        return ok(bindingInput);
+      } catch (error) {
+        return dynamoError(error);
+      }
+    },
+
     async createCheckoutAttempt(attempt) {
       const enrollmentValidation = validateEnrollmentPersistenceRecord(attempt.enrollment);
       const operationValidation = validateEnrollmentPersistenceRecord(attempt.operation);

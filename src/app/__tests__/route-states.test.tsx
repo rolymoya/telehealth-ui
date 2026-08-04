@@ -11,6 +11,7 @@ import Loading from "@/app/loading";
 import NotFound from "@/app/not-found";
 import MdiError from "@/app/onboarding/mdi/error";
 import MdiHandoffPage from "@/app/onboarding/mdi/page";
+import { PortalLaunch } from "@/patient/commerce/PortalLaunch";
 import { MdiUnavailableState } from "@/components/product/ProviderUnavailableStates";
 
 describe("route states", () => {
@@ -87,18 +88,20 @@ describe("route states", () => {
   });
 
   it("surfaces provider unavailable states through current placeholder routes", () => {
-    render(<MdiHandoffPage />);
+    expect(() => MdiHandoffPage()).toThrowError("NEXT_REDIRECT");
+    render(<PortalLaunch />);
     expect(screen.getByRole("heading", {
-      name: /^MDI questionnaire$/i,
+      name: /continue to your medical intake/i,
     })).toBeInTheDocument();
-    expect(screen.getByText(/Medication disclosure comes after submission/i))
-      .toBeInTheDocument();
+    expect(
+      screen.getAllByText(/provider’s secure portal|secure patient portal/i),
+    ).not.toHaveLength(0);
 
     render(<BillingPage />);
     expect(screen.getByRole("heading", {
       name: /add a payment method without starting billing/i,
     })).toBeInTheDocument();
-    expect(screen.getByText(/billing cannot activate until the selected clinical approval event/i))
+    expect(screen.getByText(/must accept the exact treatment price separately/i))
       .toBeInTheDocument();
   });
 

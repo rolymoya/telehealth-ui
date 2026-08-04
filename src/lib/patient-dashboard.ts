@@ -22,6 +22,7 @@ export type DashboardCaseStatusCode =
   | "case_status_unavailable";
 
 export type DashboardActionCode =
+  | "accept_approved_offer"
   | "action_needed_open_mdi"
   | "action_needed_unavailable"
   | "action_needed_waiting"
@@ -164,6 +165,19 @@ export async function loadPatientDashboard(
     onboardingStatus: profile.value?.onboardingStatus,
     updatedAt: caseMirror.value?.providerTimestamp,
   });
+  const actions = dashboardActionsFromEvidence(events.value);
+  if (
+    caseStatus.code === "case_status_billing_ready" &&
+    stripe.value?.billingStatus === "payment_method_collected"
+  ) {
+    actions.unshift({
+      code: "accept_approved_offer",
+      href: "/billing/activate",
+      label: "Review approved plan",
+      summary: "Review the exact recurring price and authorize the first charge before your plan begins.",
+      tone: "action",
+    });
+  }
 
   return {
     ok: true,
@@ -174,7 +188,7 @@ export async function loadPatientDashboard(
         ...(profile.value?.residencyState ? { residencyState: profile.value.residencyState } : {}),
         status: accountStatusLabel(profile.value?.onboardingStatus),
       },
-      actions: dashboardActionsFromEvidence(events.value),
+      actions,
       billing: mapBillingStatus({
         billingStatus: stripe.value?.billingStatus,
         currentPeriodEnd: stripe.value?.stripeCurrentPeriodEnd,
@@ -593,6 +607,7 @@ function appDataErr(message: string): AppDataResult<never> {
 }
 
 const dashboardActionCodes = new Set<DashboardActionCode>([
+  "accept_approved_offer",
   "action_needed_open_mdi",
   "action_needed_unavailable",
   "action_needed_waiting",

@@ -1,5 +1,5 @@
 import { ProductRouteState } from "@/components/product/ProductRouteState";
-import { checkoutHref } from "@/lib/public-commerce";
+import { onboardingHref } from "@/lib/public-commerce";
 
 export default function NotFound() {
   return (
@@ -10,7 +10,7 @@ export default function NotFound() {
       body="The link may have changed, or the page may no longer be available. No account or care information was changed."
       actions={[
         { href: "/", label: "Go home" },
-        { href: checkoutHref("weight"), label: "Start checkout", variant: "secondary" },
+        { href: onboardingHref("weight"), label: "Start a visit", variant: "secondary" },
       ]}
     />
   );

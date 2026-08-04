@@ -1,6 +1,8 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import {
   createExternalOperationRecord,
+  createAccountEnrollmentPointerRecord,
+  createEnrollmentRecord,
   createLaunchNonceRecord,
   createPortalLinkageRecord,
   type EnrollmentRecord,
@@ -23,6 +25,7 @@ export type PortalLaunchResult =
 
 export async function launchPatientPortal(input: {
   cognitoSub: string;
+  enrollmentBootstrap?: { catalogCode: string };
   launchEnabled: boolean;
   provisioningEnabled: boolean;
   provider: PortalProvider;
@@ -32,6 +35,18 @@ export async function launchPatientPortal(input: {
 }): Promise<PortalLaunchResult> {
   if (!input.launchEnabled) {
     return failure("portal_unavailable");
+  }
+
+  if (input.enrollmentBootstrap) {
+    const bootstrapped = await ensureVerifiedPortalEnrollment({
+      catalogCode: input.enrollmentBootstrap.catalogCode,
+      cognitoSub: input.cognitoSub,
+      now: input.now,
+      repository: input.repository,
+    });
+    if (!bootstrapped) {
+      return failure("portal_unavailable");
+    }
   }
 
   const authorization = await loadAuthorizedEnrollment(input);
@@ -65,6 +80,67 @@ export async function launchPatientPortal(input: {
   });
 }
 
+async function ensureVerifiedPortalEnrollment(input: {
+  catalogCode: string;
+  cognitoSub: string;
+  now?: Date;
+  repository: EnrollmentRepository;
+}) {
+  const existing = await input.repository.getActiveAccountEnrollment(input.cognitoSub);
+  if (!existing.ok) {
+    return false;
+  }
+  if (existing.value) {
+    const enrollment = await input.repository.getEnrollment(existing.value.enrollmentId);
+    return Boolean(
+      enrollment.ok &&
+      enrollment.value?.identity === "verified" &&
+      enrollment.value.cognitoSub === input.cognitoSub,
+    );
+  }
+
+  const now = input.now ?? new Date();
+  const enrollmentId = `enrollment_portal_${digest(input.cognitoSub).slice(0, 32)}`;
+  const enrollment: EnrollmentRecord = {
+    ...createEnrollmentRecord({
+      attemptBindingHash: digest(`portal-account:${input.cognitoSub}`),
+      catalogCode: input.catalogCode,
+      enrollmentId,
+      expiresAtEpochSeconds: epochSeconds(now) + 300,
+      now: now.toISOString(),
+    }),
+    cognitoSub: input.cognitoSub,
+    expiresAtEpochSeconds: undefined,
+    identity: "verified",
+  };
+  const pointer = createAccountEnrollmentPointerRecord({
+    cognitoSub: input.cognitoSub,
+    enrollmentId,
+    now: now.toISOString(),
+  });
+  const created = await input.repository.createVerifiedEnrollmentBinding({
+    enrollment,
+    pointer,
+  });
+  if (created.ok) {
+    return true;
+  }
+  if (created.error.code !== "conditional_conflict") {
+    return false;
+  }
+
+  const raced = await input.repository.getActiveAccountEnrollment(input.cognitoSub);
+  if (!raced.ok || !raced.value) {
+    return false;
+  }
+  const racedEnrollment = await input.repository.getEnrollment(raced.value.enrollmentId);
+  return Boolean(
+    racedEnrollment.ok &&
+    racedEnrollment.value?.identity === "verified" &&
+    racedEnrollment.value.cognitoSub === input.cognitoSub,
+  );
+}
+
 async function loadAuthorizedEnrollment(input: {
   cognitoSub: string;
   repository: EnrollmentRepository;
@@ -82,9 +158,7 @@ async function loadAuthorizedEnrollment(input: {
   }
   if (
     enrollment.value.cognitoSub !== input.cognitoSub ||
-    enrollment.value.identity !== "verified" ||
-    enrollment.value.paymentSetup !== "setup_succeeded" ||
-    enrollment.value.billing !== "payment_method_collected"
+    enrollment.value.identity !== "verified"
   ) {
     return failure("portal_not_authorized");
   }

@@ -1,9 +1,10 @@
 # BAA Register
 
 This register tracks vendors that receive, maintain, or transmit PHI for the
-Apoth launch architecture. Apoth's default posture is thin-PHI: MDI is the
-clinical system of record, Apoth stores only minimal linkage/status records,
-and Stripe receives only opaque non-PHI identifiers.
+Apoth launch architecture. Apoth's default posture is thin-PHI: the selected
+white-label portal is the target clinical system of record, MDI is a legacy
+migration adapter, Apoth stores only minimal linkage/status records, and Stripe
+receives only opaque non-PHI identifiers.
 
 Do not treat a vendor as approved for PHI until its status is `active` and an
 evidence location is recorded.
@@ -11,7 +12,7 @@ evidence location is recorded.
 | Vendor | Launch role | PHI boundary | Status | BAA effective date | Account or vendor identifier | Evidence location | Owner | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | AWS | Hosting, Cognito, DynamoDB, Lambda/API Gateway, S3/CloudFront, Secrets Manager, SQS/DLQ, EventBridge, CloudWatch | May receive or maintain PHI-adjacent account/linkage/status records. Questionnaire answers should not be retained after MDI submission. | active | June 8, 2026 | single launch account ID: 329425487030 | AWS Artifact > Agreements > AWS Business Associate Addendum | Apoth Health LLC | Single-account launch decision: staging now and future production-stage resources will share this account until a later architecture decision splits accounts. Use managed encryption and PHI-safe logs. No RDS, Redis, ECS, App Runner, NAT gateways, or VPC endpoints for launch. Do not commit local agreement PDFs; keep only the evidence path in Git. |
-| MD Integrations | Clinical system of record, questionnaire intake destination, clinician/case workflow, clinical status and workflow URLs | Receives clinical questionnaire responses and clinical workflow data. | pending | TODO: MDI BAA effective date | TODO: MDI partner/vendor identifier | TODO: signed agreement or vendor evidence path | Apoth Health LLC | Apoth should store MDI patient/case pointers only, not questionnaire answers. |
+| MD Integrations | Legacy migration adapter for questionnaire intake and clinician/case workflow | May receive clinical questionnaire responses and clinical workflow data only for migration/rollback paths. | pending | TODO: MDI BAA effective date | TODO: MDI partner/vendor identifier | TODO: signed agreement or vendor evidence path | Apoth Health LLC | Not the target patient experience. Apoth should store MDI patient/case pointers only, not questionnaire answers. |
 | White-label clinical portal (TBD) | Target intake, clinical record, patient messaging, and ongoing care portal | Will receive clinical questionnaire responses and clinical workflow data. | blocked | TBD after vendor selection | TBD | TBD | Apoth Health LLC | Production provisioning and launch flags must remain disabled until a provider is selected, security-reviewed, and covered by an approved BAA/compliance path. Apoth stores opaque patient/case pointers only. |
 | 503A pharmacy partner | Dispensing and fulfillment for compounded medication where applicable | May receive prescription/fulfillment PHI through MDI or an approved partner workflow. | pending | TODO: pharmacy BAA effective date | TODO: pharmacy legal name and identifier | TODO: signed agreement or vendor evidence path | Apoth Health LLC | Partner name is TBD. Direct pharmacy API integration is out of launch scope unless a concrete gap reintroduces it. |
 | Stripe | Payment method collection, customer/subscription billing, refunds, dunning | Not BAA eligible for launch. Do not send PHI to Stripe. | restricted | Not applicable | TODO: Stripe account ID | TODO: Stripe account evidence path | Apoth Health LLC | Stripe metadata must contain only opaque IDs. No condition, medication, diagnosis, symptom, questionnaire answer, clinician note, or patient health context. See `docs/stripe-data-policy.md`. |

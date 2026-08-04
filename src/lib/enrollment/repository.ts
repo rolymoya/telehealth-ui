@@ -72,6 +72,13 @@ export interface EnrollmentRepository {
     operation: ExternalOperationRecord;
   }>>;
   createEnrollment(record: EnrollmentRecord): Promise<EnrollmentRepositoryResult<EnrollmentRecord>>;
+  createVerifiedEnrollmentBinding(input: {
+    enrollment: EnrollmentRecord;
+    pointer: AccountEnrollmentPointerRecord;
+  }): Promise<EnrollmentRepositoryResult<{
+    enrollment: EnrollmentRecord;
+    pointer: AccountEnrollmentPointerRecord;
+  }>>;
   getEnrollment(enrollmentId: string): Promise<EnrollmentRepositoryResult<EnrollmentRecord | null>>;
   updateEnrollment(record: EnrollmentRecord, expectedVersion: number): Promise<EnrollmentRepositoryResult<EnrollmentRecord>>;
   getActiveAccountEnrollment(cognitoSub: string): Promise<EnrollmentRepositoryResult<AccountEnrollmentPointerRecord | null>>;
@@ -237,6 +244,30 @@ export function createInMemoryEnrollmentRepository(
         clone(claims.value.accountEnrollmentPointer),
       );
       return ok(claims.value);
+    },
+
+    async createVerifiedEnrollmentBinding(input) {
+      const enrollmentValidation = validateEnrollmentPersistenceRecord(input.enrollment);
+      const pointerValidation = validateEnrollmentPersistenceRecord(input.pointer);
+      if (
+        !enrollmentValidation.ok ||
+        !pointerValidation.ok ||
+        input.enrollment.identity !== "verified" ||
+        input.enrollment.cognitoSub !== input.pointer.cognitoSub ||
+        input.enrollment.enrollmentId !== input.pointer.enrollmentId ||
+        input.enrollment.expiresAtEpochSeconds !== undefined
+      ) {
+        return err("validation_failed", "Verified enrollment binding is invalid");
+      }
+      if (records.has(mapKey(input.enrollment)) || records.has(mapKey(input.pointer))) {
+        return err("conditional_conflict", "Verified enrollment binding already exists");
+      }
+      records.set(mapKey(input.enrollment), clone(input.enrollment));
+      records.set(mapKey(input.pointer), clone(input.pointer));
+      return ok({
+        enrollment: clone(input.enrollment),
+        pointer: clone(input.pointer),
+      });
     },
 
     async createCheckoutAttempt(input) {

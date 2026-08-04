@@ -10,14 +10,15 @@ import {
   requiredMedicationDisclosureConsents,
 } from "@/lib/consents";
 import { BillingSetupClient } from "@/app/billing/BillingSetupClient";
+import { BillingOfferClient } from "@/app/billing/activate/BillingOfferClient";
 import { PatientDashboardClient } from "@/app/dashboard/PatientDashboardClient";
 import { GetStartedStartClient } from "@/app/get-started/GetStartedStartClient";
 import { IntakePrecheckClient } from "@/app/intake/IntakePrecheckClient";
 import { ConsentAcceptanceClient } from "@/app/onboarding/consent/ConsentAcceptanceClient";
-import { MdiIntakeClient } from "@/app/onboarding/mdi/MdiIntakeClient";
 import { RequirePatientSession } from "./session";
-import { CheckoutStart } from "./commerce/CheckoutStart";
 import { CheckoutCompletion } from "./commerce/CheckoutCompletion";
+import { PortalLaunch } from "./commerce/PortalLaunch";
+import { isPublicProductCode } from "@/lib/public-commerce";
 
 export function PatientApp() {
   return (
@@ -39,13 +40,15 @@ export function PatientApp() {
         />
         <Route
           path="/onboarding/mdi"
-          element={<Protected><MdiPage /></Protected>}
+          element={<Navigate replace to="/portal/launch" />}
         />
+        <Route path="/portal/launch" element={<Protected><PortalLaunch /></Protected>} />
         <Route
           path="/dashboard"
           element={<Protected><PatientDashboardClient initialDashboard={createUnavailablePatientDashboard()} /></Protected>}
         />
         <Route path="/billing" element={<Protected><BillingSetupClient /></Protected>} />
+        <Route path="/billing/activate" element={<Protected><BillingOfferPage /></Protected>} />
         <Route path="/account" element={<Protected><AccountPage /></Protected>} />
         <Route path="/medication-management" element={<Protected><MedicationManagementPage /></Protected>} />
         <Route path="*" element={<Navigate replace to="/dashboard" />} />
@@ -56,7 +59,15 @@ export function PatientApp() {
 
 function CheckoutPage() {
   const [params] = useSearchParams();
-  return <CheckoutStart productCode={params.get("product")} />;
+  const product = params.get("product");
+  return (
+    <Navigate
+      replace
+      to={isPublicProductCode(product)
+        ? `/get-started?product=${encodeURIComponent(product)}`
+        : "/get-started"}
+    />
+  );
 }
 
 function Protected({ children }: { children: ReactNode }) {
@@ -77,6 +88,8 @@ function AuthPage({ mode }: { mode: AuthPanelMode }) {
 }
 
 function GetStartedPage() {
+  const [params] = useSearchParams();
+  const product = params.get("product");
   return (
     <>
       <Nav variant="light" />
@@ -90,7 +103,7 @@ function GetStartedPage() {
             <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
               Review the privacy notice, answer a short precheck, then create
               or sign in to your account if online intake is a fit. Clinical
-              questionnaire answers come later through MD Integrations.
+              questionnaire answers are collected in the independent provider’s secure portal.
             </p>
             <div className="mt-8 flex flex-wrap gap-4 text-[0.95rem] font-semibold text-[#171719]">
               <a className="underline decoration-black/25 underline-offset-4 hover:decoration-black" href="/weight-loss">Explore weight loss</a>
@@ -98,7 +111,7 @@ function GetStartedPage() {
             </div>
           </div>
           <div>
-            <GetStartedStartClient />
+            <GetStartedStartClient productCode={isPublicProductCode(product) ? product : null} />
           </div>
         </section>
       </main>
@@ -108,6 +121,8 @@ function GetStartedPage() {
 }
 
 function IntakePage() {
+  const [params] = useSearchParams();
+  const product = params.get("product");
   return (
     <>
       <Nav variant="light" />
@@ -121,14 +136,14 @@ function IntakePage() {
             <p className="mt-5 text-pretty text-[1.0625rem] text-ink/75">
               Start by acknowledging the privacy notice, then answer a few
               basics so Apoth can route you before account setup. Medical
-              questionnaire answers are collected later by MD Integrations.
+              questionnaire answers are collected later in the provider portal.
             </p>
             <p className="mt-6 text-[1rem] text-ink/65">
               This is not a clinical decision. A licensed clinician decides
-              whether care is appropriate after reviewing your MDI intake.
+              whether care is appropriate after reviewing your secure intake.
             </p>
           </div>
-          <IntakePrecheckClient />
+          <IntakePrecheckClient productCode={isPublicProductCode(product) ? product : null} />
         </section>
       </main>
       <Footer />
@@ -153,32 +168,6 @@ function ConsentPage() {
   );
 }
 
-function MdiPage() {
-  return (
-    <>
-      <Nav variant="light" />
-      <main id="main" className="bg-[#f9f9fa] px-5 py-10 text-ink sm:px-8 lg:px-12 lg:py-16">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-5 max-w-3xl rounded-[26px] bg-[#4e80ee] p-7 text-white shadow-soft sm:p-10">
-            <p className="text-eyebrow uppercase text-white/70">Onboarding</p>
-            <h1 className="display-serif mt-4 text-[2rem] leading-tight sm:text-[2.6rem]">
-              MDI questionnaire
-            </h1>
-            <p className="mt-4 text-[1.05rem] leading-7 text-white/80">
-              Answer the MDI questionnaire here after your profile is linked.
-              Apoth sends responses to MDI and keeps only the handoff status and
-              opaque case pointers. Medication disclosure comes after submission
-              when it applies.
-            </p>
-          </div>
-          <MdiIntakeClient />
-        </div>
-      </main>
-      <Footer />
-    </>
-  );
-}
-
 function AccountPage() {
   return (
     <ProductPlaceholder
@@ -189,12 +178,22 @@ function AccountPage() {
   );
 }
 
+function BillingOfferPage() {
+  return (
+    <>
+      <Nav variant="light" />
+      <BillingOfferClient />
+      <Footer />
+    </>
+  );
+}
+
 function MedicationManagementPage() {
   return (
     <ProductPlaceholder
       eyebrow="Medication management"
       title="Medication management"
-      body="Access medication-management workflow links and status once MDI-backed care actions are available for your case."
+      body="Access medication-management workflow links and status through your provider’s secure care portal."
     />
   );
 }

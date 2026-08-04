@@ -16,8 +16,8 @@ const products: Record<PublicProductCode, PublicProduct> = {
     code: "weight",
     displayName: "Weight management",
     planName: "Apoth weight management membership",
-    priceLabel: "$99",
-    priceDetail: "per month after clinical approval",
+    priceLabel: "$99–$199",
+    priceDetail: "per month, based on the treatment prescribed and accepted",
     dueTodayLabel: "$0",
   },
 };
@@ -38,6 +38,10 @@ export function accountHref(path: `/${string}`) {
 
 export function checkoutHref(product: PublicProductCode) {
   return accountHref(`/checkout?product=${encodeURIComponent(product)}`);
+}
+
+export function onboardingHref(product: PublicProductCode) {
+  return accountHref(`/get-started?product=${encodeURIComponent(product)}`);
 }
 
 function accountOrigin() {

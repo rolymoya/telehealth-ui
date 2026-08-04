@@ -14,6 +14,7 @@ import {
   createPatientProfileRecord,
   linkMdiPatientCase,
   mdiLinkageKey,
+  onboardingTreatmentSelectionKey,
   patientProfileKey,
   recordCurrentConsentAcceptance,
   recordOnboardingTreatmentSelection,
@@ -231,11 +232,19 @@ describe("onboarding start route orchestration", () => {
         recordType: "anonymousPrecheckConsumption",
       },
     });
+    expect(repository.get(onboardingTreatmentSelectionKey(cognitoSub))).toMatchObject({
+      ok: true,
+      value: {
+        cognitoSub,
+        recordType: "onboardingTreatmentSelection",
+        treatment: "weight",
+      },
+    });
     expect(JSON.stringify(repository.get(patientProfileKey(cognitoSub))))
       .not.toMatch(/weight|answer|questionnaire|emergency|contraindication|medication/i);
   });
 
-  it("does not require medication disclosure before routing an anonymous bind to MDI", async () => {
+  it("does not require medication disclosure before routing an anonymous bind to the portal", async () => {
     const repository = createInMemoryAppDataRepository();
     recordCurrentConsentAcceptance(repository, {
       acceptedAt: nowIso,
@@ -257,7 +266,7 @@ describe("onboarding start route orchestration", () => {
       ok: true,
       value: {
         clearAnonymousPrecheckContext: true,
-        destination: "/onboarding/mdi",
+        destination: "/portal/launch",
       },
     });
   });

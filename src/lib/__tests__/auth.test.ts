@@ -243,6 +243,7 @@ describe("Cognito server session facade", () => {
 
     expect(isProtectedRoute("/dashboard/cases")).toBe(true);
     expect(isProtectedRoute("/billing?tab=history")).toBe(true);
+    expect(isProtectedRoute("/portal/launch")).toBe(true);
     expect(isProtectedRoute("/privacy")).toBe(false);
   });
 });

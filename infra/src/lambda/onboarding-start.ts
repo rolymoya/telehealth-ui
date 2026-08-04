@@ -456,10 +456,10 @@ function isSameAccountReplayRecovered(
 function destinationForProfile(profile: PatientProfile) {
   switch (profile.onboardingStatus) {
     case "intake_ready":
-      return profile.residencyState ? "/onboarding/mdi" : "/intake";
+      return profile.residencyState ? "/portal/launch" : "/intake";
     case "mdi_submitted":
     case "clinical_review":
-      return "/onboarding/mdi";
+      return "/portal/launch";
     case "billing_ready":
       return "/billing";
     default:

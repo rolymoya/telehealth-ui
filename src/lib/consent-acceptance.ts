@@ -267,7 +267,7 @@ async function resolveConsentAcceptanceGate(
       profile.value.onboardingStatus !== "billing_ready"
     )
   ) {
-    return { ok: true, value: recoveryGate("/onboarding/mdi") };
+    return { ok: true, value: recoveryGate("/portal/launch") };
   }
 
   const linkage = await repository.get(mdiLinkageKey(input.cognitoSub));
@@ -278,7 +278,7 @@ async function resolveConsentAcceptanceGate(
     return appDataErr("MDI linkage key contains another record type");
   }
   if (!linkage.value?.mdiPatientId || !linkage.value.mdiCaseId) {
-    return { ok: true, value: recoveryGate("/onboarding/mdi") };
+    return { ok: true, value: recoveryGate("/portal/launch") };
   }
 
   const selection = await readTreatmentSelection(repository, input.cognitoSub);
@@ -286,7 +286,7 @@ async function resolveConsentAcceptanceGate(
     return selection;
   }
   if (!selection.value) {
-    return { ok: true, value: recoveryGate("/onboarding/mdi") };
+    return { ok: true, value: recoveryGate("/portal/launch") };
   }
 
   const requiredConsents = requiredMedicationDisclosureConsents({

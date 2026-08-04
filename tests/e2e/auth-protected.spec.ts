@@ -23,9 +23,9 @@ const authRoutes = [
 const protectedRoutes = [
   { path: "/account", heading: "Account", body: "Manage basic account settings" },
   { path: "/dashboard", heading: "Dashboard", body: "Track account, billing, and care workflow status" },
-  { path: "/billing", heading: "Add a payment method without starting billing.", body: "Billing cannot activate until the selected clinical approval event is mirrored." },
+  { path: "/billing", heading: "Add a payment method without starting billing.", body: "Clinical approval will not start billing automatically" },
   { path: "/onboarding/consent", heading: "Review telehealth and platform terms.", body: "Review telehealth consent" },
-  { path: "/onboarding/mdi", heading: "MDI questionnaire", body: "opaque case pointers" },
+  { path: "/portal/launch", heading: "Continue to your medical intake.", body: "Opens the secure patient portal" },
 ];
 
 test.describe("auth entry routes", () => {
@@ -68,21 +68,6 @@ test.describe("synthetic authenticated protected shells", () => {
           body: JSON.stringify(syntheticDashboard()),
         }),
       );
-      await page.route("**/api/onboarding/mdi/bootstrap", (route) =>
-        route.fulfill({
-          contentType: "application/json",
-          status: 200,
-          body: JSON.stringify({
-            caseId: "mdi_case_auth_e2e",
-            csrfToken: "csrf_mdi_auth_e2e",
-            patientId: "mdi_patient_auth_e2e",
-            questionnaireId: "questionnaire_auth_e2e",
-            questions: [],
-            status: "ready",
-          }),
-        }),
-      );
-
       await page.goto(route.path);
 
       await expect(page).toHaveURL(new RegExp(`${route.path}$`));

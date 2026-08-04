@@ -39,5 +39,6 @@ export const config = {
     "/billing/:path*",
     "/dashboard/:path*",
     "/onboarding/:path*",
+    "/portal/:path*",
   ],
 };

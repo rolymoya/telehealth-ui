@@ -265,7 +265,7 @@ aws cloudfront wait invalidation-completed \
   --id "$static_invalidation_id"
 curl --fail --silent --show-error "${PUBLIC_SITE_ORIGIN}/" >/dev/null
 curl --fail --silent --show-error "${PUBLIC_SITE_ORIGIN}/weight-loss" >/dev/null
-curl --fail --silent --show-error "${PUBLIC_SITE_ORIGIN}/checkout?product=weight" >/dev/null
+curl --fail --silent --show-error "${PUBLIC_SITE_ORIGIN}/get-started?product=weight" >/dev/null
 api_status="$(curl --silent --show-error --output /tmp/apoth-api-smoke.json \
   --write-out '%{http_code}' \
   "${PUBLIC_SITE_ORIGIN}/api/enrollment/status")"

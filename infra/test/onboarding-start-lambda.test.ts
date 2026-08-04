@@ -188,7 +188,7 @@ describe("onboarding start lambda", () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body)).toEqual({
-      destination: "/onboarding/mdi",
+      destination: "/portal/launch",
       status: "ready",
     });
     expect(response.cookies?.[0]).toContain("Max-Age=0");
@@ -360,10 +360,10 @@ describe("onboarding start lambda", () => {
         onboardingStatus: { S: "intake_ready" },
         residencyState: { S: "IL" },
       },
-      "/onboarding/mdi",
+      "/portal/launch",
     ],
-    [{ onboardingStatus: { S: "mdi_submitted" } }, "/onboarding/mdi"],
-    [{ onboardingStatus: { S: "clinical_review" } }, "/onboarding/mdi"],
+    [{ onboardingStatus: { S: "mdi_submitted" } }, "/portal/launch"],
+    [{ onboardingStatus: { S: "clinical_review" } }, "/portal/launch"],
   ])("resumes from profile status %# after pre-MDI consent evidence exists", async (profile, destination) => {
     const { startHandler } = await import("../src/lambda/onboarding-start.js");
     sendMock

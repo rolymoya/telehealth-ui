@@ -157,7 +157,7 @@ export async function submitHandler(event: ApiEvent): Promise<ApiResponse> {
     ...(disclosureGate === "medication_disclosure_required"
       ? { redirect: "/onboarding/consent?gate=medication" }
       : disclosureGate === "treatment_selection_required"
-        ? { redirect: "/onboarding/mdi" }
+        ? { redirect: "/portal/launch" }
         : {}),
   });
 }
@@ -231,7 +231,7 @@ export async function patientHandler(event: ApiEvent): Promise<ApiResponse> {
   });
   return {
     ...json(200, {
-      redirect: "/onboarding/mdi",
+      redirect: "/portal/launch",
       status: "linked",
     }),
     cookies: [cookie],

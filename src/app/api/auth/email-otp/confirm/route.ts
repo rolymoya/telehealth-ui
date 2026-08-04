@@ -5,6 +5,7 @@ import {
   noStoreJson,
   readJsonObject,
 } from "@/app/api/_shared/onboarding";
+import { resolveAppSigningSecret } from "@/lib/app-signing-secret";
 import { resolveCognitoAuthConfig, getServerSession } from "@/lib/auth";
 import { enrollmentAttemptCookieName } from "@/lib/enrollment/attempt-cookie";
 import { createDefaultCognitoEmailOtpAdapter } from "@/lib/enrollment/cognito-otp";
@@ -18,6 +19,7 @@ import {
   otpChallengeCookieName,
 } from "@/lib/enrollment/otp-challenge-cookie";
 import { confirmEnrollmentEmailOtp } from "@/lib/enrollment/otp-confirmation";
+import { confirmPrecheckEmailOtp } from "@/lib/enrollment/precheck-otp";
 import { authSessionSetCookieHeader } from "../../../../../../shared/auth/session-cookie";
 
 export async function POST(request: NextRequest) {
@@ -27,7 +29,9 @@ export async function POST(request: NextRequest) {
   if (!isJsonRequest(request)) {
     return noStoreJson({ code: "invalid_content_type" }, 415);
   }
-  if (request.headers.get("x-apoth-checkout-intent") !== "confirm-email-otp") {
+  const intent = request.headers.get("x-apoth-auth-intent") ??
+    request.headers.get("x-apoth-checkout-intent");
+  if (intent !== "confirm-email-otp" && intent !== "confirm-precheck-email-otp") {
     return noStoreJson({ code: "invalid_request_intent" }, 403);
   }
   if (process.env.APOTH_ENROLLMENT_BINDING_ENABLED !== "true") {
@@ -41,6 +45,10 @@ export async function POST(request: NextRequest) {
     : "";
   if (!/^\d{6}$/.test(code) || transactionHandle.length < 16) {
     return noStoreJson({ error: "invalid_verification" }, 400);
+  }
+
+  if (intent === "confirm-precheck-email-otp") {
+    return confirmPrecheckOtp(request, { code, transactionHandle });
   }
 
   const auth = resolveCognitoAuthConfig(process.env);
@@ -84,6 +92,47 @@ export async function POST(request: NextRequest) {
     status: result.status,
     redirect: "/portal/launch",
   });
+  response.headers.append("Set-Cookie", authSessionSetCookieHeader({
+    maxAge: result.expiresIn,
+    value: result.accessToken,
+  }));
+  response.headers.append("Set-Cookie", clearedOtpChallengeCookieHeader());
+  return response;
+}
+
+async function confirmPrecheckOtp(
+  request: NextRequest,
+  input: { code: string; transactionHandle: string },
+) {
+  const auth = resolveCognitoAuthConfig(process.env);
+  const signingSecret = await resolveAppSigningSecret(process.env);
+  if (!auth.ok || !signingSecret.ok) {
+    return noStoreJson({ error: "verification_unavailable" }, 503);
+  }
+  const result = await confirmPrecheckEmailOtp({
+    challengeCookie: request.cookies.get(otpChallengeCookieName)?.value,
+    code: input.code,
+    cognito: createDefaultCognitoEmailOtpAdapter({
+      region: auth.value.region,
+      userPoolClientId: auth.value.userPoolClientId,
+      userPoolId: auth.value.userPoolId,
+    }),
+    signingSecret: signingSecret.value,
+    transactionHandle: input.transactionHandle,
+    verifyAccessToken: async (token) => {
+      const session = await getServerSession({ config: auth.value, token });
+      return session.ok ? { ok: true as const } : { ok: false as const };
+    },
+  });
+  if (!result.ok) {
+    return noStoreJson(
+      { error: result.code },
+      result.code === "invalid_verification" ? 400 :
+        result.code === "verification_rate_limited" ? 429 : 503,
+    );
+  }
+
+  const response = noStoreJson({ status: result.status });
   response.headers.append("Set-Cookie", authSessionSetCookieHeader({
     maxAge: result.expiresIn,
     value: result.accessToken,

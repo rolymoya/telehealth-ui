@@ -147,8 +147,8 @@ export function ConsentAcceptanceClient({
 
         <p className="mt-8 text-[1rem] text-ink/70">
           Consent evidence is limited to document kind, version, timestamp, and
-          approved operational evidence. Clinical questionnaire answers are not
-          stored by Apoth after submission to MD Integrations.
+          approved operational evidence. The selected provider portal collects
+          the clinical questionnaire; Apoth does not render or store those answers.
         </p>
 
         <button
@@ -178,10 +178,10 @@ function consentPageCopy(gate: "pre_mdi" | "post_questionnaire_medication") {
   return gate === "post_questionnaire_medication"
     ? {
         heading: "Review medication disclosure.",
-        body: "If your treatment path includes a medication-specific disclosure, Apoth asks for it after your MDI questionnaire is submitted and before billing or prescribing can continue.",
+        body: "If your treatment path includes a medication-specific disclosure, Apoth asks for it after the provider questionnaire and before billing or prescribing can continue.",
       }
     : {
         heading: "Review telehealth and platform terms.",
-        body: "You have already acknowledged the privacy notice. Review telehealth consent and Apoth platform terms before the MDI questionnaire opens.",
+        body: "You have already acknowledged the privacy notice. Review telehealth consent and Apoth platform terms before the provider questionnaire opens.",
       };
 }

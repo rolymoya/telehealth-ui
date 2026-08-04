@@ -1,5 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isSameOriginMutation, noStoreJson } from "@/app/api/_shared/onboarding";
+import {
+  isSameOriginMutation,
+  noStoreJson,
+  resolveAppDataRepository,
+} from "@/app/api/_shared/onboarding";
 import { getServerSession, resolveCognitoAuthConfig } from "@/lib/auth";
 import { patientAccessCookieName } from "@/lib/auth/session-cookie";
 import {
@@ -8,6 +12,9 @@ import {
 } from "@/lib/enrollment/dynamodb-repository";
 import { resolvePortalRuntimeConfig } from "@/lib/enrollment/portal-runtime";
 import { launchPatientPortal } from "@/lib/enrollment/portal-service";
+import { currentConsentVersion, requiredConsentsBeforeMdi } from "@/lib/consents";
+import { readOnboardingGateSnapshotAsync } from "@/lib/onboarding-status";
+import { readTreatmentSelection } from "@/lib/billing-disclosure-gate";
 
 export async function POST(request: NextRequest) {
   if (!isSameOriginMutation(request)) {
@@ -25,8 +32,10 @@ export async function POST(request: NextRequest) {
 
   const auth = resolveCognitoAuthConfig(process.env);
   const database = resolveDynamoDbEnrollmentConfig(process.env);
+  const appData = resolveAppDataRepository(process.env);
   const runtime = resolvePortalRuntimeConfig(process.env);
-  if (!auth.ok || !database.ok || !runtime.ok) {
+  const catalogCode = weightCatalogCode(process.env.APOTH_CHECKOUT_CATALOG_WEIGHT_ID);
+  if (!auth.ok || !database.ok || !appData.ok || !runtime.ok || !catalogCode) {
     return noStoreJson({ error: "portal_unavailable" }, 503);
   }
   const session = await getServerSession({
@@ -37,8 +46,29 @@ export async function POST(request: NextRequest) {
     return noStoreJson({ error: "authentication_required" }, 401);
   }
 
+  const [snapshot, selection] = await Promise.all([
+    readOnboardingGateSnapshotAsync(appData.value, {
+      cognitoSub: session.value.user.cognitoSub,
+      consentVersion: currentConsentVersion,
+      requiredConsents: requiredConsentsBeforeMdi(),
+    }),
+    readTreatmentSelection(appData.value, session.value.user.cognitoSub),
+  ]);
+  if (
+    !snapshot.ok ||
+    !selection.ok ||
+    !snapshot.value.consentAccepted ||
+    !snapshot.value.residencyState ||
+    snapshot.value.onboardingStatus === "profile_pending" ||
+    !selection.value ||
+    selection.value.treatment !== "weight"
+  ) {
+    return noStoreJson({ error: "portal_not_authorized" }, 403);
+  }
+
   const result = await launchPatientPortal({
     cognitoSub: session.value.user.cognitoSub,
+    enrollmentBootstrap: { catalogCode },
     launchEnabled: runtime.value.launchEnabled,
     provisioningEnabled: runtime.value.provisioningEnabled,
     provider: runtime.value.provider,
@@ -62,4 +92,11 @@ export async function POST(request: NextRequest) {
   response.headers.set("Referrer-Policy", "no-referrer");
   response.headers.set("X-Content-Type-Options", "nosniff");
   return response;
+}
+
+function weightCatalogCode(value: string | undefined) {
+  const cleaned = value?.trim();
+  return cleaned && /^catalog_[A-Za-z0-9]+(?:_[A-Za-z0-9]+)*$/.test(cleaned)
+    ? cleaned
+    : null;
 }

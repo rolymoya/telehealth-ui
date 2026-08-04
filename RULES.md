@@ -12,11 +12,11 @@
 - Any user-visible value awaiting real data uses the visible `TODO:` chip:
   `font-mono uppercase tracking-eyebrow text-[0.72rem] text-clay-deep`.
 - Never commit real PHI, secrets, or credentials.
-- MDI is the clinical system of record. Apoth must not persist questionnaire
-  answers after submission to MDI unless a future architecture decision and
-  legal review explicitly change that boundary.
+- The selected white-label provider portal is the clinical system of record.
+  Apoth must not render or persist questionnaire answers. MD Integrations is a
+  legacy migration adapter, not the target patient experience.
 - Apoth may store only minimal app linkage data by default: Cognito subject,
-  MDI patient/case IDs, Stripe customer/subscription IDs, consent version and
+  opaque provider patient/case IDs, Stripe customer/subscription IDs, consent version and
   timestamp, onboarding status, billing status, and webhook idempotency records.
 - Stripe metadata must contain only opaque non-PHI identifiers. No condition,
   medication, diagnosis, symptom, questionnaire answer, clinician note, or

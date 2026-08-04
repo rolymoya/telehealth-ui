@@ -9,6 +9,11 @@ import {
   launchOfferingSlugs,
   type LaunchOfferingSlug,
 } from "../../../shared/intake/precheck";
+import {
+  isPublicProductCode,
+  publicProduct,
+  type PublicProductCode,
+} from "@/lib/public-commerce";
 import { usStates } from "../../../shared/intake/us-states";
 
 type GateState =
@@ -16,12 +21,7 @@ type GateState =
   | { status: "redirecting"; destination: string }
   | { status: "privacy_required" }
   | { status: "account_required" }
-  | { status: "ready"; csrfToken: string }
-  | {
-      status: "patient";
-      csrfToken: string;
-      treatment?: LaunchOfferingSlug;
-    };
+  | { status: "ready"; csrfToken: string };
 
 type BootstrapProfile = {
   onboardingStatus?: unknown;
@@ -34,8 +34,6 @@ const offeringLabels = {
   weight: "Weight",
 } satisfies Record<LaunchOfferingSlug, string>;
 
-const signUpAfterPrecheckHref = "/sign-up?returnTo=%2Fget-started";
-const signInAfterPrecheckHref = "/sign-in?returnTo=%2Fget-started";
 const privacyNotice = requiredConsentsForPrecheck().find((consent) =>
   consent.consentKind === "privacy_notice"
 );
@@ -43,10 +41,13 @@ const privacyNotice = requiredConsentsForPrecheck().find((consent) =>
 export function IntakePrecheckClient({
   fetchImpl = fetch,
   navigate = defaultNavigate,
+  productCode,
 }: {
   fetchImpl?: typeof fetch;
   navigate?: (destination: string) => void;
+  productCode?: PublicProductCode | null;
 }) {
+  const selectedProduct = productCode ?? productCodeFromLocation();
   const [gate, setGate] = useState<GateState>({ status: "checking" });
   const [message, setMessage] = useState<string | null>(null);
   const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
@@ -87,17 +88,10 @@ export function IntakePrecheckClient({
         setGate({ status: "checking" });
         return;
       }
-      if (isPrecheckComplete(body.profile) && body.mdiPatientLinked === true) {
-        const destination = "/onboarding/mdi";
+      if (isPrecheckComplete(body.profile)) {
+        const destination = "/portal/launch";
         setGate({ status: "redirecting", destination });
         navigate(destination);
-        return;
-      }
-      if (
-        isPrecheckComplete(body.profile) &&
-        typeof body.mdiPatientCsrfToken === "string"
-      ) {
-        setGate({ status: "patient", csrfToken: body.mdiPatientCsrfToken });
         return;
       }
       setGate({ status: "ready", csrfToken: body.csrfToken });
@@ -109,7 +103,7 @@ export function IntakePrecheckClient({
     return () => {
       active = false;
     };
-  }, [bootstrapAttempt, fetchImpl, navigate]);
+  }, [bootstrapAttempt, fetchImpl, navigate, selectedProduct]);
 
   function retryBootstrap() {
     setMessage(null);
@@ -164,7 +158,7 @@ export function IntakePrecheckClient({
         age: formValue(form, "age"),
         blockingContraindication: formValue(form, "blockingContraindication"),
         emergencySymptoms: formValue(form, "emergencySymptoms"),
-        offering: formValue(form, "offering"),
+        offering: selectedProduct ?? formValue(form, "offering"),
         state: formValue(form, "state"),
       }),
       credentials: "include",
@@ -191,11 +185,7 @@ export function IntakePrecheckClient({
     }
     if (response.ok) {
       if (typeof body.mdiPatientCsrfToken === "string") {
-        setGate({
-          status: "patient",
-          csrfToken: body.mdiPatientCsrfToken,
-          treatment: formValue(form, "offering") as LaunchOfferingSlug,
-        });
+        navigate("/portal/launch");
         return;
       }
       setGate({ status: "account_required" });
@@ -203,63 +193,6 @@ export function IntakePrecheckClient({
     }
 
     setMessage(messageForCode(typeof body.code === "string" ? body.code : ""));
-  }
-
-  async function onPatientSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (gate.status !== "patient" || submitting) {
-      return;
-    }
-
-    setSubmitting(true);
-    setMessage(null);
-    const form = new FormData(event.currentTarget);
-    const response = await fetchImpl("/api/onboarding/mdi/patient", {
-      body: JSON.stringify({
-        address1: formValue(form, "address1"),
-        address2: formValue(form, "address2"),
-        city: formValue(form, "city"),
-        dateOfBirth: formValue(form, "dateOfBirth"),
-        email: formValue(form, "email"),
-        firstName: formValue(form, "firstName"),
-        gender: formValue(form, "gender"),
-        lastName: formValue(form, "lastName"),
-        phoneNumber: formValue(form, "phoneNumber"),
-        state: formValue(form, "state"),
-        treatment: formValue(form, "treatment"),
-        zipCode: formValue(form, "zipCode"),
-      }),
-      credentials: "include",
-      headers: {
-        "content-type": "application/json",
-        "x-apoth-csrf": gate.csrfToken,
-      },
-      method: "POST",
-    }).catch(() => null);
-    setSubmitting(false);
-
-    if (!response) {
-      setMessage("We could not create your MDI profile. Please try again in a moment.");
-      return;
-    }
-    if (response.status === 401) {
-      navigate("/sign-in?returnTo=%2Fintake");
-      return;
-    }
-    if (response.status === 403) {
-      navigate("/onboarding/consent");
-      return;
-    }
-    const body = await safeJson(response);
-    if (response.status === 409 && body.redirect === "/intake") {
-      setBootstrapAttempt((attempt) => attempt + 1);
-      return;
-    }
-    if (response.ok) {
-      navigate(typeof body.redirect === "string" ? body.redirect : "/onboarding/mdi");
-      return;
-    }
-    setMessage(patientMessageForCode(typeof body.code === "string" ? body.code : ""));
   }
 
   if (gate.status === "privacy_required") {
@@ -273,10 +206,16 @@ export function IntakePrecheckClient({
   }
 
   if (gate.status === "account_required") {
-    return <AccountRequiredPanel />;
+    return (
+      <AccountRequiredPanel
+        fetchImpl={fetchImpl}
+        navigate={navigate}
+        productCode={selectedProduct}
+      />
+    );
   }
 
-  if (gate.status !== "ready" && gate.status !== "patient") {
+  if (gate.status !== "ready") {
     return (
       <div className="border border-ash-line bg-cream-warm p-5 sm:p-7">
         <p className="text-eyebrow uppercase text-ash">Secure check</p>
@@ -301,17 +240,6 @@ export function IntakePrecheckClient({
     );
   }
 
-  if (gate.status === "patient") {
-    return (
-      <PatientProfileForm
-        defaultTreatment={gate.treatment}
-        message={message}
-        onSubmit={onPatientSubmit}
-        submitting={submitting}
-      />
-    );
-  }
-
   return (
     <form
       className="border border-ash-line bg-cream-warm p-5 sm:p-7"
@@ -323,7 +251,7 @@ export function IntakePrecheckClient({
       </h2>
       <p className="mt-3 text-[1rem] text-ink/72">
         These answers help route your intake before account setup. They are not
-        the MDI clinical questionnaire.
+        the provider’s clinical questionnaire.
       </p>
       <div className="space-y-6">
         <label className="block">
@@ -356,24 +284,35 @@ export function IntakePrecheckClient({
           />
         </label>
 
-        <label className="block">
-          <span className="text-[0.95rem] font-medium text-ink">
-            Care category
-          </span>
-          <select
-            className="mt-2 w-full border border-ash-line bg-cream px-3 py-3 text-[1rem] text-ink"
-            name="offering"
-            required
-          >
-            <option value="">Select category</option>
-            {launchOfferingSlugs.map((offering) => (
-              <option key={offering} value={offering}>
-                {offeringLabels[offering]}
-              </option>
-            ))}
-            <option value="peptides">Peptides</option>
-          </select>
-        </label>
+        {selectedProduct ? (
+          <div className="border border-ash-line bg-cream px-4 py-3">
+            <span className="block text-[0.78rem] font-medium uppercase tracking-[0.08em] text-ash">
+              Program
+            </span>
+            <strong className="mt-1 block text-[1rem] font-semibold text-ink">
+              {publicProduct(selectedProduct)?.displayName}
+            </strong>
+            <input name="offering" type="hidden" value={selectedProduct} />
+          </div>
+        ) : (
+          <label className="block">
+            <span className="text-[0.95rem] font-medium text-ink">
+              Care category
+            </span>
+            <select
+              className="mt-2 w-full border border-ash-line bg-cream px-3 py-3 text-[1rem] text-ink"
+              name="offering"
+              required
+            >
+              <option value="">Select category</option>
+              {launchOfferingSlugs.map((offering) => (
+                <option key={offering} value={offering}>
+                  {offeringLabels[offering]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <fieldset>
           <legend className="text-[0.95rem] font-medium text-ink">
@@ -453,7 +392,7 @@ function PrivacyNoticeForm({
       <p className="mt-3 text-[1rem] text-ink/72">
         Apoth asks you to acknowledge the current privacy notice before you
         answer health-adjacent precheck questions. Telehealth consent and
-        platform terms come later, before the MDI questionnaire.
+        platform terms come later, before the provider questionnaire.
       </p>
       <p className="mt-4 text-[1rem] text-ink/72">
         Version <span className="font-mono">{privacyNotice.version}</span>
@@ -495,135 +434,146 @@ function PrivacyNoticeForm({
   );
 }
 
-function AccountRequiredPanel() {
+function AccountRequiredPanel({
+  fetchImpl,
+  navigate,
+  productCode,
+}: {
+  fetchImpl: typeof fetch;
+  navigate: (destination: string) => void;
+  productCode: PublicProductCode | null;
+}) {
+  const returnTo = productCode
+    ? `/get-started?product=${encodeURIComponent(productCode)}`
+    : "/get-started";
+  const signInAfterPrecheckHref = `/sign-in?returnTo=${encodeURIComponent(returnTo)}`;
+  const [step, setStep] = useState<"email" | "code">("email");
+  const [transactionHandle, setTransactionHandle] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function startOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    setMessage(null);
+    const form = new FormData(event.currentTarget);
+    const response = await fetchImpl("/api/auth/email-otp/start", {
+      body: JSON.stringify({ email: formValue(form, "email") }),
+      credentials: "include",
+      headers: {
+        "content-type": "application/json",
+        "x-apoth-auth-intent": "start-precheck-email-otp",
+      },
+      method: "POST",
+    }).catch(() => null);
+    setSubmitting(false);
+    const body = response ? await safeJson(response) : {};
+    if (response?.ok && typeof body.transactionHandle === "string") {
+      setTransactionHandle(body.transactionHandle);
+      setStep("code");
+      return;
+    }
+    setMessage(body.error === "invalid_email"
+      ? "Enter a valid email address."
+      : "We could not send a verification code. Try again in a moment.");
+  }
+
+  async function confirmOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submitting || !transactionHandle) return;
+    setSubmitting(true);
+    setMessage(null);
+    const form = new FormData(event.currentTarget);
+    const response = await fetchImpl("/api/auth/email-otp/confirm", {
+      body: JSON.stringify({
+        code: formValue(form, "code"),
+        transactionHandle,
+      }),
+      credentials: "include",
+      headers: {
+        "content-type": "application/json",
+        "x-apoth-auth-intent": "confirm-precheck-email-otp",
+      },
+      method: "POST",
+    }).catch(() => null);
+    setSubmitting(false);
+    if (response?.ok) {
+      navigate(returnTo);
+      return;
+    }
+    const body = response ? await safeJson(response) : {};
+    setMessage(body.error === "verification_rate_limited"
+      ? "Too many attempts. Wait a moment before trying again."
+      : body.error === "invalid_verification"
+        ? "That code was not accepted. Check the email and try again."
+        : "We could not verify the code. Try again in a moment.");
+  }
+
   return (
     <section className="border border-ash-line bg-cream-warm p-5 sm:p-7">
       <p className="text-eyebrow uppercase text-ash">Account</p>
       <h2 className="mt-3 text-[1.35rem] font-semibold text-ink">
-        Create an account to continue.
+        Verify your email to continue.
       </h2>
       <p className="mt-3 text-[1rem] text-ink/72">
-        Your precheck is ready to attach to a secure Apoth account. Return to
-        get started after sign-up or sign-in so we can bind that precheck to
-        your profile.
+        Your precheck is ready. We will attach it to your secure Apoth account
+        after you enter a one-time email code. No password is required.
       </p>
-      <div className="mt-6 flex flex-wrap gap-3">
+      {step === "email" ? (
+        <form className="mt-6" onSubmit={startOtp}>
+          <Field label="Email address" name="email" type="email" autoComplete="email" />
+          <button
+            className="mt-5 min-h-12 rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={submitting}
+            type="submit"
+          >
+            {submitting ? "Sending code" : "Email me a code"}
+          </button>
+        </form>
+      ) : (
+        <form className="mt-6" onSubmit={confirmOtp}>
+          <Field label="Six-digit verification code" name="code" inputMode="numeric" autoComplete="one-time-code" />
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              className="min-h-12 rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors hover:bg-clay disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={submitting}
+              type="submit"
+            >
+              {submitting ? "Verifying" : "Verify and continue"}
+            </button>
+            <button
+              className="min-h-12 rounded-full border border-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-clay-deep"
+              onClick={() => {
+                setMessage(null);
+                setStep("email");
+              }}
+              type="button"
+            >
+              Use another email
+            </button>
+          </div>
+        </form>
+      )}
+      {message ? <p className="mt-4 text-[0.95rem] text-clay-deep" role="alert">{message}</p> : null}
+      <div className="mt-6 border-t border-ash-line pt-5">
         <a
-          className="rounded-full bg-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-cream transition-colors hover:bg-clay"
-          href={signUpAfterPrecheckHref}
-        >
-          Create account
-        </a>
-        <a
-          className="rounded-full border border-clay-deep px-5 py-2.5 text-[0.95rem] font-medium text-clay-deep transition-colors hover:border-clay hover:text-clay"
+          className="text-[0.95rem] font-medium text-clay-deep underline underline-offset-4"
           href={signInAfterPrecheckHref}
         >
-          Sign in
+          Use a password for an existing account
         </a>
       </div>
     </section>
   );
 }
 
-function PatientProfileForm({
-  defaultTreatment,
-  message,
-  onSubmit,
-  submitting,
-}: {
-  defaultTreatment?: LaunchOfferingSlug;
-  message: string | null;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  submitting: boolean;
-}) {
-  return (
-    <form
-      className="border border-ash-line bg-cream-warm p-5 sm:p-7"
-      onSubmit={onSubmit}
-    >
-      <p className="text-eyebrow uppercase text-ash">MDI profile</p>
-      <h2 className="mt-3 text-[1.35rem] font-semibold text-ink">
-        Add patient details for the clinical handoff.
-      </h2>
-      <p className="mt-3 text-[1rem] text-ink/72">
-        These details are sent to MD Integrations to create your patient record.
-        Apoth keeps only the MDI patient pointer.
-      </p>
-
-      <div className="mt-6 grid gap-5 sm:grid-cols-2">
-        <Field label="First name" name="firstName" autoComplete="given-name" />
-        <Field label="Last name" name="lastName" autoComplete="family-name" />
-        <Field label="Date of birth" name="dateOfBirth" type="date" />
-        <Field label="Email" name="email" type="email" autoComplete="email" />
-        <Field label="Phone" name="phoneNumber" type="tel" autoComplete="tel" />
-        <label className="block">
-          <span className="text-[0.95rem] font-medium text-ink">
-            Clinical profile sex
-          </span>
-          <select
-            className="mt-2 w-full border border-ash-line bg-cream px-3 py-3 text-[1rem] text-ink"
-            name="gender"
-          >
-            <option value="">Select if applicable</option>
-            <option value="2">Female</option>
-            <option value="1">Male</option>
-            <option value="0">Another or not listed</option>
-          </select>
-        </label>
-        <Field className="sm:col-span-2" label="Address" name="address1" autoComplete="address-line1" />
-        <Field className="sm:col-span-2" label="Address 2" name="address2" autoComplete="address-line2" required={false} />
-        <Field label="City" name="city" autoComplete="address-level2" />
-        <label className="block">
-          <span className="text-[0.95rem] font-medium text-ink">State</span>
-          <select
-            className="mt-2 w-full border border-ash-line bg-cream px-3 py-3 text-[1rem] text-ink"
-            name="state"
-            required
-          >
-            <option value="">Select state</option>
-            {usStates.map((state) => (
-              <option key={state.code} value={state.code}>
-                {state.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Field label="ZIP code" name="zipCode" autoComplete="postal-code" inputMode="numeric" />
-        <label className="block">
-          <span className="text-[0.95rem] font-medium text-ink">
-            Care category
-          </span>
-          <select
-            className="mt-2 w-full border border-ash-line bg-cream px-3 py-3 text-[1rem] text-ink"
-            defaultValue={defaultTreatment ?? ""}
-            name="treatment"
-            required
-          >
-            <option value="">Select category</option>
-            {launchOfferingSlugs.map((offering) => (
-              <option key={offering} value={offering}>
-                {offeringLabels[offering]}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {message ? (
-        <p className="mt-6 border border-clay-deep px-4 py-3 text-[1rem] text-clay-deep" role="alert">
-          {message}
-        </p>
-      ) : null}
-
-      <button
-        className="mt-8 rounded-full bg-clay-deep px-6 py-3 text-[1rem] font-medium text-cream transition-colors hover:bg-clay disabled:cursor-not-allowed disabled:bg-ash"
-        disabled={submitting}
-        type="submit"
-      >
-        {submitting ? "Creating profile" : "Continue to clinical intake"}
-      </button>
-    </form>
-  );
+function productCodeFromLocation(): PublicProductCode | null {
+  if (typeof globalThis.location === "undefined") {
+    return null;
+  }
+  const value = new URLSearchParams(globalThis.location.search).get("product");
+  return isPublicProductCode(value) ? value : null;
 }
 
 function Field({
@@ -729,33 +679,5 @@ function messageForCode(code: string) {
       return "Enter a valid age.";
     default:
       return "Check the form and try again.";
-  }
-}
-
-function patientMessageForCode(code: string) {
-  switch (code) {
-    case "questionnaire_unavailable":
-      return "This care category is not ready for clinical intake yet.";
-    case "invalid_treatment":
-      return "Choose a care category.";
-    case "missing_first_name":
-    case "missing_last_name":
-    case "missing_address":
-    case "missing_city":
-      return "Complete the required patient details.";
-    case "invalid_date_of_birth":
-      return "Enter a valid date of birth.";
-    case "invalid_email":
-      return "Enter a valid email address.";
-    case "invalid_phone":
-      return "Enter a valid phone number.";
-    case "invalid_state":
-      return "Choose a valid U.S. state.";
-    case "invalid_zip":
-      return "Enter a valid ZIP code.";
-    case "create_in_progress":
-      return "Your MDI profile is already being created. Try again in a moment.";
-    default:
-      return "We could not create your MDI profile. Please check the form and try again.";
   }
 }

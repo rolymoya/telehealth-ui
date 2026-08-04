@@ -24,9 +24,9 @@ import {
   AccordionTrigger,
 } from "@/components/marketing-v2/ui/Accordion";
 import { Button } from "@/components/marketing-v2/ui/Button";
-import { checkoutHref } from "@/lib/public-commerce";
+import { onboardingHref } from "@/lib/public-commerce";
 
-const weightCheckoutHref = checkoutHref("weight");
+const weightOnboardingHref = onboardingHref("weight");
 
 const services = [
   {
@@ -52,7 +52,7 @@ const services = [
     price: "Plans from $83/mo",
     tone: "from-[#680000] via-[#A30000] to-[#df4c3c]",
     textTone: "light",
-    href: weightCheckoutHref,
+    href: "/#services",
     image: "Transparent hair-care product still life — topical dropper, treatment bottle, and tablet pouch, vertical 4:5 PNG",
     imageSrc: "/images/hair-growth-card.webp",
     imageAlt: "Person touching fuller dark hair",
@@ -66,7 +66,7 @@ const services = [
     price: "Plans from $49/mo",
     tone: "from-[#a84800] via-[#FF7700] to-[#ffbc5f]",
     textTone: "light",
-    href: weightCheckoutHref,
+    href: "/#services",
     image: "Discreet sexual-health product still life — minimal tablet pack and unbranded prescription bottle, cool studio lighting, transparent PNG",
     imageSrc: "/images/sexual-health-card.webp",
     imageAlt: "Hand holding a small tablet",
@@ -89,7 +89,7 @@ const footerGroups = [
     links: [
       { label: "GLP-1 treatments", href: "/weight-loss" },
       { label: "Weight management", href: "/weight-loss" },
-      { label: "Start a visit", href: weightCheckoutHref },
+      { label: "Start a visit", href: weightOnboardingHref },
       { label: "Patient login", href: "/sign-in" },
     ],
   },
@@ -147,11 +147,11 @@ export default function Home() {
             <a className="transition-opacity hover:opacity-55" href="#faq">FAQs</a>
           </nav>
           <div className="flex items-center gap-3">
-            <Button asChild className="hidden sm:inline-flex"><a href={weightCheckoutHref}>Get started</a></Button>
+            <Button asChild className="hidden sm:inline-flex"><a href={weightOnboardingHref}>Get started</a></Button>
             <Button asChild variant="outline" className="hidden px-5 sm:inline-flex">
               <a href="/sign-in"><UserRound className="h-4 w-4" /> Login</a>
             </Button>
-            <MobileMenu ctaHref={weightCheckoutHref} />
+            <MobileMenu ctaHref={weightOnboardingHref} />
           </div>
         </div>
       </header>
@@ -276,7 +276,7 @@ export default function Home() {
                 ].map((item) => <li key={item} className="flex gap-3"><Check className="mt-0.5 h-5 w-5 shrink-0" /> {item}</li>)}
               </ul>
               <div className="mt-10 flex flex-wrap gap-3">
-                <Button asChild size="lg"><a href={weightCheckoutHref}>Get started</a></Button>
+                <Button asChild size="lg"><a href={weightOnboardingHref}>Get started</a></Button>
               </div>
               <p className="mt-8 max-w-lg text-[10px] leading-4 text-foreground/40">*Prescription treatment requires an online consultation with a licensed provider. Results vary. Compounded medications are not FDA-approved.</p>
             </div>
@@ -306,7 +306,7 @@ export default function Home() {
             <Sparkles className="mx-auto h-8 w-8" />
             <h2 className="display-tight mt-5 text-[50px] font-bold sm:text-[68px]">Feel more like yourself</h2>
             <p className="mx-auto mt-6 max-w-xl text-lg text-foreground/65">Tell us about your goals and connect with a licensed provider online.</p>
-            <Button asChild size="lg" className="mt-8"><a href={weightCheckoutHref}>Start a visit <ArrowRight className="h-4 w-4" /></a></Button>
+            <Button asChild size="lg" className="mt-8"><a href={weightOnboardingHref}>Start a visit <ArrowRight className="h-4 w-4" /></a></Button>
           </div>
         </section>
       </div>
@@ -320,7 +320,7 @@ export default function Home() {
                 A technology platform for online intake, account access, billing, and independent provider care workflows.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
-                <Button asChild variant="secondary" size="sm"><a href={weightCheckoutHref}>Start a visit</a></Button>
+                <Button asChild variant="secondary" size="sm"><a href={weightOnboardingHref}>Start a visit</a></Button>
                 <Button asChild variant="outline" size="sm" className="border-white/25 text-white hover:bg-white/10">
                   <a href="/sign-in">Patient login</a>
                 </Button>

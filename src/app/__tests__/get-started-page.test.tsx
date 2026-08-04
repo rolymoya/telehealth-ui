@@ -34,13 +34,18 @@ describe("get started page", () => {
       { status: 401 },
     ));
 
-    render(<GetStartedStartClient fetchImpl={fetchMock as typeof fetch} />);
+    render(
+      <GetStartedStartClient
+        fetchImpl={fetchMock as typeof fetch}
+        productCode="weight"
+      />,
+    );
 
     expect(await screen.findByRole("link", { name: "Start precheck" }))
-      .toHaveAttribute("href", "/intake");
+      .toHaveAttribute("href", "/intake?product=weight");
     expect(screen.getByRole("link", { name: "Sign in" }))
-      .toHaveAttribute("href", "/sign-in?returnTo=%2Fget-started");
-    expect(fetchMock).toHaveBeenCalledWith("/api/onboarding/start", {
+      .toHaveAttribute("href", "/sign-in?returnTo=%2Fget-started%3Fproduct%3Dweight");
+    expect(fetchMock).toHaveBeenCalledWith("/api/onboarding/start?product=weight", {
       credentials: "include",
       headers: {
         accept: "application/json",
@@ -52,7 +57,7 @@ describe("get started page", () => {
   it("redirects signed-in patients to the start API destination", async () => {
     const navigate = vi.fn();
     const fetchMock = vi.fn(async () => jsonResponse({
-      destination: "/onboarding/consent?gate=medication",
+      destination: "/portal/launch",
       status: "ready",
     }));
 
@@ -64,7 +69,7 @@ describe("get started page", () => {
     );
 
     await screen.findByText("Continuing your visit.");
-    expect(navigate).toHaveBeenCalledWith("/onboarding/consent?gate=medication");
+    expect(navigate).toHaveBeenCalledWith("/portal/launch");
   });
 
   it("shows a retry state for provider failures without clinical fields", async () => {

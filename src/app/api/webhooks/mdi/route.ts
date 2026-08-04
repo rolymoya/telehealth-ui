@@ -4,6 +4,7 @@ import {
   cancelActiveBillingAfterClinicalClosure,
   createDynamoDbBillingActivationRepository,
 } from "@/lib/billing-activation";
+import { resolveBillingOfferConfig } from "@/lib/billing-offer";
 import { createDynamoDbAppDataRepository, resolveDynamoDbAppDataConfig } from "@/lib/dynamodb/app-data-dynamodb";
 import {
   createDynamoDbMdiWebhookMirrorRepository,
@@ -47,14 +48,18 @@ export async function POST(request: NextRequest) {
           cognitoSub: input.cognitoSub,
           mdiCaseId: input.mdiCaseId,
           now: input.now,
-          priceId: dependencies.priceId,
+          offerConfig: dependencies.offerConfig,
           repository: createDynamoDbBillingActivationRepository(repository.value),
           stage: resolvePaymentStage(process.env),
           stripe: dependencies.stripe,
         });
         return activated.ok
           ? { ok: true as const }
-          : { ok: false as const, retryable: activated.code !== "invalid_stripe_metadata" };
+          : {
+              ok: false as const,
+              retryable: activated.code !== "invalid_stripe_metadata" &&
+                activated.code !== "invalid_stripe_price",
+            };
       },
       async cancel(input) {
         const dependencies = await resolveBillingActivationDependencies(process.env);
@@ -171,22 +176,15 @@ function resolveRepository(env: Record<string, string | undefined>) {
 
 async function resolveBillingActivationDependencies(env: Record<string, string | undefined>) {
   const stripeSecret = await resolveStripeSecret(env);
-  const priceId = resolveStripeRecurringPriceId(env);
-  if (!stripeSecret.ok || !priceId.ok) {
+  const offerConfig = resolveBillingOfferConfig(env);
+  if (!stripeSecret.ok || !offerConfig.ok) {
     return { ok: false as const };
   }
   return {
     ok: true as const,
-    priceId: priceId.value,
+    offerConfig: offerConfig.value,
     stripe: createStripeClient(stripeSecret.value),
   };
-}
-
-function resolveStripeRecurringPriceId(env: Record<string, string | undefined>) {
-  const value = env.STRIPE_RECURRING_PRICE_ID;
-  return value && /^price_[A-Za-z0-9_]+$/.test(value)
-    ? { ok: true as const, value }
-    : { ok: false as const };
 }
 
 function resolvePaymentStage(env: Record<string, string | undefined>) {

@@ -255,7 +255,7 @@ async function resolveConsentAcceptanceGate(
       profile.onboardingStatus !== "billing_ready"
     )
   ) {
-    return { ok: true, destination: "/onboarding/mdi", requiredConsents: [] };
+    return { ok: true, destination: "/portal/launch", requiredConsents: [] };
   }
 
   const mdi = await readRecord(mdiLinkageKey(cognitoSub));
@@ -263,7 +263,7 @@ async function resolveConsentAcceptanceGate(
     return { ok: false, code: "mdi_linkage_key_conflict", status: 500 };
   }
   if (!mdi?.mdiPatientId || !mdi.mdiCaseId) {
-    return { ok: true, destination: "/onboarding/mdi", requiredConsents: [] };
+    return { ok: true, destination: "/portal/launch", requiredConsents: [] };
   }
 
   const selection = await readRecord(treatmentSelectionKey(cognitoSub));
@@ -271,7 +271,7 @@ async function resolveConsentAcceptanceGate(
     return { ok: false, code: "treatment_selection_key_conflict", status: 500 };
   }
   if (!isLaunchTreatment(selection?.treatment)) {
-    return { ok: true, destination: "/onboarding/mdi", requiredConsents: [] };
+    return { ok: true, destination: "/portal/launch", requiredConsents: [] };
   }
 
   return {
@@ -396,7 +396,7 @@ async function nextOnboardingDestination(cognitoSub: string) {
     !mdi?.mdiPatientId ||
     !mdi.mdiCaseId
   ) {
-    return "/onboarding/mdi";
+    return "/portal/launch";
   }
 
   const stripe = await readRecord(stripeLinkageKey(cognitoSub));

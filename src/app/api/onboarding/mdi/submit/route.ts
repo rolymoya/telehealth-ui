@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     ...(disclosureGate.status === "medication_disclosure_required"
       ? { redirect: "/onboarding/consent?gate=medication" }
       : disclosureGate.status === "treatment_selection_required"
-        ? { redirect: "/onboarding/mdi" }
+        ? { redirect: "/portal/launch" }
         : {}),
     status: result.value.status,
   });

@@ -17,10 +17,11 @@ Marketing/legal routes remain static-first:
 - `/about`
 - `/privacy`
 - `/terms`
+- `/weight-loss`
 
 Patient routes are owned by the Vite app:
 
-- `/checkout`
+- `/checkout` (legacy redirect to staged enrollment)
 - `/checkout/complete`
 - `/verify`
 - `/get-started`
@@ -31,7 +32,7 @@ Patient routes are owned by the Vite app:
 - `/reset-password`
 - `/sign-out`
 - `/onboarding/consent`
-- `/onboarding/mdi`
+- `/onboarding/mdi` (legacy redirect to `/portal/launch`)
 - `/dashboard`
 - `/billing`
 - `/account`
@@ -41,17 +42,21 @@ Patient routes are owned by the Vite app:
 API routes are owned by API Gateway/Lambda:
 
 - `/api/auth/session`
+- `/api/auth/email-otp/start`
+- `/api/auth/email-otp/confirm`
 - `/api/intake/bootstrap`
 - `/api/intake/privacy-notice`
 - `/api/intake/precheck`
 - `/api/onboarding/start`
 - `/api/onboarding/consent`
+- `/api/portal/launch`
 - `/api/onboarding/mdi/bootstrap`
 - `/api/onboarding/mdi/patient`
 - `/api/onboarding/mdi/submit`
 - `/api/dashboard`
 - `/api/dashboard/workflows/{workflow}`
 - `/api/billing/payment-method`
+- `/api/billing/offer`
 - `/api/billing/subscription/cancel`
 - `/api/webhooks/stripe`
 - `/api/webhooks/mdi`
@@ -62,20 +67,20 @@ layer. Production changes belong in Lambda handlers and CDK routes.
 ## Runtime Boundaries
 
 The Vite patient app is a static shell. It must not embed patient-specific data
-in HTML. Auth, consent gates, billing state, dashboard state, MDI linkage, and
-workflow redirects come from `/api/*` calls.
+in HTML. Auth, consent gates, billing state, dashboard state, opaque provider
+linkage, and workflow redirects come from `/api/*` calls.
 
-MD Integrations remains the clinical system of record. Apoth can store minimal
-linkage and operational evidence, but must not persist questionnaire answers
-after submission to MDI.
+The selected white-label provider portal is the clinical system of record and
+collects the clinical questionnaire. Apoth can store minimal linkage and
+operational evidence, but must not render or persist questionnaire answers.
+MD Integrations remains a migration adapter; its API routes are not the target
+patient experience.
 
-Staging can run the MDI intake Lambdas with `APOTH_MDI_MODE=synthetic` while
-MDI sandbox credentials are unavailable. Synthetic mode returns deterministic
-opaque MDI patient, case, and submission IDs plus a small synthetic
-questionnaire fixture. It never sends patient details or questionnaire answers
-to MDI, and it still persists only the normal linkage/status records. Production
-must use `APOTH_MDI_MODE=live`; CDK config and the Lambda runtime both fail
-closed if synthetic mode is configured for production.
+Staging may retain synthetic MDI behavior only for migration-adapter testing.
+The target portal launch uses opaque patient/case provisioning and a short-lived
+launch URL. Production portal provisioning and launch flags stay disabled until
+the selected provider has an approved security and BAA path; the runtime fails
+closed when that contract is incomplete.
 
 Stripe receives only opaque, non-PHI identifiers in metadata. Do not send
 condition, medication, diagnosis, symptom, answer, note, or clinical context to
@@ -92,10 +97,10 @@ npm run dev
 This starts:
 
 - marketing and local compatibility APIs at `http://127.0.0.1:3000`
-- checkout, account, and portal handoff at `http://127.0.0.1:5173`
+- staged enrollment, account, billing, and portal handoff at `http://127.0.0.1:5173`
 
-Marketing CTAs use the account origin instead of resolving `/checkout` on the
-marketing server. The Vite server calls relative `/api/*` routes and proxies
+Marketing CTAs use the account origin and enter at `/get-started`, not hosted
+checkout. The Vite server calls relative `/api/*` routes and proxies
 them to the local Next compatibility API. `npm run dev:marketing` and
 `npm run patient:dev` remain available for isolated debugging.
 

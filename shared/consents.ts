@@ -55,7 +55,7 @@ export const currentRequiredConsents = [
     gate: "telehealth_and_platform_before_mdi",
     label: "Apoth platform terms",
     owner: "apoth",
-    version: "terms-2026-06-thin-phi-v2",
+    version: "terms-2026-08-staged-offer-v3",
   },
   {
     consentKind: "privacy_notice",
@@ -63,7 +63,7 @@ export const currentRequiredConsents = [
     gate: "privacy_notice_before_precheck",
     label: "Privacy notice",
     owner: "apoth",
-    version: "privacy-2026-06-thin-phi-v2",
+    version: "privacy-2026-08-portal-boundary-v3",
   },
   {
     consentKind: "telehealth_consent",
