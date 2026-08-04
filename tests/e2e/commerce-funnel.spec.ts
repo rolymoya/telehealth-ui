@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import { patientAccessCookieName } from "../../src/lib/auth/session-cookie";
 
 test("retires card-first checkout and sends direct links to the precheck", async ({ page }) => {
   let checkoutRequests = 0;
@@ -55,24 +54,6 @@ test("preserves the selected program through anonymous precheck and account crea
 });
 
 test("keeps the active native account and portal routes", async ({ page }) => {
-  // External CloudFront smoke tests cross the protected-route proxy. The
-  // dashboard request remains mocked below; this opaque cookie only lets the
-  // browser reach the protected shell without using a real patient session.
-  const configuredPatientOrigin =
-    process.env.PLAYWRIGHT_PATIENT_BASE_URL ??
-    process.env.PLAYWRIGHT_BASE_URL ??
-    "http://127.0.0.1:5174";
-  const cookieOrigin = configuredPatientOrigin.startsWith("http://")
-    ? configuredPatientOrigin.replace(/^http:/, "https:")
-    : configuredPatientOrigin;
-  await page.context().addCookies([{
-    httpOnly: true,
-    name: patientAccessCookieName,
-    sameSite: "Lax",
-    secure: true,
-    url: cookieOrigin,
-    value: "opaque-e2e-access-cookie",
-  }]);
   await page.route("**/api/dashboard", (route) => route.fulfill({
     contentType: "application/json",
     body: JSON.stringify({ status: "authenticated" }),

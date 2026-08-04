@@ -1976,6 +1976,7 @@ function handler(event) {
         "intake*": patientAppBehavior,
         "medication-management*": patientAppBehavior,
         "onboarding/*": patientAppBehavior,
+        "portal/*": patientAppBehavior,
         "patient-assets/*": {
           origin: patientAppOrigin,
           allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,

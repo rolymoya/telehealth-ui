@@ -126,6 +126,20 @@ jobs:
             echo "VITE_MARKETING_ORIGIN=${public_site_origin}"
           } >>"${GITHUB_ENV}"
 
+      - name: Verify patient app route behaviors
+        run: |
+          set -euo pipefail
+          route_patterns_json="$(aws cloudfront get-distribution-config \
+            --id "${STATIC_DISTRIBUTION_ID}" \
+            --query 'DistributionConfig.CacheBehaviors.Items[].PathPattern' \
+            --output json)"
+          if ! jq -e 'index("portal/*") != null' \
+            <<<"${route_patterns_json}" >/dev/null; then
+            echo "CloudFront is missing the portal/* patient-app behavior."
+            echo "Run the Deploy staging infrastructure workflow before publishing the static UI."
+            exit 1
+          fi
+
       - name: Build static artifacts
         run: npm run build:static
 

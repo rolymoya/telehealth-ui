@@ -603,6 +603,10 @@ describe("ServerlessPlatformStack", () => {
             ViewerProtocolPolicy: "redirect-to-https",
           }),
           Match.objectLike({
+            PathPattern: "portal/*",
+            ViewerProtocolPolicy: "redirect-to-https",
+          }),
+          Match.objectLike({
             PathPattern: "patient-assets/*",
             ViewerProtocolPolicy: "redirect-to-https",
           }),
