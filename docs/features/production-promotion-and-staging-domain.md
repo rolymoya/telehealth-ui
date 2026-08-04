@@ -67,7 +67,7 @@ APOTH_PRODUCTION_ACCOUNT_ID="$PRODUCTION_ACCOUNT_ID" \
 CDK_DEFAULT_ACCOUNT="$PRODUCTION_ACCOUNT_ID" \
 CDK_DEFAULT_REGION=us-east-1 \
 AWS_PROFILE="$AWS_PROFILE" \
-  npm --prefix infra exec -- cdk deploy \
+  npm --prefix infra run deploy -- \
   --context stage=production \
   Apoth-production-AccountBaseline
 ```

@@ -48,7 +48,7 @@ Git:
 export APOTH_SITE_CERTIFICATE_ARN="arn:aws:acm:us-east-1:AWS_ACCOUNT_ID:certificate/CERTIFICATE_ID"
 APOTH_ALLOW_PRODUCTION_SYNTH=true \
 APOTH_PRODUCTION_ACCOUNT_ID=329425487030 \
-npm --prefix infra exec -- cdk deploy \
+npm --prefix infra run deploy -- \
   --context stage=production \
   Apoth-production-ServerlessPlatform \
   --parameters SiteCertificateArn="$APOTH_SITE_CERTIFICATE_ARN"

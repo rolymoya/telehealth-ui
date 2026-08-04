@@ -338,7 +338,7 @@ npm --prefix infra run diff -- --context stage=staging
 AWS_PROFILE="$AWS_PROFILE" \
 CDK_DEFAULT_ACCOUNT="$STAGING_ACCOUNT_ID" \
 CDK_DEFAULT_REGION="$AWS_REGION" \
-npm --prefix infra exec -- cdk deploy Apoth-staging-ServerlessPlatform \
+npm --prefix infra run deploy -- Apoth-staging-ServerlessPlatform \
   --context stage=staging
 ```
 
@@ -349,7 +349,7 @@ their verification outputs need to be created or updated:
 AWS_PROFILE="$AWS_PROFILE" \
 CDK_DEFAULT_ACCOUNT="$STAGING_ACCOUNT_ID" \
 CDK_DEFAULT_REGION="$AWS_REGION" \
-npm --prefix infra exec -- cdk deploy Apoth-staging-AccountBaseline \
+npm --prefix infra run deploy -- Apoth-staging-AccountBaseline \
   --context stage=staging
 ```
 

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc --noEmit",
+    "deploy": "cdk deploy",
     "diff": "cdk diff",
     "diff:staging": "AWS_PROFILE=apoth-staging CDK_DEFAULT_ACCOUNT=329425487030 CDK_DEFAULT_REGION=us-east-1 cdk diff --context stage=staging Apoth-staging-ServerlessPlatform --parameters SiteCertificateArn=$APOTH_SITE_CERTIFICATE_ARN",
     "deploy:staging": "AWS_PROFILE=apoth-staging CDK_DEFAULT_ACCOUNT=329425487030 CDK_DEFAULT_REGION=us-east-1 cdk deploy --context stage=staging Apoth-staging-ServerlessPlatform --parameters SiteCertificateArn=$APOTH_SITE_CERTIFICATE_ARN --require-approval never",

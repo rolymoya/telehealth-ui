@@ -311,7 +311,7 @@ CDK bootstrap hardening procedure:
 AWS_PROFILE=apoth-staging \
 CDK_DEFAULT_ACCOUNT=329425487030 \
 CDK_DEFAULT_REGION=us-east-1 \
-npm --prefix infra exec -- cdk deploy Apoth-staging-AccountBaseline \
+npm --prefix infra run deploy -- Apoth-staging-AccountBaseline \
   --context stage=staging
 ```
 

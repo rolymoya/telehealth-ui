@@ -106,7 +106,7 @@ jobs:
           CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
         run: |
-          npm --prefix infra exec -- cdk deploy \
+          npm --prefix infra run deploy -- \
             --context stage=staging \
             "${BASELINE_STACK_NAME}" \
             --require-approval never
@@ -137,7 +137,7 @@ jobs:
           CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
         run: |
-          npm --prefix infra exec -- cdk diff \
+          npm --prefix infra run diff -- \
             --context stage=staging \
             "${PLATFORM_STACK_NAME}" \
             --parameters SiteCertificateArn="${SITE_CERTIFICATE_ARN}" \
@@ -148,7 +148,7 @@ jobs:
           CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
         run: |
-          npm --prefix infra exec -- cdk deploy \
+          npm --prefix infra run deploy -- \
             --context stage=staging \
             "${PLATFORM_STACK_NAME}" \
             --parameters SiteCertificateArn="${SITE_CERTIFICATE_ARN}" \
