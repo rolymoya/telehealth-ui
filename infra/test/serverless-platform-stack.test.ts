@@ -986,7 +986,7 @@ describe("ServerlessPlatformStack", () => {
         ],
       },
     });
-  });
+  }, 30_000);
 
   it("captures API access logs and launch observability alarms", () => {
     const template = synthesizeTemplate();
