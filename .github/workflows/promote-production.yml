@@ -33,7 +33,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       PRODUCTION_AWS_ACCOUNT_ID: ${{ vars.PRODUCTION_AWS_ACCOUNT_ID }}
       PRODUCTION_AWS_REGION: ${{ vars.PRODUCTION_AWS_REGION }}
-      APOTH_STRIPE_PUBLISHABLE_KEY: ${{ vars.PRODUCTION_STRIPE_PUBLISHABLE_KEY }}
+      CONFIGURED_PRODUCTION_STRIPE_PUBLISHABLE_KEY: ${{ vars.PRODUCTION_STRIPE_PUBLISHABLE_KEY }}
 
     steps:
       - name: Check trusted workflow branch
@@ -58,7 +58,7 @@ jobs:
           fi
 
       - name: Check out staged release
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.release_sha }}
           fetch-depth: 0
@@ -109,7 +109,7 @@ jobs:
           fi
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
@@ -131,6 +131,7 @@ jobs:
 
       - name: Synthesize production infrastructure
         env:
+          APOTH_STRIPE_PUBLISHABLE_KEY: ${{ env.CONFIGURED_PRODUCTION_STRIPE_PUBLISHABLE_KEY }}
           APOTH_ALLOW_PRODUCTION_SYNTH: "true"
           APOTH_PRODUCTION_ACCOUNT_ID: ${{ env.PRODUCTION_AWS_ACCOUNT_ID }}
           CDK_DEFAULT_ACCOUNT: ${{ env.PRODUCTION_AWS_ACCOUNT_ID }}
@@ -162,13 +163,13 @@ jobs:
       AWS_ROLE_ARN: ${{ vars.PRODUCTION_DEPLOY_ROLE_ARN }}
       SITE_CERTIFICATE_ARN: ${{ vars.PRODUCTION_CERTIFICATE_ARN }}
       CUSTOM_DOMAIN_READY: ${{ vars.PRODUCTION_CUSTOM_DOMAIN_READY }}
-      APOTH_STRIPE_PUBLISHABLE_KEY: ${{ vars.PRODUCTION_STRIPE_PUBLISHABLE_KEY }}
+      CONFIGURED_PRODUCTION_STRIPE_PUBLISHABLE_KEY: ${{ vars.PRODUCTION_STRIPE_PUBLISHABLE_KEY }}
       APOTH_STAGE: production
       STACK_NAME: Apoth-production-ServerlessPlatform
 
     steps:
       - name: Check out approved release
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ needs.preflight.outputs.release_sha }}
 
@@ -201,7 +202,7 @@ jobs:
           fi
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
@@ -251,6 +252,7 @@ jobs:
 
       - name: Review CDK diff in deployment log
         env:
+          APOTH_STRIPE_PUBLISHABLE_KEY: ${{ env.CONFIGURED_PRODUCTION_STRIPE_PUBLISHABLE_KEY }}
           APOTH_ALLOW_PRODUCTION_SYNTH: "true"
           APOTH_PRODUCTION_ACCOUNT_ID: ${{ env.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}
@@ -265,6 +267,7 @@ jobs:
 
       - name: Deploy production infrastructure
         env:
+          APOTH_STRIPE_PUBLISHABLE_KEY: ${{ env.CONFIGURED_PRODUCTION_STRIPE_PUBLISHABLE_KEY }}
           APOTH_ALLOW_PRODUCTION_SYNTH: "true"
           APOTH_PRODUCTION_ACCOUNT_ID: ${{ env.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}

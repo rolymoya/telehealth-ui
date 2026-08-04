@@ -1,5 +1,10 @@
 import { expect, type Page } from "@playwright/test";
 
+export function expectedPatientHref(path: `/${string}`) {
+  const patientBaseURL = process.env.PLAYWRIGHT_PATIENT_BASE_URL;
+  return patientBaseURL ? new URL(path, patientBaseURL).toString() : path;
+}
+
 type PageErrorOptions = {
   allowedConsoleErrors?: readonly RegExp[];
 };

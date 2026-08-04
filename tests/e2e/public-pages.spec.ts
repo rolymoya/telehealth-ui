@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   collectUnexpectedPageErrors,
+  expectedPatientHref,
   expectNoHorizontalOverflow,
   expectPublicRouteReady,
 } from "./support/public";
@@ -52,7 +53,7 @@ test.describe("public navigation and CTAs", () => {
 
     await page.goto("/");
     await expect(page.getByRole("link", { name: "Get started" }).first())
-      .toHaveAttribute("href", "/checkout?product=weight");
+      .toHaveAttribute("href", expectedPatientHref("/checkout?product=weight"));
 
     errors.expectNone();
   });

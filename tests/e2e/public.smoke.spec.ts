@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectedPatientHref } from "./support/public";
 
 test.describe("@smoke public launch path", () => {
   test("home page sends the primary CTA directly to checkout", async ({ page }) => {
@@ -8,6 +9,6 @@ test.describe("@smoke public launch path", () => {
     await expect(page.getByRole("main")).toBeVisible();
 
     await expect(page.getByRole("link", { name: "Get started" }).first())
-      .toHaveAttribute("href", "/checkout?product=weight");
+      .toHaveAttribute("href", expectedPatientHref("/checkout?product=weight"));
   });
 });

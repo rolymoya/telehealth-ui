@@ -22,14 +22,6 @@
   line-height: normal;
 }
 
-@font-face {
-  font-family: "Apoth Care";
-  src: url("https://www.hims.com/css/fonts/caresans/v1/CareSans-VF-Roman-subset.woff2") format("woff2");
-  font-display: swap;
-  font-style: normal;
-  font-weight: 100 900;
-}
-
 .page *,
 .page *::before,
 .page *::after {
@@ -501,7 +493,7 @@
 
 .howItWorksContent {
   color: rgba(0, 0, 0, .81);
-  font-family: "Apoth Care", Arial, Helvetica, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
 }
 
 .howItWorksContent h2 {

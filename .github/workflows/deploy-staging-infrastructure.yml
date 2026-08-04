@@ -16,7 +16,7 @@ env:
   AWS_REGION: us-east-1
   AWS_ROLE_ARN: arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy
   SITE_CERTIFICATE_ARN: ${{ vars.STAGING_CERTIFICATE_ARN }}
-  APOTH_STRIPE_PUBLISHABLE_KEY: ${{ vars.STAGING_STRIPE_PUBLISHABLE_KEY }}
+  CONFIGURED_STAGING_STRIPE_PUBLISHABLE_KEY: ${{ vars.STAGING_STRIPE_PUBLISHABLE_KEY }}
   APOTH_STAGE: staging
   PLATFORM_STACK_NAME: Apoth-staging-ServerlessPlatform
   BASELINE_STACK_NAME: Apoth-staging-AccountBaseline
@@ -46,10 +46,10 @@ jobs:
           fi
 
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
@@ -81,7 +81,7 @@ jobs:
       - name: Preserve staging Stripe public configuration
         run: |
           set -euo pipefail
-          stripe_publishable_key="${APOTH_STRIPE_PUBLISHABLE_KEY}"
+          stripe_publishable_key="${CONFIGURED_STAGING_STRIPE_PUBLISHABLE_KEY}"
           if [ -z "${stripe_publishable_key}" ]; then
             stripe_publishable_key="$(aws cloudformation describe-stacks \
               --region "${AWS_REGION}" \
