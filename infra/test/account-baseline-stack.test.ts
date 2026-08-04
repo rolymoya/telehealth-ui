@@ -154,6 +154,10 @@ describe("AccountBaselineStack", () => {
       PolicyDocument: {
         Statement: Match.arrayWith([
           Match.objectLike({
+            Action: "acm:DescribeCertificate",
+            Effect: "Allow",
+          }),
+          Match.objectLike({
             Action: "sts:AssumeRole",
             Effect: "Allow",
           }),
@@ -211,6 +215,29 @@ describe("AccountBaselineStack", () => {
     }
     expect(renderedPolicy).not.toContain("AdministratorAccess");
     expect(renderedPolicy).not.toContain('"Action":"*"');
+  });
+
+  it("restricts the production deploy role to the protected environment", () => {
+    const template = synthesizeTemplate("production");
+
+    template.hasResourceProperties("AWS::IAM::Role", {
+      RoleName: "apoth-production-github-oidc-cdk-deploy",
+      AssumeRolePolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Action: "sts:AssumeRoleWithWebIdentity",
+            Condition: {
+              StringEquals: {
+                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                "token.actions.githubusercontent.com:sub":
+                  "repo:rolymoya/telehealth-ui:environment:production",
+              },
+            },
+            Effect: "Allow",
+          }),
+        ]),
+      },
+    });
   });
 
   it("defines a launch-scoped CDK CloudFormation execution policy", () => {

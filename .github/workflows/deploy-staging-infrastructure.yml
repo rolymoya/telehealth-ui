@@ -1,0 +1,175 @@
+name: Deploy staging infrastructure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: apoth-staging-infrastructure
+  cancel-in-progress: false
+
+env:
+  AWS_ACCOUNT_ID: "329425487030"
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::329425487030:role/apoth-staging-github-oidc-cdk-deploy
+  SITE_CERTIFICATE_ARN: ${{ vars.STAGING_CERTIFICATE_ARN }}
+  APOTH_STRIPE_PUBLISHABLE_KEY: ${{ vars.STAGING_STRIPE_PUBLISHABLE_KEY }}
+  APOTH_STAGE: staging
+  PLATFORM_STACK_NAME: Apoth-staging-ServerlessPlatform
+  BASELINE_STACK_NAME: Apoth-staging-AccountBaseline
+
+jobs:
+  deploy:
+    name: Deploy staging CDK stacks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check trusted branch
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "The staging OIDC role trusts workflow runs from main only."
+            exit 1
+          fi
+
+      - name: Validate staging certificate configuration
+        run: |
+          set -euo pipefail
+          : "${SITE_CERTIFICATE_ARN:?Set the STAGING_CERTIFICATE_ARN repository variable.}"
+          expected_prefix="arn:aws:acm:us-east-1:${AWS_ACCOUNT_ID}:certificate/"
+          if [[ "${SITE_CERTIFICATE_ARN}" != "${expected_prefix}"* ]]; then
+            echo "The staging certificate must belong to the staging account in us-east-1."
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix infra ci
+
+      - name: Run infrastructure checks
+        run: |
+          npm --prefix infra run build
+          npm --prefix infra test
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS identity
+        run: |
+          caller_account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "${caller_account}" != "${AWS_ACCOUNT_ID}" ]; then
+            echo "Authenticated to AWS account ${caller_account}, expected ${AWS_ACCOUNT_ID}."
+            exit 1
+          fi
+
+      - name: Preserve staging Stripe public configuration
+        run: |
+          set -euo pipefail
+          stripe_publishable_key="${APOTH_STRIPE_PUBLISHABLE_KEY}"
+          if [ -z "${stripe_publishable_key}" ]; then
+            stripe_publishable_key="$(aws cloudformation describe-stacks \
+              --region "${AWS_REGION}" \
+              --stack-name "${PLATFORM_STACK_NAME}" \
+              --query 'Stacks[0].Outputs[?OutputKey==`StripePublishableKey`].OutputValue | [0]' \
+              --output text 2>/dev/null || true)"
+          fi
+          if [ -z "${stripe_publishable_key}" ] || \
+             [ "${stripe_publishable_key}" = "None" ]; then
+            echo "Set STAGING_STRIPE_PUBLISHABLE_KEY to the existing pk_test_ value."
+            exit 1
+          fi
+          if [[ "${stripe_publishable_key}" != pk_test_* ]]; then
+            echo "The staging Stripe publishable key must start with pk_test_."
+            exit 1
+          fi
+          echo "APOTH_STRIPE_PUBLISHABLE_KEY=${stripe_publishable_key}" \
+            >>"${GITHUB_ENV}"
+
+      - name: Update staging account baseline
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        run: |
+          npm --prefix infra exec -- cdk deploy \
+            --context stage=staging \
+            "${BASELINE_STACK_NAME}" \
+            --require-approval never
+
+      - name: Verify issued staging certificate
+        run: |
+          set -euo pipefail
+          certificate_json="$(aws acm describe-certificate \
+            --region us-east-1 \
+            --certificate-arn "${SITE_CERTIFICATE_ARN}" \
+            --output json)"
+          if ! jq -e '.Certificate.Status == "ISSUED"' \
+            <<<"${certificate_json}" >/dev/null; then
+            echo "The staging certificate is not ISSUED."
+            exit 1
+          fi
+          if ! jq -e '
+            (.Certificate.SubjectAlternativeNames // []) as $names |
+            ((($names | index("staging.apothhealth.com")) != null) or
+             (($names | index("*.apothhealth.com")) != null))
+          ' <<<"${certificate_json}" >/dev/null; then
+            echo "The certificate must cover staging.apothhealth.com."
+            exit 1
+          fi
+
+      - name: Review staging CDK diff
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        run: |
+          npm --prefix infra exec -- cdk diff \
+            --context stage=staging \
+            "${PLATFORM_STACK_NAME}" \
+            --parameters SiteCertificateArn="${SITE_CERTIFICATE_ARN}" \
+            --no-change-set
+
+      - name: Deploy staging platform
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        run: |
+          npm --prefix infra exec -- cdk deploy \
+            --context stage=staging \
+            "${PLATFORM_STACK_NAME}" \
+            --parameters SiteCertificateArn="${SITE_CERTIFICATE_ARN}" \
+            --require-approval never
+
+      - name: Show staging DNS target
+        run: |
+          distribution_domain="$(aws cloudformation describe-stacks \
+            --region "${AWS_REGION}" \
+            --stack-name "${PLATFORM_STACK_NAME}" \
+            --query 'Stacks[0].Outputs[?OutputKey==`StaticWebDistributionDomainName`].OutputValue | [0]' \
+            --output text)"
+          if [ -z "${distribution_domain}" ] || [ "${distribution_domain}" = "None" ]; then
+            echo "The staging CloudFront domain output is missing."
+            exit 1
+          fi
+          {
+            echo "### Staging DNS cutover"
+            echo "Add this Porkbun record, then run the Deploy static UI workflow:"
+            echo ""
+            echo "- Type: CNAME"
+            echo "- Host: staging"
+            echo "- Answer: ${distribution_domain}"
+          } >>"${GITHUB_STEP_SUMMARY}"

@@ -96,7 +96,7 @@ export class AccountBaselineStack extends Stack {
       clientIds: [githubActionsOidcAudience],
       removalPolicy: RemovalPolicy.RETAIN,
     });
-    const githubTrustSubject = githubActionsTrustSubject();
+    const githubTrustSubject = githubActionsTrustSubject(props.config.stage);
     const githubDeployRole = new Role(this, "GithubActionsDeployRole", {
       roleName: `apoth-${props.config.stage}-github-oidc-cdk-deploy`,
       assumedBy: new OpenIdConnectPrincipal(githubProvider, {
@@ -107,9 +107,17 @@ export class AccountBaselineStack extends Stack {
       }),
       description: [
         "GitHub Actions OIDC role for Apoth CDK deploys and static UI publishes.",
-        "Trust is restricted to rolymoya/telehealth-ui main branch.",
+        props.config.stage === "production"
+          ? "Trust is restricted to the protected rolymoya/telehealth-ui production environment."
+          : "Trust is restricted to the rolymoya/telehealth-ui main branch.",
       ].join(" "),
     });
+    githubDeployRole.addToPolicy(new PolicyStatement({
+      actions: ["acm:DescribeCertificate"],
+      resources: [
+        `arn:${this.partition}:acm:us-east-1:${this.account}:certificate/*`,
+      ],
+    }));
     githubDeployRole.addToPolicy(new PolicyStatement({
       actions: ["sts:AssumeRole"],
       resources: cdkBootstrapRoleArns(this.account, this.region, this.partition),
@@ -310,8 +318,10 @@ function accountTrailName(stage: StageConfig["stage"]) {
   return `apoth-${stage}-management-events`;
 }
 
-function githubActionsTrustSubject() {
-  return "repo:rolymoya/telehealth-ui:ref:refs/heads/main";
+function githubActionsTrustSubject(stage: StageConfig["stage"]) {
+  return stage === "production"
+    ? "repo:rolymoya/telehealth-ui:environment:production"
+    : "repo:rolymoya/telehealth-ui:ref:refs/heads/main";
 }
 
 const githubActionsOidcProviderUrl = "https://token.actions.githubusercontent.com";

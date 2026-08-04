@@ -226,7 +226,7 @@ describe("ServerlessPlatformStack", () => {
         Timeout: 10,
         Environment: {
           Variables: {
-            APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
+            APOTH_ALLOWED_ORIGIN: "https://staging.apothhealth.com",
             APOTH_ALLOWED_ORIGINS: Match.anyValue(),
             APOTH_SECRET_APP_SIGNING_ID: "/apoth/staging/app/signing",
             APOTH_STAGE: "staging",
@@ -245,7 +245,7 @@ describe("ServerlessPlatformStack", () => {
       Timeout: 10,
       Environment: {
         Variables: {
-          APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
+          APOTH_ALLOWED_ORIGIN: "https://staging.apothhealth.com",
           APOTH_ALLOWED_ORIGINS: Match.anyValue(),
           APOTH_SECRET_APP_SIGNING_ID: "/apoth/staging/app/signing",
           APOTH_STAGE: "staging",
@@ -279,7 +279,7 @@ describe("ServerlessPlatformStack", () => {
         Timeout: 10,
         Environment: {
           Variables: {
-            APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
+            APOTH_ALLOWED_ORIGIN: "https://staging.apothhealth.com",
             APOTH_ALLOWED_ORIGINS: Match.anyValue(),
             APOTH_MDI_MODE: "synthetic",
             APOTH_MDI_QUESTIONNAIRE_ID: "mdi_questionnaire_launch",
@@ -374,7 +374,7 @@ describe("ServerlessPlatformStack", () => {
       Environment: {
         Variables: {
           APP_TABLE_NAME: Match.anyValue(),
-          APOTH_ALLOWED_ORIGIN: "http://localhost:3000",
+          APOTH_ALLOWED_ORIGIN: "https://staging.apothhealth.com",
           APOTH_ALLOWED_ORIGINS: Match.anyValue(),
           APOTH_STAGE: "staging",
           COGNITO_USER_POOL_CLIENT_ID: Match.anyValue(),
@@ -445,7 +445,7 @@ describe("ServerlessPlatformStack", () => {
       Environment: {
         Variables: Match.objectLike({
           APOTH_SECRET_STRIPE_API_ID: "/apoth/staging/stripe/api",
-          NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
+          NEXT_PUBLIC_SITE_URL: "https://staging.apothhealth.com",
         }),
       },
     });
@@ -668,13 +668,27 @@ describe("ServerlessPlatformStack", () => {
     });
   });
 
-  it("keeps staging on its generated CloudFront origin", () => {
+  it("binds the staging subdomain to a parameterized ACM certificate", () => {
     const template = synthesizeTemplate("staging");
 
-    const publicSiteOrigin = template.toJSON().Outputs?.PublicSiteOrigin?.Value;
-    expect(JSON.stringify(publicSiteOrigin)).toContain("StaticWebDistribution");
-    expect(JSON.stringify(publicSiteOrigin)).toContain("DomainName");
-    expect(template.toJSON().Parameters?.SiteCertificateArn).toBeUndefined();
+    template.hasParameter("SiteCertificateArn", {
+      Type: "String",
+      AllowedPattern:
+        "^arn:aws[a-zA-Z-]*:acm:us-east-1:[0-9]{12}:certificate/.+$",
+    });
+    template.hasResourceProperties("AWS::CloudFront::Distribution", {
+      DistributionConfig: Match.objectLike({
+        Aliases: ["staging.apothhealth.com"],
+        ViewerCertificate: Match.objectLike({
+          AcmCertificateArn: { Ref: "SiteCertificateArn" },
+          MinimumProtocolVersion: "TLSv1.2_2021",
+          SslSupportMethod: "sni-only",
+        }),
+      }),
+    });
+    template.hasOutput("PublicSiteOrigin", {
+      Value: "https://staging.apothhealth.com",
+    });
   });
 
   it("allows runtime API posts from the generated static distribution origin", () => {
@@ -867,6 +881,10 @@ describe("ServerlessPlatformStack", () => {
       authEmailFromAddress: "contact@apothhealth.com",
       checkoutUiMode: "custom",
       mdiMode: "synthetic",
+      siteDomain: {
+        primaryDomainName: "staging.apothhealth.com",
+        alternateDomainNames: [],
+      },
     });
     expect(getStageConfig("production")).toMatchObject({
       authEmailDomain: "apothhealth.com",
@@ -948,7 +966,10 @@ describe("ServerlessPlatformStack", () => {
           "x-apoth-checkout-initialization",
           "x-apoth-csrf",
         ]),
-        AllowOrigins: ["http://localhost:3000"],
+        AllowOrigins: [
+          "https://staging.apothhealth.com",
+          "http://localhost:3000",
+        ],
       },
     });
 

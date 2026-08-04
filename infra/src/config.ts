@@ -43,12 +43,15 @@ export function getStageConfig(stage: string): StageConfig {
   }
 
   const isProduction = stage === "production";
-  const siteDomain: SiteDomainConfig | null = isProduction
+  const siteDomain: SiteDomainConfig = isProduction
     ? {
         primaryDomainName: "apothhealth.com",
         alternateDomainNames: ["www.apothhealth.com"],
       }
-    : null;
+    : {
+        primaryDomainName: "staging.apothhealth.com",
+        alternateDomainNames: [],
+      };
 
   return {
     stage,
@@ -66,11 +69,12 @@ export function getStageConfig(stage: string): StageConfig {
     removalPolicy: isProduction ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
     logRetention: isProduction ? RetentionDays.ONE_MONTH : RetentionDays.ONE_WEEK,
     deletionProtection: isProduction,
-    allowedOrigins: siteDomain
-      ? [siteDomain.primaryDomainName, ...siteDomain.alternateDomainNames].map(
-          (domainName) => `https://${domainName}`,
-        )
-      : ["http://localhost:3000"],
+    allowedOrigins: [
+      ...[siteDomain.primaryDomainName, ...siteDomain.alternateDomainNames].map(
+        (domainName) => `https://${domainName}`,
+      ),
+      ...(isProduction ? [] : ["http://localhost:3000"]),
+    ],
     siteDomain,
     authEmailDomain: "apothhealth.com",
     authEmailFromAddress: "contact@apothhealth.com",

@@ -1713,7 +1713,7 @@ function handler(event) {
           new CfnParameter(this, "SiteCertificateArn", {
             type: "String",
             description:
-              "ARN of the us-east-1 ACM certificate covering the production site domains.",
+              `ARN of the us-east-1 ACM certificate covering the ${props.config.stage} site domains.`,
             allowedPattern:
               "^arn:aws[a-zA-Z-]*:acm:us-east-1:[0-9]{12}:certificate/.+$",
           }).valueAsString,

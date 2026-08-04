@@ -1,0 +1,447 @@
+name: Promote production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: "Full commit SHA that already passed the staging deployment"
+        required: true
+        type: string
+      confirmation:
+        description: "Type PROMOTE to authorize the production plan"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: apoth-production
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Validate staged release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      release_sha: ${{ steps.release.outputs.sha }}
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      GH_TOKEN: ${{ github.token }}
+      PRODUCTION_AWS_ACCOUNT_ID: ${{ vars.PRODUCTION_AWS_ACCOUNT_ID }}
+      PRODUCTION_AWS_REGION: ${{ vars.PRODUCTION_AWS_REGION }}
+      APOTH_STRIPE_PUBLISHABLE_KEY: ${{ vars.PRODUCTION_STRIPE_PUBLISHABLE_KEY }}
+
+    steps:
+      - name: Check trusted workflow branch
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Production promotions must be dispatched from main."
+            exit 1
+          fi
+
+      - name: Check promotion confirmation
+        run: |
+          if [ "${{ inputs.confirmation }}" != "PROMOTE" ]; then
+            echo "Production promotion requires the exact confirmation PROMOTE."
+            exit 1
+          fi
+
+      - name: Validate release SHA format
+        run: |
+          if ! [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "release_sha must be a full 40-character lowercase Git commit SHA."
+            exit 1
+          fi
+
+      - name: Check out staged release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_sha }}
+          fetch-depth: 0
+
+      - name: Verify release belongs to main
+        id: release
+        run: |
+          set -euo pipefail
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [ "${checked_out_sha}" != "${RELEASE_SHA}" ]; then
+            echo "Checked out ${checked_out_sha}, expected ${RELEASE_SHA}."
+            exit 1
+          fi
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${RELEASE_SHA}" origin/main; then
+            echo "The selected release is not part of origin/main."
+            exit 1
+          fi
+          echo "sha=${checked_out_sha}" >>"${GITHUB_OUTPUT}"
+
+      - name: Verify successful staging deployment
+        run: |
+          set -euo pipefail
+          runs_json="$(curl --fail --silent --show-error \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-static-ui.yml/runs?head_sha=${RELEASE_SHA}&status=success&per_page=50")"
+          if ! jq -e --arg sha "${RELEASE_SHA}" \
+            '.workflow_runs | any(.head_sha == $sha and .conclusion == "success")' \
+            <<<"${runs_json}" >/dev/null; then
+            echo "No successful staging deployment exists for ${RELEASE_SHA}."
+            exit 1
+          fi
+
+      - name: Validate production configuration
+        run: |
+          set -euo pipefail
+          : "${PRODUCTION_AWS_ACCOUNT_ID:?Set the PRODUCTION_AWS_ACCOUNT_ID repository variable.}"
+          : "${PRODUCTION_AWS_REGION:?Set the PRODUCTION_AWS_REGION repository variable.}"
+          if ! [[ "${PRODUCTION_AWS_ACCOUNT_ID}" =~ ^[0-9]{12}$ ]]; then
+            echo "PRODUCTION_AWS_ACCOUNT_ID must be a 12-digit AWS account ID."
+            exit 1
+          fi
+          if [ "${PRODUCTION_AWS_REGION}" != "us-east-1" ]; then
+            echo "The launch stack and CloudFront certificate must use us-east-1."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix infra ci
+
+      - name: Run application checks
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Run infrastructure checks
+        run: |
+          npm --prefix infra run build
+          npm --prefix infra test
+
+      - name: Synthesize production infrastructure
+        env:
+          APOTH_ALLOW_PRODUCTION_SYNTH: "true"
+          APOTH_PRODUCTION_ACCOUNT_ID: ${{ env.PRODUCTION_AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_ACCOUNT: ${{ env.PRODUCTION_AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.PRODUCTION_AWS_REGION }}
+        run: |
+          npm --prefix infra run synth -- \
+            --context stage=production \
+            Apoth-production-ServerlessPlatform
+
+      - name: Upload production template
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-template-${{ steps.release.outputs.sha }}
+          path: infra/cdk.out/Apoth-production-ServerlessPlatform.template.json
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy approved release
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: https://apothhealth.com
+    env:
+      RELEASE_SHA: ${{ needs.preflight.outputs.release_sha }}
+      AWS_ACCOUNT_ID: ${{ vars.PRODUCTION_AWS_ACCOUNT_ID }}
+      AWS_REGION: ${{ vars.PRODUCTION_AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.PRODUCTION_DEPLOY_ROLE_ARN }}
+      SITE_CERTIFICATE_ARN: ${{ vars.PRODUCTION_CERTIFICATE_ARN }}
+      CUSTOM_DOMAIN_READY: ${{ vars.PRODUCTION_CUSTOM_DOMAIN_READY }}
+      APOTH_STRIPE_PUBLISHABLE_KEY: ${{ vars.PRODUCTION_STRIPE_PUBLISHABLE_KEY }}
+      APOTH_STAGE: production
+      STACK_NAME: Apoth-production-ServerlessPlatform
+
+    steps:
+      - name: Check out approved release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.release_sha }}
+
+      - name: Validate deployment configuration
+        run: |
+          set -euo pipefail
+          : "${AWS_ACCOUNT_ID:?Set PRODUCTION_AWS_ACCOUNT_ID.}"
+          : "${AWS_REGION:?Set PRODUCTION_AWS_REGION.}"
+          : "${AWS_ROLE_ARN:?Set PRODUCTION_DEPLOY_ROLE_ARN.}"
+          : "${SITE_CERTIFICATE_ARN:?Set PRODUCTION_CERTIFICATE_ARN.}"
+          if [ "$(git rev-parse HEAD)" != "${RELEASE_SHA}" ]; then
+            echo "The deployment checkout does not match the approved release."
+            exit 1
+          fi
+          expected_certificate_prefix="arn:aws:acm:us-east-1:${AWS_ACCOUNT_ID}:certificate/"
+          if [[ "${SITE_CERTIFICATE_ARN}" != "${expected_certificate_prefix}"* ]]; then
+            echo "The certificate must belong to the production account in us-east-1."
+            exit 1
+          fi
+          expected_role_prefix="arn:aws:iam::${AWS_ACCOUNT_ID}:role/"
+          if [[ "${AWS_ROLE_ARN}" != "${expected_role_prefix}"* ]]; then
+            echo "The deploy role must belong to the configured production account."
+            exit 1
+          fi
+          if [ -n "${CUSTOM_DOMAIN_READY}" ] && \
+             [ "${CUSTOM_DOMAIN_READY}" != "true" ] && \
+             [ "${CUSTOM_DOMAIN_READY}" != "false" ]; then
+            echo "PRODUCTION_CUSTOM_DOMAIN_READY must be true or false."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix infra ci
+
+      - name: Install Playwright browser
+        if: env.CUSTOM_DOMAIN_READY == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS identity and certificate
+        run: |
+          set -euo pipefail
+          caller_account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "${caller_account}" != "${AWS_ACCOUNT_ID}" ]; then
+            echo "Authenticated to AWS account ${caller_account}, expected ${AWS_ACCOUNT_ID}."
+            exit 1
+          fi
+
+          certificate_json="$(aws acm describe-certificate \
+            --region us-east-1 \
+            --certificate-arn "${SITE_CERTIFICATE_ARN}" \
+            --output json)"
+          if ! jq -e '.Certificate.Status == "ISSUED"' \
+            <<<"${certificate_json}" >/dev/null; then
+            echo "The production certificate is not ISSUED."
+            exit 1
+          fi
+          if ! jq -e '
+            (.Certificate.SubjectAlternativeNames // []) as $names |
+            (($names | index("apothhealth.com")) != null) and
+            ((($names | index("www.apothhealth.com")) != null) or
+             (($names | index("*.apothhealth.com")) != null))
+          ' <<<"${certificate_json}" >/dev/null; then
+            echo "The certificate must cover apothhealth.com and www.apothhealth.com."
+            exit 1
+          fi
+
+      - name: Review CDK diff in deployment log
+        env:
+          APOTH_ALLOW_PRODUCTION_SYNTH: "true"
+          APOTH_PRODUCTION_ACCOUNT_ID: ${{ env.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        run: |
+          set -euo pipefail
+          npm --prefix infra exec -- cdk diff \
+            --context stage=production \
+            "${STACK_NAME}" \
+            --parameters SiteCertificateArn="${SITE_CERTIFICATE_ARN}" \
+            --no-change-set | tee production-cdk-diff.txt
+
+      - name: Deploy production infrastructure
+        env:
+          APOTH_ALLOW_PRODUCTION_SYNTH: "true"
+          APOTH_PRODUCTION_ACCOUNT_ID: ${{ env.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_ACCOUNT: ${{ env.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+        run: |
+          npm --prefix infra exec -- cdk deploy \
+            --context stage=production \
+            "${STACK_NAME}" \
+            --parameters SiteCertificateArn="${SITE_CERTIFICATE_ARN}" \
+            --require-approval never
+
+      - name: Resolve production stack outputs
+        run: |
+          set -euo pipefail
+          outputs_json="$(aws cloudformation describe-stacks \
+            --region "${AWS_REGION}" \
+            --stack-name "${STACK_NAME}" \
+            --query 'Stacks[0].Outputs' \
+            --output json)"
+
+          get_output() {
+            jq -r --arg key "$1" '.[] | select(.OutputKey == $key) | .OutputValue // empty' \
+              <<<"${outputs_json}"
+          }
+
+          static_bucket_name="$(get_output StaticAssetsBucketName)"
+          patient_app_bucket_name="$(get_output PatientAppBucketName)"
+          static_distribution_domain="$(get_output StaticWebDistributionDomainName)"
+          static_distribution_id="$(get_output StaticWebDistributionId)"
+          public_site_origin="$(get_output PublicSiteOrigin)"
+          cognito_user_pool_id="$(get_output PatientUserPoolId)"
+          cognito_user_pool_client_id="$(get_output PatientUserPoolClientId)"
+          stripe_publishable_key="$(get_output StripePublishableKey)"
+
+          for name in \
+            static_bucket_name \
+            patient_app_bucket_name \
+            static_distribution_domain \
+            static_distribution_id \
+            public_site_origin \
+            cognito_user_pool_id \
+            cognito_user_pool_client_id
+          do
+            if [ -z "${!name}" ]; then
+              echo "Missing required CloudFormation output: ${name}"
+              exit 1
+            fi
+          done
+
+          if [ "${public_site_origin}" != "https://apothhealth.com" ]; then
+            echo "Unexpected production PublicSiteOrigin: ${public_site_origin}"
+            exit 1
+          fi
+
+          {
+            echo "STATIC_BUCKET_NAME=${static_bucket_name}"
+            echo "PATIENT_APP_BUCKET_NAME=${patient_app_bucket_name}"
+            echo "STATIC_DISTRIBUTION_DOMAIN=${static_distribution_domain}"
+            echo "STATIC_DISTRIBUTION_ID=${static_distribution_id}"
+            echo "PUBLIC_SITE_ORIGIN=${public_site_origin}"
+            echo "DEPLOYMENT_SMOKE_ORIGIN=https://${static_distribution_domain}"
+            echo "VITE_APOTH_STAGE=production"
+            echo "NEXT_PUBLIC_COGNITO_REGION=${AWS_REGION}"
+            echo "NEXT_PUBLIC_COGNITO_USER_POOL_ID=${cognito_user_pool_id}"
+            echo "NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID=${cognito_user_pool_client_id}"
+            echo "VITE_COGNITO_REGION=${AWS_REGION}"
+            echo "VITE_COGNITO_USER_POOL_ID=${cognito_user_pool_id}"
+            echo "VITE_COGNITO_USER_POOL_CLIENT_ID=${cognito_user_pool_client_id}"
+            echo "NEXT_PUBLIC_SITE_URL=${public_site_origin}"
+            echo "NEXT_PUBLIC_ACCOUNT_ORIGIN=${public_site_origin}"
+            echo "VITE_MARKETING_ORIGIN=${public_site_origin}"
+            if [ -n "${stripe_publishable_key}" ]; then
+              echo "VITE_STRIPE_PUBLISHABLE_KEY=${stripe_publishable_key}"
+            fi
+          } >>"${GITHUB_ENV}"
+
+      - name: Build production artifacts
+        run: |
+          npm run build:static
+          npm run patient:build
+          cp dist/patient-app/index.html dist/patient-app/patient-index.html
+          test -f out/index.html
+          test -f out/about/index.html
+          test -f out/privacy/index.html
+          test -f out/terms/index.html
+          test -f dist/patient-app/patient-index.html
+          grep -R -F -q \
+            "${PUBLIC_SITE_ORIGIN}/checkout?product=weight" out
+
+      - name: Back up current production UI
+        id: backup
+        run: |
+          set -euo pipefail
+          rollback_root="${RUNNER_TEMP}/apoth-production-ui-rollback"
+          mkdir -p "${rollback_root}/marketing" "${rollback_root}/patient"
+          aws s3 sync "s3://${STATIC_BUCKET_NAME}/" "${rollback_root}/marketing/" \
+            --only-show-errors
+          aws s3 sync "s3://${PATIENT_APP_BUCKET_NAME}/" "${rollback_root}/patient/" \
+            --only-show-errors
+          echo "ROLLBACK_ROOT=${rollback_root}" >>"${GITHUB_ENV}"
+          echo "ready=true" >>"${GITHUB_OUTPUT}"
+
+      - name: Publish production UI
+        run: |
+          aws s3 sync out/ "s3://${STATIC_BUCKET_NAME}/" \
+            --delete --only-show-errors
+          aws s3 sync dist/patient-app/ "s3://${PATIENT_APP_BUCKET_NAME}/" \
+            --delete --only-show-errors
+
+      - name: Invalidate CloudFront
+        id: invalidate
+        run: |
+          invalidation_id="$(aws cloudfront create-invalidation \
+            --distribution-id "${STATIC_DISTRIBUTION_ID}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)"
+          echo "id=${invalidation_id}" >>"${GITHUB_OUTPUT}"
+
+      - name: Wait for invalidation
+        run: |
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${STATIC_DISTRIBUTION_ID}" \
+            --id "${{ steps.invalidate.outputs.id }}"
+
+      - name: Smoke test CloudFront distribution
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "${DEPLOYMENT_SMOKE_ORIGIN}/" >/dev/null
+          curl --fail --silent --show-error "${DEPLOYMENT_SMOKE_ORIGIN}/about" >/dev/null
+          curl --fail --silent --show-error \
+            "${DEPLOYMENT_SMOKE_ORIGIN}/checkout?product=weight" >/dev/null
+          curl --fail --silent --show-error \
+            "${DEPLOYMENT_SMOKE_ORIGIN}/portal/launch" >/dev/null
+
+          api_status="$(curl --silent --show-error --request DELETE \
+            --output /tmp/apoth-production-api-smoke.json \
+            --write-out '%{http_code}' \
+            "${DEPLOYMENT_SMOKE_ORIGIN}/api/auth/session")"
+          test "${api_status}" = "200"
+          grep -q '"status":"session_cleared"' \
+            /tmp/apoth-production-api-smoke.json
+
+      - name: Verify custom domain and public E2E
+        if: env.CUSTOM_DOMAIN_READY == 'true'
+        run: |
+          curl --fail --silent --show-error "${PUBLIC_SITE_ORIGIN}/" >/dev/null
+          curl --fail --silent --show-error "${PUBLIC_SITE_ORIGIN}/about" >/dev/null
+          PLAYWRIGHT_MARKETING_BASE_URL="${PUBLIC_SITE_ORIGIN}" \
+          PLAYWRIGHT_PATIENT_BASE_URL="${PUBLIC_SITE_ORIGIN}" \
+            npm run test:e2e -- --project=public-chromium --workers=2
+
+      - name: Roll back production UI
+        if: failure() && steps.backup.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          aws s3 sync "${ROLLBACK_ROOT}/marketing/" "s3://${STATIC_BUCKET_NAME}/" \
+            --delete --only-show-errors
+          aws s3 sync "${ROLLBACK_ROOT}/patient/" "s3://${PATIENT_APP_BUCKET_NAME}/" \
+            --delete --only-show-errors
+          rollback_id="$(aws cloudfront create-invalidation \
+            --distribution-id "${STATIC_DISTRIBUTION_ID}" \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)"
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${STATIC_DISTRIBUTION_ID}" \
+            --id "${rollback_id}"
+          echo "Rolled back production UI to its pre-deploy snapshot."
+
+      - name: Upload deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deployment-${{ needs.preflight.outputs.release_sha }}
+          path: |
+            production-cdk-diff.txt
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore

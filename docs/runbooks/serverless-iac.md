@@ -19,7 +19,8 @@ npm --prefix infra install
 npm --prefix infra test
 npm --prefix infra run build
 npm --prefix infra run synth -- --context stage=staging
-npm --prefix infra run diff -- --context stage=staging
+APOTH_SITE_CERTIFICATE_ARN="arn:aws:acm:us-east-1:329425487030:certificate/CERTIFICATE_ID" \
+  npm --prefix infra run diff:staging
 ```
 
 Use `stage=production` only after the AWS account baseline runbook is complete
@@ -31,6 +32,12 @@ APOTH_ALLOW_PRODUCTION_SYNTH=true \
 APOTH_PRODUCTION_ACCOUNT_ID=329425487030 \
 npm --prefix infra run synth -- --context stage=production
 ```
+
+Both deployed site stages require an issued ACM certificate in `us-east-1`.
+Staging uses a separate certificate covering `staging.apothhealth.com`; set its
+ARN in the `STAGING_CERTIFICATE_ARN` GitHub repository variable and run the
+`Deploy staging infrastructure` workflow before adding the Porkbun `staging`
+`CNAME`.
 
 The first production deploy requires the ARN of an issued ACM certificate in
 `us-east-1` that covers both `apothhealth.com` and `www.apothhealth.com`. Pass
@@ -51,6 +58,14 @@ Keep the ACM DNS-validation CNAME records at Porkbun so the certificate can
 renew automatically. After the production distribution deploys, point the
 Porkbun root `ALIAS` and `www` `CNAME` at the
 `StaticWebDistributionDomainName` output.
+
+The protected `Promote production` workflow is the standard production path.
+It promotes an exact commit that already has a successful staging deployment,
+requires the GitHub `production` environment gate, validates the target AWS
+account and certificate, deploys CDK, publishes both static artifacts, and
+records smoke-test evidence. See
+`docs/features/production-promotion-and-staging-domain.md` for the one-time AWS,
+GitHub, and Porkbun setup.
 
 ## Stage Selection
 
