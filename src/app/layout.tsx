@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   },
   description:
     "Online weight management and wellness intake with independent licensed providers, coordinated through the Apoth technology platform.",
-  // TODO: replace with the real production domain before launch
+  // The static publish injects the stage's canonical public origin.
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   ),

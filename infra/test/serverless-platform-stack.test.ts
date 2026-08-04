@@ -645,6 +645,38 @@ describe("ServerlessPlatformStack", () => {
     expect(staticCleanFunction?.Properties.FunctionCode).not.toContain('"/account"');
   });
 
+  it("binds the production site domains to a parameterized ACM certificate", () => {
+    const template = synthesizeTemplate("production");
+
+    template.hasParameter("SiteCertificateArn", {
+      Type: "String",
+      AllowedPattern:
+        "^arn:aws[a-zA-Z-]*:acm:us-east-1:[0-9]{12}:certificate/.+$",
+    });
+    template.hasResourceProperties("AWS::CloudFront::Distribution", {
+      DistributionConfig: Match.objectLike({
+        Aliases: ["apothhealth.com", "www.apothhealth.com"],
+        ViewerCertificate: Match.objectLike({
+          AcmCertificateArn: { Ref: "SiteCertificateArn" },
+          MinimumProtocolVersion: "TLSv1.2_2021",
+          SslSupportMethod: "sni-only",
+        }),
+      }),
+    });
+    template.hasOutput("PublicSiteOrigin", {
+      Value: "https://apothhealth.com",
+    });
+  });
+
+  it("keeps staging on its generated CloudFront origin", () => {
+    const template = synthesizeTemplate("staging");
+
+    const publicSiteOrigin = template.toJSON().Outputs?.PublicSiteOrigin?.Value;
+    expect(JSON.stringify(publicSiteOrigin)).toContain("StaticWebDistribution");
+    expect(JSON.stringify(publicSiteOrigin)).toContain("DomainName");
+    expect(template.toJSON().Parameters?.SiteCertificateArn).toBeUndefined();
+  });
+
   it("allows runtime API posts from the generated static distribution origin", () => {
     const template = synthesizeTemplate();
     const rendered = JSON.stringify(
@@ -841,6 +873,10 @@ describe("ServerlessPlatformStack", () => {
       authEmailFromAddress: "contact@apothhealth.com",
       checkoutUiMode: "hosted",
       mdiMode: "live",
+      siteDomain: {
+        primaryDomainName: "apothhealth.com",
+        alternateDomainNames: ["www.apothhealth.com"],
+      },
     });
   });
 
@@ -923,7 +959,10 @@ describe("ServerlessPlatformStack", () => {
           "x-apoth-checkout-initialization",
           "x-apoth-csrf",
         ]),
-        AllowOrigins: ["https://apoth.health"],
+        AllowOrigins: [
+          "https://apothhealth.com",
+          "https://www.apothhealth.com",
+        ],
       },
     });
   });
@@ -1317,6 +1356,7 @@ describe("ServerlessPlatformStack", () => {
       "StaticAssetsBucketName",
       "StaticWebDistributionDomainName",
       "StaticWebDistributionId",
+      "PublicSiteOrigin",
       "WebhookQueueUrl",
       "WebhookQueueArn",
       "WebhookDeadLetterQueueUrl",

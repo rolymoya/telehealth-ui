@@ -1,72 +1,68 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { CheckoutCompletion } from "@/patient/commerce/CheckoutCompletion";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CheckoutStart } from "@/patient/commerce/CheckoutStart";
 import { PortalLaunch } from "@/patient/commerce/PortalLaunch";
 
+beforeEach(() => {
+  vi.stubEnv("VITE_APOTH_STAGE", "staging");
+  vi.stubEnv("VITE_STRIPE_PUBLISHABLE_KEY", "pk_test_apoth_checkout");
+  globalThis.sessionStorage.clear();
+});
+
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
 describe("checkout-as-signup UI", () => {
-  it("presents payment and account creation as one ecommerce checkout", () => {
-    render(<MemoryRouter initialEntries={["/checkout?product=weight"]}><CheckoutStart /></MemoryRouter>);
+  it("fails closed before contacting checkout for a missing product", () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
 
-    expect(screen.getByRole("heading", { name: /one checkout/i })).toBeInTheDocument();
-    expect(screen.getByText("$0")).toBeInTheDocument();
-    expect(screen.getByText(/apple pay appears automatically/i)).toBeInTheDocument();
-    expect(screen.getByText(/no separate signup form or password/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /continue to checkout/i })).toBeEnabled();
+    render(
+      <MemoryRouter initialEntries={["/checkout"]}>
+        <CheckoutStart productCode={null} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", {
+      name: /couldn’t open secure checkout/i,
+    })).toBeInTheDocument();
+    expect(screen.getByText(/that plan is not available/i)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("posts only the public catalog code and explicit checkout intent", async () => {
+  it("posts only the active public product and opaque initialization key", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "checkout_unavailable" }), {
         status: 503,
         headers: { "content-type": "application/json" },
       }),
     );
-    const user = userEvent.setup();
-    render(<MemoryRouter initialEntries={["/checkout?product=hair"]}><CheckoutStart /></MemoryRouter>);
-
-    await user.click(screen.getByRole("button", { name: /continue to checkout/i }));
-    expect(fetchMock).toHaveBeenCalledWith("/api/enrollment/checkout", expect.objectContaining({
-      body: JSON.stringify({ catalogCode: "hair" }),
-      credentials: "include",
-      method: "POST",
-      headers: expect.objectContaining({
-        "content-type": "application/json",
-        "x-apoth-checkout-intent": "create",
-      }),
-    }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      /local checkout needs stripe test-mode configuration/i,
+    render(
+      <MemoryRouter initialEntries={["/checkout?product=weight"]}>
+        <CheckoutStart productCode="weight" />
+      </MemoryRouter>,
     );
-  });
 
-  it("moves from signed Stripe readiness to email OTP without displaying the email", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(jsonResponse({ status: "verification_ready" }))
-      .mockResolvedValueOnce(jsonResponse({
-        status: "verification_code_sent",
-        transactionHandle: "transaction_handle_1234567890",
-      }));
-    const user = userEvent.setup();
-    render(<MemoryRouter><CheckoutCompletion /></MemoryRouter>);
-
-    expect(await screen.findByRole("heading", { name: /confirm the email used at checkout/i }))
-      .toBeInTheDocument();
-    expect(screen.queryByText(/@/)).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /email me a code/i }));
-    expect(await screen.findByLabelText("Six-digit code")).toHaveAttribute("autocomplete", "one-time-code");
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/auth/email-otp/start", expect.objectContaining({
-      method: "POST",
-      headers: expect.objectContaining({
-        "x-apoth-checkout-intent": "start-email-otp",
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/enrollment/checkout",
+      expect.objectContaining({
+        body: JSON.stringify({ product: "weight" }),
+        credentials: "include",
+        method: "POST",
+        headers: expect.objectContaining({
+          "content-type": "application/json",
+          "x-apoth-checkout-initialization": expect.any(String),
+        }),
       }),
-    }));
+    ));
+    expect(await screen.findByText(
+      /secure checkout is temporarily unavailable/i,
+    )).toBeInTheDocument();
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).not.toEqual(
+      expect.objectContaining({ "x-apoth-checkout-intent": expect.anything() }),
+    );
   });
 
   it("uses a same-origin form navigation for the portal handoff", () => {
@@ -78,10 +74,3 @@ describe("checkout-as-signup UI", () => {
     expect(screen.getByText(/charged only if treatment is approved/i)).toBeInTheDocument();
   });
 });
-
-function jsonResponse(body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
-}

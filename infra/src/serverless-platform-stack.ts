@@ -1,6 +1,7 @@
 import {
   ArnFormat,
   CfnOutput,
+  CfnParameter,
   Duration,
   Stack,
   Tags,
@@ -31,6 +32,7 @@ import { AccessLogFormat } from "aws-cdk-lib/aws-apigateway";
 import { LogGroupLogDestination } from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpJwtAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
 import {
   AllowedMethods,
   CachePolicy,
@@ -41,6 +43,7 @@ import {
   OriginProtocolPolicy,
   OriginRequestPolicy,
   ResponseHeadersPolicy,
+  SecurityPolicyProtocol,
   ViewerProtocolPolicy,
 } from "aws-cdk-lib/aws-cloudfront";
 import {
@@ -1703,8 +1706,30 @@ function handler(event) {
       viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
     };
 
+    const siteCertificate = props.config.siteDomain
+      ? Certificate.fromCertificateArn(
+          this,
+          "SiteCertificate",
+          new CfnParameter(this, "SiteCertificateArn", {
+            type: "String",
+            description:
+              "ARN of the us-east-1 ACM certificate covering the production site domains.",
+            allowedPattern:
+              "^arn:aws[a-zA-Z-]*:acm:us-east-1:[0-9]{12}:certificate/.+$",
+          }).valueAsString,
+        )
+      : undefined;
+    const siteDomainNames = props.config.siteDomain
+      ? [
+          props.config.siteDomain.primaryDomainName,
+          ...props.config.siteDomain.alternateDomainNames,
+        ]
+      : undefined;
+
     const staticWebDistribution = new Distribution(this, "StaticWebDistribution", {
+      certificate: siteCertificate,
       comment: `Apoth ${props.config.stage} marketing, patient app, and same-origin API`,
+      domainNames: siteDomainNames,
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(staticAssetsBucket),
         allowedMethods: AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
@@ -1750,7 +1775,14 @@ function handler(event) {
         "sign-up*": patientAppBehavior,
         "verify-email*": patientAppBehavior,
       },
+      minimumProtocolVersion: siteCertificate
+        ? SecurityPolicyProtocol.TLS_V1_2_2021
+        : undefined,
     });
+
+    const publicSiteOrigin = props.config.siteDomain
+      ? `https://${props.config.siteDomain.primaryDomainName}`
+      : `https://${staticWebDistribution.distributionDomainName}`;
 
     const runtimeAllowedOrigins = [
       ...props.config.allowedOrigins,
@@ -1797,6 +1829,9 @@ function handler(event) {
     });
     new CfnOutput(this, "StaticWebDistributionId", {
       value: staticWebDistribution.distributionId,
+    });
+    new CfnOutput(this, "PublicSiteOrigin", {
+      value: publicSiteOrigin,
     });
     new CfnOutput(this, "WebhookQueueUrl", { value: webhookQueue.queueUrl });
     new CfnOutput(this, "WebhookQueueArn", { value: webhookQueue.queueArn });

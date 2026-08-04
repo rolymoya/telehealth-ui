@@ -15,6 +15,26 @@ export type PublicStripeConfig =
       reason: "missing" | "stage_mismatch";
     };
 
+export function marketingHref(path: `/${string}`) {
+  const configured = import.meta.env.VITE_MARKETING_ORIGIN?.trim();
+  if (!configured) {
+    return import.meta.env.DEV ? `http://127.0.0.1:3000${path}` : path;
+  }
+  try {
+    const url = new URL(configured);
+    const isLocalDevelopment = import.meta.env.DEV &&
+      url.protocol === "http:" &&
+      (url.hostname === "127.0.0.1" || url.hostname === "localhost");
+    return (url.protocol === "https:" || isLocalDevelopment) &&
+        url.username === "" &&
+        url.password === ""
+      ? new URL(path, `${url.origin}/`).toString()
+      : path;
+  } catch {
+    return path;
+  }
+}
+
 export function publicPatientConfig(): PublicPatientConfig {
   return {
     cognitoRegion: import.meta.env.VITE_COGNITO_REGION ?? "",

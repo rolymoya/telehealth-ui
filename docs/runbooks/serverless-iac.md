@@ -32,6 +32,26 @@ APOTH_PRODUCTION_ACCOUNT_ID=329425487030 \
 npm --prefix infra run synth -- --context stage=production
 ```
 
+The first production deploy requires the ARN of an issued ACM certificate in
+`us-east-1` that covers both `apothhealth.com` and `www.apothhealth.com`. Pass
+it as a CloudFormation parameter; do not hard-code the account-specific ARN in
+Git:
+
+```bash
+export APOTH_SITE_CERTIFICATE_ARN="arn:aws:acm:us-east-1:AWS_ACCOUNT_ID:certificate/CERTIFICATE_ID"
+APOTH_ALLOW_PRODUCTION_SYNTH=true \
+APOTH_PRODUCTION_ACCOUNT_ID=329425487030 \
+npm --prefix infra exec -- cdk deploy \
+  --context stage=production \
+  Apoth-production-ServerlessPlatform \
+  --parameters SiteCertificateArn="$APOTH_SITE_CERTIFICATE_ARN"
+```
+
+Keep the ACM DNS-validation CNAME records at Porkbun so the certificate can
+renew automatically. After the production distribution deploys, point the
+Porkbun root `ALIAS` and `www` `CNAME` at the
+`StaticWebDistributionDomainName` output.
+
 ## Stage Selection
 
 The CDK app reads stage from CDK context first, then `APOTH_STAGE`, then falls
@@ -79,6 +99,7 @@ The stack outputs identifiers needed by app configuration:
 - API endpoint.
 - Static S3 bucket name.
 - Static CloudFront distribution domain name and distribution ID.
+- Public site origin used by builds and deployed smoke tests.
 - Webhook queue and DLQ URLs/ARNs.
 - Scheduled heartbeat Lambda name.
 - Stripe-MDI billing reconciliation Lambda name.
@@ -90,10 +111,11 @@ real credentials in Secrets Manager only.
 
 Static UI asset publishes are handled by the dedicated `Deploy static UI`
 GitHub Actions workflow or the manual fallback in
-`docs/runbooks/staging-cdk-deploy-handoff.md`. That path uploads only the
-static `out/` artifact to S3 and invalidates CloudFront; it does not deploy
-API, Lambda, Cognito, DynamoDB, or CDK changes unless an operator separately
-invokes CDK.
+`docs/runbooks/staging-cdk-deploy-handoff.md`. That path uploads the marketing
+`out/` and patient `dist/patient-app/` artifacts to their S3 buckets and
+invalidates their shared CloudFront distribution; it does not deploy API,
+Lambda, Cognito, DynamoDB, or CDK changes unless an operator separately invokes
+CDK.
 
 ## Cognito Patient Auth Setup
 

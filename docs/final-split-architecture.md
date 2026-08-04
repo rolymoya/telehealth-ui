@@ -1,13 +1,13 @@
 # Final Split Architecture
 
-Apoth uses three production route owners behind two CloudFront distributions:
+Apoth uses three production route owners behind one CloudFront distribution:
 
 - Marketing/legal static site: Next static export in `out/`, served from the
-  static assets bucket and marketing distribution.
+  static assets bucket.
 - Patient app: Vite React SPA in `dist/patient-app/`, served from the patient
-  app bucket and account distribution.
+  app bucket on patient-route cache behaviors.
 - Runtime APIs: API Gateway HTTP API backed by Lambda handlers under
-  `infra/src/lambda`.
+  `infra/src/lambda`, reached through the `/api/*` cache behavior.
 
 ## Route Ownership
 
@@ -114,15 +114,16 @@ The static UI workflow builds and syncs two artifacts:
 - `npm run build:static` -> `out/` -> marketing static bucket
 - `npm run patient:build` -> `dist/patient-app/` -> patient app bucket
 
-The account distribution routes `/api/*` to API Gateway and all patient routes
-to the patient app bucket. The marketing distribution serves only the public
-static export. The publish workflow injects each distribution's origin into
-the other artifact before building, so navigation crosses the boundary with an
-absolute URL.
+The distribution routes `/api/*` to API Gateway, patient routes to the patient
+app bucket, and public marketing routes to the static export bucket. Production
+attaches `apothhealth.com` and `www.apothhealth.com` to this distribution with
+an ACM certificate supplied at deploy time. The publish workflow injects the
+stack's `PublicSiteOrigin` into both artifacts so marketing, account, and API
+navigation stay on one origin.
 
 The deploy workflow snapshots the current marketing and patient S3 buckets
-before upload. After sync and CloudFront invalidation, it runs route smoke tests
-and deploy-safe Playwright coverage against the deployed CloudFront URL:
+before upload. After sync and one CloudFront invalidation, it runs route smoke
+tests and deploy-safe Playwright coverage against the deployed public origin:
 public/static routes plus patient auth and route-guard shells. The deeper
 intake, dashboard, and billing E2E specs remain local contract tests because
 they install mocked API guards that intentionally block non-local document

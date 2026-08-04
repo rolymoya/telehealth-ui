@@ -185,9 +185,9 @@ with `permissions: id-token: write` and
 ## Static UI Publish
 
 The static UI publish path is intentionally separate from CDK/API deployment.
-It builds the Next.js static artifact, discovers the staging S3 bucket and
-CloudFront distribution from CloudFormation outputs, uploads only `out/`, and
-invalidates CloudFront.
+It builds the Next.js and patient-app static artifacts, discovers both staging
+S3 buckets and their shared CloudFront distribution from CloudFormation
+outputs, uploads `out/` and `dist/patient-app/`, and invalidates CloudFront.
 
 Use the GitHub Actions workflow `Deploy static UI` from the `main` branch for
 the standard staging publish. The current AWS OIDC trust policy accepts only
@@ -219,14 +219,16 @@ export STATIC_BUCKET_NAME="$(jq -r '.[] | select(.OutputKey == "StaticAssetsBuck
 export PATIENT_APP_BUCKET_NAME="$(jq -r '.[] | select(.OutputKey == "PatientAppBucketName") | .OutputValue' <<<"$outputs_json")"
 export STATIC_DISTRIBUTION_DOMAIN="$(jq -r '.[] | select(.OutputKey == "StaticWebDistributionDomainName") | .OutputValue' <<<"$outputs_json")"
 export STATIC_DISTRIBUTION_ID="$(jq -r '.[] | select(.OutputKey == "StaticWebDistributionId") | .OutputValue' <<<"$outputs_json")"
-export PATIENT_DISTRIBUTION_DOMAIN="$(jq -r '.[] | select(.OutputKey == "PatientAppDistributionDomainName") | .OutputValue' <<<"$outputs_json")"
-export PATIENT_DISTRIBUTION_ID="$(jq -r '.[] | select(.OutputKey == "PatientAppDistributionId") | .OutputValue' <<<"$outputs_json")"
+export PUBLIC_SITE_ORIGIN="$(jq -r '.[] | select(.OutputKey == "PublicSiteOrigin") | .OutputValue' <<<"$outputs_json")"
+if [ -z "$PUBLIC_SITE_ORIGIN" ]; then
+  export PUBLIC_SITE_ORIGIN="https://${STATIC_DISTRIBUTION_DOMAIN}"
+fi
 export NEXT_PUBLIC_COGNITO_REGION="$AWS_REGION"
 export NEXT_PUBLIC_COGNITO_USER_POOL_ID="$(jq -r '.[] | select(.OutputKey == "PatientUserPoolId") | .OutputValue' <<<"$outputs_json")"
 export NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID="$(jq -r '.[] | select(.OutputKey == "PatientUserPoolClientId") | .OutputValue' <<<"$outputs_json")"
-export NEXT_PUBLIC_SITE_URL="https://${STATIC_DISTRIBUTION_DOMAIN}"
-export NEXT_PUBLIC_ACCOUNT_ORIGIN="https://${PATIENT_DISTRIBUTION_DOMAIN}"
-export VITE_MARKETING_ORIGIN="https://${STATIC_DISTRIBUTION_DOMAIN}"
+export NEXT_PUBLIC_SITE_URL="$PUBLIC_SITE_ORIGIN"
+export NEXT_PUBLIC_ACCOUNT_ORIGIN="$PUBLIC_SITE_ORIGIN"
+export VITE_MARKETING_ORIGIN="$PUBLIC_SITE_ORIGIN"
 export VITE_COGNITO_REGION="$NEXT_PUBLIC_COGNITO_REGION"
 export VITE_COGNITO_USER_POOL_ID="$NEXT_PUBLIC_COGNITO_USER_POOL_ID"
 export VITE_COGNITO_USER_POOL_CLIENT_ID="$NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID"
@@ -257,31 +259,21 @@ static_invalidation_id="$(aws cloudfront create-invalidation \
   --paths "/*" \
   --query 'Invalidation.Id' \
   --output text)"
-patient_invalidation_id="$(aws cloudfront create-invalidation \
-  --profile "$AWS_PROFILE" \
-  --distribution-id "$PATIENT_DISTRIBUTION_ID" \
-  --paths "/*" \
-  --query 'Invalidation.Id' \
-  --output text)"
 aws cloudfront wait invalidation-completed \
   --profile "$AWS_PROFILE" \
   --distribution-id "$STATIC_DISTRIBUTION_ID" \
   --id "$static_invalidation_id"
-aws cloudfront wait invalidation-completed \
-  --profile "$AWS_PROFILE" \
-  --distribution-id "$PATIENT_DISTRIBUTION_ID" \
-  --id "$patient_invalidation_id"
-curl --fail --silent --show-error "https://${STATIC_DISTRIBUTION_DOMAIN}/" >/dev/null
-curl --fail --silent --show-error "https://${STATIC_DISTRIBUTION_DOMAIN}/weight-loss" >/dev/null
-curl --fail --silent --show-error "https://${PATIENT_DISTRIBUTION_DOMAIN}/checkout?product=weight" >/dev/null
+curl --fail --silent --show-error "${PUBLIC_SITE_ORIGIN}/" >/dev/null
+curl --fail --silent --show-error "${PUBLIC_SITE_ORIGIN}/weight-loss" >/dev/null
+curl --fail --silent --show-error "${PUBLIC_SITE_ORIGIN}/checkout?product=weight" >/dev/null
 api_status="$(curl --silent --show-error --output /tmp/apoth-api-smoke.json \
   --write-out '%{http_code}' \
-  "https://${PATIENT_DISTRIBUTION_DOMAIN}/api/enrollment/status")"
+  "${PUBLIC_SITE_ORIGIN}/api/enrollment/status")"
 test "$api_status" = "200"
 grep -q '"status":"restart_required"' /tmp/apoth-api-smoke.json
 ```
 
-If either distribution output is missing, deploy the updated staging CDK stack
+If the distribution output is missing, deploy the updated staging CDK stack
 first and then retry the UI publish. If S3 sync or CloudFront invalidation is
 denied, deploy the updated account-baseline stack so the GitHub OIDC role has
 the narrow static publish policy. Do not hard-code generated bucket names or

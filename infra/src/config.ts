@@ -3,6 +3,11 @@ import { RetentionDays } from "aws-cdk-lib/aws-logs";
 
 export type StageName = "staging" | "production";
 
+export type SiteDomainConfig = {
+  primaryDomainName: string;
+  alternateDomainNames: string[];
+};
+
 export type StageConfig = {
   stage: StageName;
   checkoutSignup: {
@@ -15,6 +20,7 @@ export type StageConfig = {
   logRetention: RetentionDays;
   deletionProtection: boolean;
   allowedOrigins: string[];
+  siteDomain: SiteDomainConfig | null;
   authEmailDomain: string;
   authEmailFromAddress: string;
   mdiMode: "live" | "synthetic";
@@ -37,6 +43,12 @@ export function getStageConfig(stage: string): StageConfig {
   }
 
   const isProduction = stage === "production";
+  const siteDomain: SiteDomainConfig | null = isProduction
+    ? {
+        primaryDomainName: "apothhealth.com",
+        alternateDomainNames: ["www.apothhealth.com"],
+      }
+    : null;
 
   return {
     stage,
@@ -54,9 +66,12 @@ export function getStageConfig(stage: string): StageConfig {
     removalPolicy: isProduction ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
     logRetention: isProduction ? RetentionDays.ONE_MONTH : RetentionDays.ONE_WEEK,
     deletionProtection: isProduction,
-    allowedOrigins: isProduction
-      ? ["https://apoth.health"]
+    allowedOrigins: siteDomain
+      ? [siteDomain.primaryDomainName, ...siteDomain.alternateDomainNames].map(
+          (domainName) => `https://${domainName}`,
+        )
       : ["http://localhost:3000"],
+    siteDomain,
     authEmailDomain: "apothhealth.com",
     authEmailFromAddress: "contact@apothhealth.com",
     mdiMode: resolveMdiMode(stage),
