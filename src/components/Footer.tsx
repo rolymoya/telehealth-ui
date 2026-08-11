@@ -37,7 +37,7 @@ const footerGroups = [
 
 export function Footer() {
   return (
-    <footer className="bg-[#1e1e20] px-5 py-16 text-white lg:px-8">
+    <footer id="footer" className="bg-[#1e1e20] px-5 py-16 text-white lg:px-8">
       <div className="mx-auto max-w-[1270px]">
         <div className="grid gap-12 md:grid-cols-[1.2fr_2fr]">
           <div>

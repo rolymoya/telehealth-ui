@@ -8,7 +8,7 @@ test.describe("@smoke public launch path", () => {
     await expect(page).toHaveTitle(/Apoth/);
     await expect(page.getByRole("main")).toBeVisible();
 
-    await expect(page.getByRole("link", { name: "Get started" }).first())
+    await expect(page.getByRole("link", { name: "See if online care fits" }).first())
       .toHaveAttribute("href", expectedPatientHref("/get-started?product=weight"));
   });
 });

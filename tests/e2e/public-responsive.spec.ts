@@ -22,7 +22,7 @@ for (const viewport of viewportCases) {
         page.getByRole("heading", { name: "Better health has never been easier" }),
       ).toBeInViewport();
       if (viewport.name === "desktop") {
-        await expect(page.getByRole("link", { name: "Get started" }).first())
+        await expect(page.getByRole("link", { name: "See if online care fits" }).first())
           .toBeInViewport();
       } else {
         await expect(page.getByRole("button", { name: "Open menu" })).toBeInViewport();
@@ -59,11 +59,11 @@ test("keyboard focus exposes skip link and reaches the staged enrollment CTA", a
   for (let i = 0; i < 6; i += 1) {
     await page.keyboard.press("Tab");
     const focusedName = await page.evaluate(() => document.activeElement?.textContent);
-    if (focusedName?.includes("Get started")) {
+    if (focusedName?.includes("See if online care fits")) {
       break;
     }
   }
 
-  await expect(page.getByRole("link", { name: "Get started" }).first()).toBeFocused();
+  await expect(page.getByRole("link", { name: "See if online care fits" }).first()).toBeFocused();
   errors.expectNone();
 });

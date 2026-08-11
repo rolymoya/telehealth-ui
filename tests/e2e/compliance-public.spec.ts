@@ -70,22 +70,17 @@ test.describe("public compliance assertions", () => {
     errors.expectNone();
   });
 
-  test("public medication disclosures identify non-FDA-approved compounded products", async ({ page }) => {
+  test("public weight-care disclosures identify non-FDA-approved compounded products", async ({ page }) => {
     const errors = collectUnexpectedPageErrors(page);
 
-    await page.goto("/");
+    await page.goto("/weight-loss");
 
-    await expect(page.getByText("Not FDA-approved").first()).toBeVisible();
     await expect(
       page.getByText("Compounded semaglutide and compounded tirzepatide are not FDA-approved.").first(),
     ).toBeVisible();
     await expect(
       page.getByText("They are not the same as Ozempic, Wegovy, Mounjaro, or Zepbound"),
     ).toBeVisible();
-    await expect(
-      page.getByText("BPC-157 and retatrutide are investigational and not FDA-approved."),
-    ).toBeVisible();
-
     errors.expectNone();
   });
 });

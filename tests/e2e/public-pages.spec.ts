@@ -48,11 +48,11 @@ test.describe("public navigation and CTAs", () => {
     }).click();
     await expect(page).toHaveURL(/\/weight-loss$/);
     await expect(
-      page.getByRole("heading", { name: "Personalized GLP-1 Treatments" }),
+      page.getByRole("heading", { name: /Personalized GLP.1 treatment/i }),
     ).toBeVisible();
 
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "Get started" }).first())
+    await expect(page.getByRole("link", { name: "See if online care fits" }).first())
       .toHaveAttribute("href", expectedPatientHref("/get-started?product=weight"));
 
     errors.expectNone();
