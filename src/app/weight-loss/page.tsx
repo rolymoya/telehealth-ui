@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import {
-  ArrowLeft,
   ArrowRight,
-  BadgeCheck,
   Check,
-  CircleCheck,
-  HeartHandshake,
+  LockKeyhole,
   PackageCheck,
   ShieldCheck,
+  Truck,
   UserRound,
 } from "lucide-react";
 
+import { Footer } from "@/components/Footer";
 import { MobileMenu } from "@/components/marketing-v2/MobileMenu";
 import { onboardingHref } from "@/lib/public-commerce";
 
@@ -25,141 +24,111 @@ export const metadata: Metadata = {
     "Provider-led weight management with personalized GLP-1 treatment options, ongoing support, and free expedited shipping.",
 };
 
-const quickFaqs = [
+const offers = [
   {
-    question: "What’s included with my plan?",
-    answer:
-      "Your plan includes an online health evaluation, a personalized care plan from a licensed provider, ongoing clinical messaging, and medication delivery when prescribed.",
+    title: "Compounded semaglutide",
+    price: "$99",
+    cadence: "/month*",
+    copy: "A provider may consider semaglutide after reviewing your health history and clinical eligibility.",
   },
   {
-    question: "What treatment options are available?",
-    answer:
-      "Licensed providers may consider compounded semaglutide or tirzepatide based on your health history, goals, state, and clinical eligibility.",
-  },
-  {
-    question: "What if I need to cancel?",
-    answer:
-      "There are no long-term contracts. You can pause or cancel before your next renewal from your account.",
+    title: "Compounded tirzepatide",
+    price: "$199",
+    cadence: "/month*",
+    copy: "A provider may consider tirzepatide after reviewing your health history and clinical eligibility.",
   },
 ];
 
-const plans = [
-  {
-    title: "Personalized GLP-1\nInjections",
-    price: "See which plan fits",
-    featured: true,
-  },
-  {
-    title: "Compounded Semaglutide",
-    price: "$99/mo*",
-    featured: false,
-  },
-  {
-    title: "Compounded Tirzepatide",
-    price: "$199/mo*",
-    featured: false,
-  },
+const inclusions = [
+  { icon: ShieldCheck, text: "Independent licensed-provider evaluation" },
+  { icon: PackageCheck, text: "Medication and standard supplies, if prescribed" },
+  { icon: Truck, text: "Free expedited shipping" },
+  { icon: LockKeyhole, text: "Ongoing clinical messaging in the provider portal" },
 ];
 
 const howItWorksSteps = [
   {
-    title: "Sign up",
-    copy: "Complete a brief online intake and tell us about your health, history, and weight loss goals.",
-    disclaimer: "Medication and care are included in the plan price, if prescribed.",
+    title: "Start with a short precheck",
+    copy: "Confirm basic availability and create your passwordless Apoth account. No clinical answers are stored by Apoth.",
   },
   {
-    title: "Provider evaluation",
-    copy: "A licensed provider reviews your intake and determines what’s appropriate for you.",
+    title: "Complete the clinical intake",
+    copy: "Share your health history inside the independent provider’s secure portal.",
   },
   {
-    title: "Personalized plan",
-    copy: "If prescribed, receive a tailored treatment plan designed around your goals, with ongoing clinical support.",
+    title: "Receive an independent review",
+    copy: "A licensed provider determines whether treatment is appropriate. A prescription is not guaranteed.",
   },
   {
-    title: "Start your plan",
-    copy: "If treatment is prescribed, the pharmacy prepares it for discreet delivery and your provider remains available for follow-up.",
+    title: "Review the exact offer",
+    copy: "If approved, accept the treatment and recurring price separately before the first charge begins.",
   },
 ];
 
 const faqs = [
-  ...quickFaqs,
   {
-    question: "How do GLP-1 treatments support weight management?",
+    question: "What’s included with my plan?",
     answer:
-      "GLP-1 medicines can help regulate appetite and blood sugar. A licensed provider will determine whether a treatment is appropriate for your individual health profile.",
+      "The displayed self-pay price includes the independent clinical evaluation, ongoing clinical messaging, standard injection supplies, medication, and expedited shipping only if prescribed. Separately required labs are not included.",
   },
   {
-    question: "What is compounded medication?",
+    question: "What treatment options are available?",
     answer:
-      "Compounded medications are prepared by licensed pharmacies for an individual patient based on a provider’s prescription. They are not reviewed or approved by the FDA for safety or effectiveness.",
+      "Licensed providers may consider compounded semaglutide or compounded tirzepatide based on health history, goals, state, and clinical eligibility.",
   },
   {
-    question: "Can my provider adjust my medication or dosage?",
+    question: "Are compounded medications FDA-approved?",
     answer:
-      "Yes. Your provider can review your progress and make clinically appropriate adjustments. Your care team is available for questions throughout your plan.",
+      "No. Compounded medications are not FDA-approved, and the FDA does not review them for safety, effectiveness, or quality. They are not the same as brand-name products.",
   },
   {
-    question: "Can I qualify if I have an existing health condition?",
+    question: "When does billing begin?",
     answer:
-      "Eligibility is individual. A licensed provider will review your full health history and determine whether treatment is safe and appropriate for you.",
+      "Saving a payment method is $0 due. No subscription or first charge starts until clinical approval and your separate acceptance of the exact treatment and recurring price.",
   },
   {
-    question: "Is a long-term commitment necessary?",
+    question: "Can I cancel?",
     answer:
-      "No. Apoth plans are flexible and can be paused or canceled before your next renewal. Consistency matters, so discuss any treatment changes with your care team.",
+      "There is no long-term contract. An active plan can be canceled before its next renewal from your account, subject to the treatment and shipment status described in the Terms.",
   },
 ];
 
-const footerGroups = [
-  {
-    heading: "Care",
-    links: [
-      { label: "GLP-1 treatments", href: "/weight-loss" },
-      { label: "Weight management", href: "/weight-loss" },
-      { label: "Start a visit", href: weightOnboardingHref },
-      { label: "Patient login", href: "/sign-in" },
-    ],
-  },
-  {
-    heading: "Company",
-    links: [
-      { label: "About Apoth", href: "/about" },
-      { label: "How it works", href: "#how-it-works" },
-      { label: "FAQs", href: "#faq" },
-      { label: "Contact", href: "/about#contact" },
-    ],
-  },
-  {
-    heading: "Legal",
-    links: [
-      { label: "Terms of service", href: "/terms" },
-      { label: "Privacy policy", href: "/privacy" },
-      { label: "Telehealth disclosure", href: "/terms#telehealth-disclosure" },
-      { label: "Notice of privacy practices", href: "/privacy#notice-of-privacy-practices" },
-    ],
-  },
-] as const;
-
-function ActionButtons({ compact = false }: { compact?: boolean }) {
+function Header() {
   return (
-    <div className={styles.actions} data-compact={compact ? "true" : "false"}>
-      <a className={styles.primaryButton} href={weightOnboardingHref}>
-        Get started
-      </a>
-      <a className={styles.secondaryButton} href={weightOnboardingHref}>
-        See if you’re eligible
-      </a>
-    </div>
+    <>
+      <div className={styles.announcement}><PackageCheck aria-hidden="true" /> Free expedited shipping on prescribed treatment</div>
+      <header className={styles.header}>
+        <div className={styles.headerInner}>
+          <a className={styles.logo} href="/" aria-label="Apoth home">apoth</a>
+          <nav className={styles.nav} aria-label="Primary navigation">
+            <a href="#options">Treatment options</a>
+            <a href="#how-it-works">How it works</a>
+            <a href="#faq">FAQs</a>
+            <a href="/about">About</a>
+          </nav>
+          <div className={styles.headerActions}>
+            <a className={styles.headerCta} href={weightOnboardingHref}>Start the $0 precheck</a>
+            <a className={styles.loginButton} href="/sign-in"><UserRound aria-hidden="true" /> Login</a>
+            <MobileMenu
+              links={[
+                ["Treatment options", "#options"],
+                ["How it works", "#how-it-works"],
+                ["FAQs", "#faq"],
+              ]}
+              ctaHref={weightOnboardingHref}
+              ctaLabel="Start the $0 precheck"
+            />
+          </div>
+        </div>
+      </header>
+    </>
   );
 }
 
-function AccordionRow({ question, answer }: { question: string; answer: string }) {
+function FaqRow({ question, answer }: { question: string; answer: string }) {
   return (
-    <details className={styles.accordionRow}>
-      <summary>
-        <span>{question}</span>
-        <span className={styles.accordionIcon} aria-hidden="true" />
-      </summary>
+    <details className={styles.faqRow}>
+      <summary><span>{question}</span><span className={styles.plus} aria-hidden="true" /></summary>
       <p>{answer}</p>
     </details>
   );
@@ -167,295 +136,143 @@ function AccordionRow({ question, answer }: { question: string; answer: string }
 
 export default function WeightLossPage() {
   return (
-    <main id="main" className={styles.page}>
-      <a className={styles.skipLink} href="#main-content">
-        Skip to main content
-      </a>
-
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <a className={styles.logo} href="/" aria-label="Apoth home">
-            apoth
-          </a>
-          <nav className={styles.nav} aria-label="Primary navigation">
-            <a href="#treatments">Weight Loss</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="#faq">FAQs</a>
-            <a href="/about">About</a>
-          </nav>
-          <div className={styles.headerActions}>
-            <a className={styles.headerCta} href={weightOnboardingHref}>
-              Get started
-            </a>
-            <a className={styles.loginButton} href="/sign-in">
-              <UserRound aria-hidden="true" /> Login
-            </a>
-            <MobileMenu
-              links={[
-                ["Weight Loss", "#treatments"],
-                ["How it works", "#how-it-works"],
-                ["FAQs", "#faq"],
-              ]}
-              ctaHref={weightOnboardingHref}
-            />
-          </div>
-        </div>
-      </header>
+    <main id="main" className={`${styles.page} marketing-v2`}>
+      <Header />
 
       <div id="main-content">
-        <section className={styles.hero} id="product">
-          <div className={styles.heroInner}>
-            <div className={styles.heroVisual}>
-              <Image
-                src="/images/apoth-weight-loss-hero.webp"
-                alt="Unbranded weight management treatment vial and injector pens"
-                fill
-                priority
-                sizes="(min-width: 1000px) 50vw, 94vw"
-                className={styles.heroImage}
-              />
-              <span className={styles.stockPill}>
-                <span /> In stock
-              </span>
-            </div>
+        <section className={styles.hero}>
+          <div className={styles.heroMedia}>
+            <Image
+              src="/images/apoth-weight-loss-hero.webp"
+              alt="Unbranded weight-management treatment vial and injector pens"
+              fill
+              priority
+              sizes="(min-width: 960px) 58vw, 100vw"
+              className={styles.heroImage}
+            />
+          </div>
 
-            <div className={styles.heroDetails}>
-              <h1><span>Personalized</span><span>GLP-1 Treatments</span></h1>
-              <p className={styles.heroSubtitle}>A provider-led weight loss plan built around you</p>
+          <div className={styles.heroDetails}>
+            <h1>Personalized GLP‑1 treatment</h1>
+            <p className={styles.subtitle}>A provider-led weight-care plan with straightforward monthly pricing and ongoing clinical support.</p>
 
-              <div className={styles.pricingPanel}>
-                <div className={styles.priceGrid}>
-                  <div className={styles.priceOption}>
-                    <span>Compounded<br />Semaglutide</span>
-                    <strong>$99<small>/mo</small></strong>
-                    <em>care included*</em>
+            <div className={styles.pricingPanel}>
+              <p className={styles.reviewNote}>
+                <ShieldCheck aria-hidden="true" /> Independent provider review required. Starting the precheck is $0.
+              </p>
+              <div className={styles.priceRows}>
+                {offers.map((offer) => (
+                  <div className={styles.priceRow} key={offer.title}>
+                    <span>{offer.title}</span>
+                    <strong>{offer.price}<small>{offer.cadence}</small></strong>
                   </div>
-                  <div className={styles.priceOption}>
-                    <span>Compounded<br />Tirzepatide</span>
-                    <strong>$199<small>/mo</small></strong>
-                    <em>care included*</em>
-                  </div>
-                </div>
-                <div className={styles.payLater}>
-                  <span>Simple monthly pricing</span>
-                </div>
-                <a className={styles.wideButton} href={weightOnboardingHref}>Get started</a>
-                <p className={styles.microcopy}>
-                  *Self-pay price includes clinical care, standard injection supplies, medication, and expedited shipping only if prescribed. Due before intake: $0. Plans renew monthly after you accept the exact approved treatment and price. Labs, if separately required, are not included. No insurance required.
-                </p>
+                ))}
               </div>
-
-              <div className={styles.benefitsPanel}>
-                <div className={styles.segmentedControl} aria-label="Plan overview">
-                  <span>Benefits</span>
-                  <span>What’s included</span>
-                </div>
-                <ul className={styles.benefitList}>
-                  <li><ShieldCheck /> Same price at every dose</li>
-                  <li><PackageCheck /> Free expedited shipping</li>
-                  <li><CircleCheck /> No long-term contracts</li>
-                  <li><HeartHandshake /> Provider-led plans and ongoing support</li>
-                </ul>
-                <div className={styles.benefitFoot}>
-                  <span><BadgeCheck /> Compounded in the U.S.A.</span>
-                </div>
-              </div>
-
-              <div className={styles.quickFaqs}>
-                {quickFaqs.map((faq) => <AccordionRow key={faq.question} {...faq} />)}
-              </div>
-
-              <div className={styles.trustRow} aria-label="Apoth care workflow">
-                <strong>Secure intake</strong>
-                <span aria-hidden="true">•</span>
-                <span>Independent licensed providers</span>
-              </div>
-
-              <div className={styles.heroLegal}>
-                <p>The statements on this page have not been evaluated by the Food and Drug Administration. Compounded medications are not FDA-approved.</p>
-                <a href="#safety">Important safety information</a>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.treatments} id="treatments">
-          <div className={styles.sectionInner}>
-            <div className={styles.sectionHeading}>
-              <h2>Medication made affordable</h2>
-              <p>Without the need for insurance</p>
+              <a className={styles.primaryButton} href={weightOnboardingHref}>Start the $0 precheck <ArrowRight aria-hidden="true" /></a>
+              <p className={styles.microcopy}>*Self-pay price includes clinical care, standard injection supplies, medication, and expedited shipping only if prescribed. Due before intake: $0. Plans renew monthly only after clinical approval and separate acceptance of the exact treatment and price. Labs, if separately required, are not included.</p>
             </div>
 
-            <div className={styles.treatmentGrid}>
-              {plans.map((plan, index) => (
-                <article
-                  className={`${styles.treatmentCard} ${plan.featured ? styles.featuredTreatment : ""}`}
-                  key={plan.title}
-                >
-                  <h3>{plan.title.split("\n").map((line) => <span key={line}>{line}</span>)}</h3>
-                  <p>{plan.price}</p>
-                  {plan.featured ? (
-                    <Image
-                      src="/images/apoth-weight-loss-hero.webp"
-                      alt="GLP-1 treatment options"
-                      fill
-                      sizes="(min-width: 900px) 30vw, 88vw"
-                      className={styles.treatmentHeroImage}
-                    />
-                  ) : (
-                    <div className={`${styles.vialWrap} ${index === 2 ? styles.vialLime : ""}`}>
-                      <Image
-                        src="/images/weight-loss-vial.webp"
-                        alt="Unbranded compounded medication vial"
-                        fill
-                        sizes="(min-width: 900px) 20vw, 70vw"
-                        className={styles.vialImage}
-                      />
-                    </div>
-                  )}
-                  {plan.featured ? (
-                    <a className={styles.cardButton} href={weightOnboardingHref}>See if you qualify</a>
-                  ) : (
-                    <a className={styles.safetyLink} href="#safety">Important safety information</a>
-                  )}
-                </article>
-              ))}
-            </div>
-
-            <div className={styles.treatmentFinePrint}>
-              <p>*Self-pay price includes clinical care, standard supplies, medication, and expedited shipping only when prescribed. Labs, if separately required, are not included. Plans renew monthly only after you accept the exact treatment and price, and may be canceled before the next renewal.</p>
-              <p>Apoth connects patients with licensed medical providers and state-licensed pharmacies. The FDA does not review compounded medications for safety or effectiveness. Results vary. Actual product packaging may differ.</p>
-            </div>
-            <div className={styles.carouselButtons} aria-hidden="true">
-              <span><ArrowLeft /></span><span><ArrowRight /></span>
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.howItWorks} id="how-it-works">
-          <div className={styles.howItWorksCard}>
-            <div className={styles.howItWorksInner}>
-              <div className={styles.howItWorksMedia}>
-                <Image
-                  className={styles.howItWorksImage}
-                  src="/images/how-it-works-member.webp"
-                  alt="A member checking her care plan on her phone"
-                  fill
-                  sizes="(min-width: 768px) 45vw, calc(100vw - 44px)"
-                />
-              </div>
-
-              <div className={styles.howItWorksContent}>
-                <h2>How it works</h2>
-                <ol className={styles.howItWorksSteps}>
-                  {howItWorksSteps.map((step, index) => (
-                    <li className={styles.howItWorksStep} key={step.title}>
-                      <span className={styles.stepNumber} aria-hidden="true">{index + 1}</span>
-                      <div className={styles.stepText}>
-                        <h3 className={styles.stepTitle}>{step.title}</h3>
-                        <p className={styles.stepDescription}>{step.copy}</p>
-                        {step.disclaimer ? <p className={styles.stepDisclaimer}>{step.disclaimer}</p> : null}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-                <a className={styles.howItWorksButton} href={weightOnboardingHref}>Start a visit</a>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.medicalJourney}>
-          <div className={styles.journeyVisual} aria-hidden="true">
-            <Image src="/images/weight-loss-syringe.webp" alt="" fill sizes="40vw" className={styles.journeyPen} />
-            <Image src="/images/weight-loss-vial.webp" alt="" fill sizes="30vw" className={styles.journeyVial} />
-          </div>
-          <div className={styles.journeyCopy}>
-            <h2>Begin your provider-led journey today</h2>
-            <ul>
-              <li><Check /> 1-on-1 guidance from U.S.-licensed providers</li>
-              <li><Check /> Ongoing consultations to optimize treatment</li>
-              <li><Check /> Fast, discreet delivery and responsive support</li>
+            <ul className={styles.inclusions} aria-label="What the program includes">
+              {inclusions.map(({ icon: Icon, text }) => <li key={text}><Icon aria-hidden="true" /> {text}</li>)}
             </ul>
-            <a className={styles.primaryButton} href={weightOnboardingHref}>Get started</a>
+
+            <a className={styles.safetyLink} href="#safety">Important safety and compounded-medication information</a>
+          </div>
+        </section>
+
+        <section className={styles.options} id="options">
+          <div className={styles.optionsIntro}>
+            <h2>Two options. One independent clinical decision.</h2>
+            <p>You can understand the plan structure here. Your provider decides whether either treatment is appropriate after reviewing your clinical information.</p>
+          </div>
+          <div className={styles.optionList}>
+            {offers.map((offer, index) => (
+              <article className={styles.optionRow} key={offer.title}>
+                <div className={styles.optionImage}>
+                  <Image
+                    src="/images/weight-loss-vial.webp"
+                    alt="Unbranded compounded medication vial"
+                    fill
+                    sizes="180px"
+                    className={index === 1 ? styles.optionImageAlt : undefined}
+                  />
+                </div>
+                <div className={styles.optionBody}>
+                  <h3>{offer.title}</h3>
+                  <p>{offer.copy}</p>
+                  <strong>{offer.price}<small>{offer.cadence}</small></strong>
+                  <a href={weightOnboardingHref}>Start the $0 precheck <ArrowRight aria-hidden="true" /></a>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.process} id="how-it-works">
+          <div className={styles.processImage}>
+            <Image
+              src="/images/how-it-works-member.webp"
+              alt="A member checking her care plan on her phone"
+              fill
+              sizes="(min-width: 900px) 46vw, 100vw"
+            />
+          </div>
+          <div className={styles.processBody}>
+            <h2>From first click to provider review</h2>
+            <ol>
+              {howItWorksSteps.map((step, index) => (
+                <li key={step.title}>
+                  <span>{index + 1}</span>
+                  <div><h3>{step.title}</h3><p>{step.copy}</p></div>
+                </li>
+              ))}
+            </ol>
+            <a className={styles.lightButton} href={weightOnboardingHref}>Start the $0 precheck</a>
+          </div>
+        </section>
+
+        <section className={styles.boundary}>
+          <div className={styles.boundaryArt} aria-hidden="true">
+            <Image src="/images/weight-loss-syringe.webp" alt="" fill sizes="46vw" />
+          </div>
+          <div className={styles.boundaryCopy}>
+            <h2>Care stays with your provider. The connection stays simple.</h2>
+            <p>Your questionnaire, clinical review, and medical record live in the independent provider’s secure portal. Apoth keeps the account, consent evidence, billing status, and secure linkage needed to help you move between steps.</p>
+            <ul>
+              <li><Check aria-hidden="true" /> Clinical answers are not stored by Apoth</li>
+              <li><Check aria-hidden="true" /> Payment-method setup is $0 due</li>
+              <li><Check aria-hidden="true" /> Exact offer acceptance comes before billing</li>
+            </ul>
           </div>
         </section>
 
         <section className={styles.faqSection} id="faq">
-          <div className={styles.faqInner}>
-            <h2>Learn more about<br />GLP-1 Treatments</h2>
-            <div className={styles.faqList}>
-              {faqs.map((faq) => <AccordionRow key={faq.question} {...faq} />)}
-            </div>
+          <div>
+            <h2>What to know before you start</h2>
+            <p>Clear answers about treatment, pricing, and the care relationship.</p>
+          </div>
+          <div className={styles.faqList}>
+            {faqs.map((faq) => <FaqRow key={faq.question} {...faq} />)}
           </div>
         </section>
 
-        <section className={styles.getStarted} id="get-started">
-          <div className={styles.getStartedCard}>
-            <div>
-              <p className={styles.eyebrow}>Personalized care. Straightforward pricing.</p>
-              <h2>GLP-1 Treatments</h2>
-              <p className={styles.startPrice}>From $99/month*</p>
-              <ul>
-                <li><Check /> No long-term contracts</li>
-                <li><Check /> Personalized plans</li>
-                <li><Check /> On-demand medical support</li>
-                <li><Check /> Free expedited shipping</li>
-              </ul>
-              <ActionButtons compact />
-              <p className={styles.microcopy}>*Available only when prescribed after an online consultation. Medication and clinical care are included in the displayed plan price.</p>
-            </div>
-            <div className={styles.startArt} aria-hidden="true">
-              <span>apoth</span>
-              <Image src="/images/weight-loss-syringe.webp" alt="" fill sizes="35vw" />
-            </div>
-          </div>
-          <div className={styles.disclaimer} id="safety">
-            <strong>Disclaimer</strong>
-            <p>Only available if prescribed after an online consultation with a healthcare provider. Benefits described are based on published evidence and individual treatment plans. Plans may be canceled before the next renewal. Actual packaging may differ. The FDA does not review compounded medications for safety or effectiveness. Results vary. Contact your healthcare provider if you experience side effects.</p>
-          </div>
+        <section className={styles.safety} id="safety">
+          <strong>Important compounded-medication information</strong>
+          <p>Compounded semaglutide and compounded tirzepatide are not FDA-approved. They are not the same as Ozempic, Wegovy, Mounjaro, or Zepbound, and have not been evaluated by the FDA for safety, effectiveness, or quality. They are prepared by a licensed 503A compounding pharmacy partner only under a valid prescription from an independent clinician licensed in your state. Treatment is not guaranteed and results vary.</p>
+        </section>
+
+        <section className={styles.close}>
+          <h2>See whether weight care fits you</h2>
+          <p>Start with a short precheck. There is no charge before clinical approval and your separate acceptance of the exact offer.</p>
+          <a className={styles.primaryButton} href={weightOnboardingHref}>Start the $0 precheck <ArrowRight aria-hidden="true" /></a>
         </section>
       </div>
 
-      <footer className={styles.footer} id="footer">
-        <div className={styles.footerInner}>
-          <div className={styles.footerTop}>
-            <div className={styles.footerSignup}>
-              <a className={styles.footerLogo} href="/">apoth</a>
-              <p>Start a visit or return to your patient account.</p>
-              <div className={styles.footerActions}>
-                <a href={weightOnboardingHref}>Start a visit</a>
-                <a href="/sign-in">Patient login</a>
-              </div>
-              <small>Apoth is a technology platform, not a medical provider.</small>
-            </div>
-            <div className={styles.footerLinks}>
-              {footerGroups.map((group) => (
-                <div key={group.heading}>
-                  <strong>{group.heading}</strong>
-                  <ul>
-                    {group.links.map((link) => (
-                      <li key={link.href}><a href={link.href}>{link.label}</a></li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </div>
+      <div className={styles.mobileCta}>
+        <a href={weightOnboardingHref}>Start the $0 precheck <ArrowRight aria-hidden="true" /></a>
+      </div>
 
-          <div className={styles.footerSocial}>
-            <div><a href="/terms">Terms</a><a href="/privacy">Privacy</a></div>
-            <span><PackageCheck /> Compounded<br />in the U.S.A.</span>
-          </div>
-
-          <div className={styles.footerLegal}>
-            <p><strong>Prescription process:</strong> Online evaluations with independent licensed medical professionals determine prescription appropriateness. Providers may prescribe FDA-approved or compounded medications based on patient needs and clinical judgment.</p>
-            <p><strong>Medication access:</strong> If eligible after provider consultation, prescriptions may be filled by a network pharmacy. Product packaging may differ from images shown. You consent to Apoth using your information in accordance with our Privacy Policy.</p>
-            <p><strong>Pricing:</strong> Displayed prices are subject to plan terms. Accessibility feedback may be sent to care@apoth.com.</p>
-          </div>
-        </div>
-        <div className={styles.copyright}>© 2026 Apoth Health LLC. All rights reserved.</div>
-      </footer>
+      <Footer />
     </main>
   );
 }

@@ -23,7 +23,7 @@ describe("marketing pages", () => {
   it("connects landing-page actions to real project routes", () => {
     render(<HomePage />);
 
-    expect(screen.getAllByRole("link", { name: /get started/i })[0])
+    expect(screen.getAllByRole("link", { name: /see if online care fits/i })[0])
       .toHaveAttribute("href", "/get-started?product=weight");
     expect(screen.getAllByRole("link", { name: /login/i })[0])
       .toHaveAttribute("href", "/sign-in");
@@ -36,7 +36,7 @@ describe("marketing pages", () => {
   it("keeps regulated weight-loss copy and routes eligibility into precheck", () => {
     render(<WeightLossPage />);
 
-    expect(screen.getAllByRole("link", { name: /get started/i })[0])
+    expect(screen.getAllByRole("link", { name: /start the \$0 precheck/i })[0])
       .toHaveAttribute("href", "/get-started?product=weight");
     expect(screen.getAllByText(/compounded medications are not FDA-approved/i).length)
       .toBeGreaterThan(0);
@@ -54,7 +54,7 @@ describe("marketing pages", () => {
       .toHaveAttribute("aria-expanded", "true");
     expect(screen.getAllByRole("link", { name: "Weight Loss" }).at(-1))
       .toHaveAttribute("href", "/weight-loss");
-    expect(screen.getAllByRole("link", { name: "Get started" }).at(-1))
+    expect(screen.getAllByRole("link", { name: "See if online care fits" }).at(-1))
       .toHaveAttribute("href", "/get-started?product=weight");
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, X } from "lucide-react";
+import { ArrowUpRight, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/marketing-v2/ui/Button";
@@ -15,11 +15,13 @@ const defaultLinks = [
 type MobileMenuProps = {
   links?: ReadonlyArray<readonly [string, string]>;
   ctaHref?: string;
+  ctaLabel?: string;
 };
 
 export function MobileMenu({
   links = defaultLinks,
   ctaHref = onboardingHref("weight"),
+  ctaLabel = "See if online care fits",
 }: MobileMenuProps) {
   const [open, setOpen] = useState(false);
 
@@ -45,10 +47,10 @@ export function MobileMenu({
                 className="flex items-center justify-between rounded-2xl px-4 py-3 text-base font-semibold hover:bg-black/[0.04]"
               >
                 {label}
-                <span aria-hidden="true">↗</span>
+                <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
               </a>
             ))}
-            <Button asChild className="mt-3 w-full"><a href={ctaHref} onClick={() => setOpen(false)}>Get started</a></Button>
+            <Button asChild className="mt-3 w-full"><a href={ctaHref} onClick={() => setOpen(false)}>{ctaLabel}</a></Button>
           </nav>
         </div>
       ) : null}

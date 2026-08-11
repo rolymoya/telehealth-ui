@@ -1,187 +1,271 @@
 ---
-name: Apoth design direction
-description: Reference-led visual system for Apoth marketing and patient-facing product surfaces.
-status: adopted
-updated: 2026-07-27
+name: Apoth Story-Mosaic Design System
+description: Warm editorial healthcare commerce that moves from confident storytelling to a quiet, trustworthy clinical handoff.
+colors:
+  canvas: "#f9f9fa"
+  paper: "#ffffff"
+  ink: "#171719"
+  ink-hover: "#343437"
+  muted-ink: "#626266"
+  hairline: "#dedee1"
+  pear: "#9dcc7d"
+  sun: "#f2da68"
+  warm-editorial: "#f7f3ed"
+  pear-soft: "#e6f0df"
+  care-blue: "#4e80ee"
+  error-surface: "#f5ece5"
+  error-ink: "#7c3f20"
+typography:
+  display:
+    fontFamily: "Figtree, Helvetica Neue, sans-serif"
+    fontSize: "clamp(3.75rem, 7vw, 5.875rem)"
+    fontWeight: 430
+    lineHeight: 0.96
+    letterSpacing: "-0.035em"
+  headline:
+    fontFamily: "Figtree, Helvetica Neue, sans-serif"
+    fontSize: "clamp(2.75rem, 4.8vw, 4.25rem)"
+    fontWeight: 440
+    lineHeight: 0.98
+    letterSpacing: "-0.035em"
+  title:
+    fontFamily: "Figtree, Helvetica Neue, sans-serif"
+    fontSize: "1.5625rem"
+    fontWeight: 540
+    lineHeight: 1.08
+    letterSpacing: "-0.02em"
+  body:
+    fontFamily: "Figtree, Helvetica Neue, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 400
+    lineHeight: 1.55
+    letterSpacing: "normal"
+  label:
+    fontFamily: "Figtree, Helvetica Neue, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 620
+    lineHeight: 1.2
+    letterSpacing: "normal"
+  wordmark:
+    fontFamily: "Georgia, Times New Roman, serif"
+    fontSize: "2.25rem"
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: "-0.04em"
+rounded:
+  focus: "8px"
+  field: "14px"
+  group: "16px"
+  media-mobile: "20px"
+  media: "24px"
+  pill: "999px"
+spacing:
+  xs: "8px"
+  sm: "12px"
+  md: "16px"
+  lg: "24px"
+  xl: "32px"
+  2xl: "48px"
+  3xl: "72px"
+  section: "96px"
+components:
+  button-primary:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "0 24px"
+    height: "46px"
+  button-primary-large:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "0 28px"
+    height: "56px"
+  button-secondary:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "0 24px"
+    height: "46px"
+  text-field:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    typography: "{typography.body}"
+    rounded: "{rounded.field}"
+    padding: "0 16px"
+    height: "48px"
+  navigation-shell:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+    padding: "0 32px"
+    height: "74px"
+  pricing-panel:
+    backgroundColor: "{colors.paper}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.group}"
+    padding: "20px"
+  media-stage:
+    backgroundColor: "{colors.pear}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.media}"
+  progress-step-active:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.paper}"
+    rounded: "{rounded.pill}"
+    size: "24px"
 ---
 
-# Apoth Design Direction
+# Design System: Apoth Story Mosaic
 
-## North star
+## Overview
 
-**Everyday Care, Studio Clear**
+**Creative North Star: "The Clear Care Mosaic"**
 
-Apoth should feel direct, approachable, and visually confident. The public experience combines crisp retail composition with the reassurance and plain language expected from a healthcare service. It should feel easy to enter without looking casual about care.
+The Clear Care Mosaic pairs everyday warmth with exact healthcare boundaries. Public pages use large, lightweight Figtree headlines, cinematic full-color imagery, broad pear and warm editorial fields, and low-chrome composition to make the offer legible without making care feel transactional or clinical.
 
-The canonical visual reference for the current marketing direction is the implementation in `/Users/roly/git/apoth-ui-v2`. The reference is a design source, not a runtime dependency. Ports must preserve its fonts, colors, spacing, imagery treatment, radii, shadows, and motion unless a documented product, accessibility, or compliance requirement demands a change.
+Expression intentionally recedes as a patient advances. Marketing begins inside a generous 1400px story frame; product choice becomes a focused 60/40 decision; account, payment, and portal-launch steps narrow to quiet, nearly unboxed task columns. At every stage, Apoth remains the technology, identity, and commerce layer while the independent provider portal owns the questionnaire, clinical review, clinical record, and care workflow.
 
-This replaces the former clay-led, serif-first "Editorial Apothecary" direction. Do not recolor the reference into that older system.
+**Key Characteristics:**
 
-## Experience principles
+- Figtree for every interface and display role; Georgia only for the Apoth wordmark.
+- A neutral `#f9f9fa` canvas structured by hairlines, tonal bands, and decisive image crops.
+- Pear and sun fields create memorable category and action moments without becoming universal brand primaries.
+- Black pill actions use direct, context-specific language and preserve honest payment timing.
+- Marketing is spatial and editorial; commerce is narrow, calm, and operational.
 
-- Lead with a clear patient outcome and one obvious next action.
-- Use generous whitespace and large type, but keep the composition compact enough to feel useful.
-- Pair neutral structure with distinct category colors. Color is part of the navigation and product storytelling.
-- Use concrete pricing, timing, shipping, and process details to build trust.
-- Keep medical and legal qualifications visible without letting them dominate the first impression.
-- Preserve the distinction between Apoth Health LLC as the technology platform and independent clinical and pharmacy partners.
+## Colors
 
-## Color system
+The palette is neutral first, with pear, sun, and warm editorial color reserved for broad storytelling fields and clear state transitions.
 
-The marketing palette is reference-specific. Do not replace these colors with legacy clay, sage, cream, or warm-ink tokens.
+### Primary
 
-### Core colors
+- **Clear Ink** (`#171719`): Primary text, dark process bands, active progress steps, and black pill actions.
+- **Product Pear** (`#9dcc7d`): The signature weight-care media stage and primary category field.
 
-| Role | Value | Use |
-| --- | --- | --- |
-| Canvas | `#f9f9fa` | Landing page, navigation, neutral breathing room |
-| Paper | `#ffffff` | Cards, panels, product detail surfaces |
-| Ink | `#171719` | Primary text and dark controls |
-| Soft ink | `#46474b` to `#727377` | Secondary copy, labels, supporting details |
-| Cloud | `#f0f0f2`, `#ededf0`, `#f2f2f4` | Section bands and product-page backgrounds |
-| Utility blue | `#4e80ee` | Shipping banner and supporting branded moments |
-| Sun yellow | `#f5df75` | Landing-page closing call to action |
-| Trust sage | `#e8f2e9` | Trust and benefit strip |
-| Journey mint | `#e2f1eb` | Weight-loss journey section |
-| Product pear | `#9dcc7d` | Weight-loss product hero image field |
-| Treatment blue | `#4ba4d6` | Featured medication card |
+### Secondary
 
-### Treatment gradient
+- **Quiet Sun** (`#f2da68`): Announcement strips and closing action bands.
+- **Warm Editorial** (`#f7f3ed`): Human-care stories and broad editorial sections.
+- **Soft Pear** (`#e6f0df`): Ownership and care-boundary explanation bands.
+- **Care Blue** (`#4e80ee`): Focused field states and limited utility feedback, never a marketing wash.
 
-The featured weight-loss card uses a clay-red studio gradient, not a flat brand surface:
+### Neutral
 
-- Deep: `#63251b`
-- Mid: `#a53f2b`
-- Highlight: `#d98a6f`
+- **Open Canvas** (`#f9f9fa`): The default page and navigation surface.
+- **Paper** (`#ffffff`): Grouped decisions, secondary actions, and header/footer separation.
+- **Soft Ink** (`#626266`): Supporting copy and secondary labels.
+- **Hairline** (`#dedee1`): Rows, strips, disclosure lists, and structural dividers.
+- **Hover Ink** (`#343437`): The restrained hover state for black actions.
 
-The product-page start panel uses `#4e80ee` through `#79b8e1`. These gradients belong to illustration and product storytelling. Do not use gradient-filled text.
+### Named Rules
 
-### Color behavior
+**The Accent Field Rule.** Pear, sun, and warm editorial colors earn attention through broad fields; do not scatter them across badges, icon bubbles, or decorative fragments.
 
-- Black pill controls are the default primary action.
-- Blue, yellow, pear, mint, and clay-red are intentional category and section colors. None is a universal brand primary.
-- Full-color photography and product imagery are required. Do not apply global grayscale, sepia, or tint filters.
-- Text and controls must continue to meet WCAG 2.2 AA contrast requirements.
+**The Boundary Color Rule.** Error and status colors communicate operational state only. Never use color to imply clinical eligibility, approval, or treatment outcome.
 
 ## Typography
 
-### Marketing and product pages
+**Display Font:** Figtree (with Helvetica Neue and sans-serif fallbacks)
 
-- **Primary face:** Arial with Helvetica and generic sans-serif fallbacks.
-- **Wordmark:** Georgia or Times New Roman, bold, with tight negative tracking.
-- **How it works display:** Apoth Care variable face, matching the reference product page.
+**Body Font:** Figtree (with Helvetica Neue and sans-serif fallbacks)
 
-Headlines are predominantly bold sans serif with tight tracking and compact line height. This is a deliberate change from the former serif-led direction. Serif is reserved for the Apoth wordmark and intentional editorial accents already present in the reference.
+**Wordmark Font:** Georgia (with Times New Roman and serif fallbacks)
 
-The current Apoth Care font is loaded from the reference stylesheet source. Before production launch, confirm licensing and self-host the approved font file so the page does not depend on a third-party font host.
+**Character:** Figtree is used across headlines, body copy, controls, pricing, and task UI. Displays are large, moderately weighted, tightly tracked, and lightweight enough to feel editorial rather than promotional; the only serif is the compact, familiar Apoth wordmark.
 
-### Type hierarchy
+### Hierarchy
 
-- **Hero display:** 42px mobile to 64px desktop, normal or heavy weight according to the reference composition, approximately `0.96` line height and `-0.055em` tracking.
-- **Section display:** 36px to 64px, bold, tightly tracked.
-- **Card title:** 16px to 28px, medium to bold, compact leading.
-- **Body:** 16px by default; 18px to 21px for lead copy.
-- **Navigation and controls:** 13px to 14px, semibold or bold.
-- **Eyebrow and legal metadata:** 11px to 13px, uppercase only when short.
+- **Display** (430, `clamp(60px, 7vw, 94px)`, `0.96`): Homepage outcome statements; use balanced wrapping and a wide measure.
+- **Headline** (440, `clamp(44px, 4.8vw, 68px)`, `0.98`): Section openings and product narratives.
+- **Task Display** (460, `clamp(40.8px, 6vw, 62.4px)`, `0.98`): Quiet commerce and portal-launch headings.
+- **Title** (520–540, 18–27px, `1.08`): Story cards, offer rows, and step headings.
+- **Body** (400, 16px, `1.55`): Plain-language explanation; keep reading measures around 65ch.
+- **Label** (560–650, 12–14px): Navigation, actions, price metadata, and compact operational status.
 
-Long-form legal and account pages may retain the existing Inter and Fraunces implementation until they are deliberately migrated. New marketing work should not use those legacy faces by default.
+### Named Rules
 
-## Layout and composition
+**The One Serif Rule.** Georgia belongs to the lowercase Apoth wordmark only; do not use serif type for editorial headlines, quotes, product names, or decorative accents.
 
-### Landing page
+## Layout
 
-The landing page uses an announcement strip, compact sticky navigation, a large outcome-led hero, an asymmetric treatment grid, trust marquee, broad editorial bands, FAQ cards, and a high-contrast yellow closing call to action.
+Marketing pages use a centered frame up to 1400px wide with 32px desktop gutters and 16–20px mobile gutters. The homepage first viewport pairs a broad headline and proof list above a roughly 66/34 story mosaic with a 16px gap: a large pear product stage and a narrower warm human story. Hairline-separated strips bridge major bands, and full-width editorial sections alternate between light fields and the dark process band.
 
-Cards should vary in scale and purpose. Avoid a generic repeated three-column feature grid. Large imagery should be cropped confidently and allowed to carry significant visual weight.
+The weight-care page uses an approximately 60/40 media-to-decision split. Its 24px pear media stage may remain sticky on desktop while the offer, pricing, inclusion, and safety content stays in one grouped decision column. Supporting treatment options are horizontal rows, not repeated floating cards.
 
-### Weight-loss product page
+At 1020–1024px, primary navigation hides, the mosaic and product hero collapse to one column, and proof points may briefly share a three-column strip. At 760px and below, layouts become single-column, media corners reduce to 20px, gutters tighten, all controls remain at least 44px tall, and the weight-care surface gains a persistent bottom CTA above the safe-area inset. Commerce and portal handoff use centered 760px task columns with a 1180px shell header; content is separated by hairlines rather than nested panels.
 
-The product page uses a two-column purchase hero on desktop with a sticky visual panel, followed by benefit, comparison, treatment, journey, process, social-proof, and FAQ sections. The product hero uses pear green; treatment cards use distinct colors; the process section uses the Apoth Care display face.
+**The Progressive Quieting Rule.** Each step toward clinical intake removes visual chrome: mosaic, then product decision, then receipt-like account flow, then a nearly unboxed portal launch.
 
-On mobile, content becomes a single readable column, controls remain at least 44px high, and horizontal overflow is not permitted.
+## Elevation & Depth
 
-### Authenticated surfaces
+The system is flat by default. Depth comes from full-bleed tonal changes, image scale, sticky positioning, and one-pixel dividers; broad marketing sections, FAQs, care rows, and portal steps sit directly on their field. Restrained ambient shadow is reserved for the grouped pricing decision, menus or overlays, and isolated product-object staging—not for every container.
 
-Account, intake, dashboard, billing, and case-status screens should inherit the same neutral canvas, black controls, rounded geometry, and sans-serif clarity. They should be denser and quieter than marketing pages.
+### Shadow Vocabulary
 
-- Show the current state, its meaning, the next action, and who owns it.
-- Prefer full-width bands and focused panels over nested cards.
-- Keep intake conversational, with one clear question group per step.
-- Treat the selected white-label portal as the clinical source of truth and
-  Apoth as the commerce, identity, and launch-orchestration layer.
-- Keep billing actions visually straightforward and separate from clinical decision-making.
+- **Decision Panel** (`box-shadow: 0 18px 50px rgba(23, 23, 25, 0.07)`): The single white pricing panel on the product hero.
+- **Quiet Overlay** (`box-shadow: 0 12px 40px rgba(20, 24, 22, 0.08)`): Menus and temporary elevated surfaces only.
+- **Product Object** (`filter: drop-shadow(0 17px 16px rgba(40, 60, 43, 0.14))`): Isolated vial or injector imagery, never a content card.
+- **Focus Ring** (`box-shadow: 0 0 0 2px #f9f9fa, 0 0 0 4px rgba(24, 24, 26, 0.75)`): High-contrast keyboard focus on non-field controls.
 
-## Shape, elevation, and motion
+**The Surface Discipline Rule.** If a hairline or background transition establishes structure, do not add a shadow.
 
-- Use rounded rectangles in the 16px to 28px range and pill-shaped buttons.
-- Soft shadows are part of the reference at rest, especially on menus, pricing panels, FAQ items, and product cards.
-- Interactive cards may lift slightly and gain a stronger soft shadow on hover or keyboard focus.
-- Sticky navigation may use blur and a restrained shadow.
-- Reveal transitions should be short and subtle. Marquees may pause on hover.
-- Respect `prefers-reduced-motion` and preserve all information without animation.
+## Shapes
+
+The shape language combines editorial rectangles with soft media corners and fully pill-shaped actions. Large image stages use 24px corners on desktop and 20px on mobile; grouped pricing and task rows use 14–16px corners; global patient panels may reach 22px only when they are true bounded tasks. Buttons use a `999px` pill, and numbered steps use compact circles. Hairlines remain square and uninterrupted so lists and strips read as one system rather than a pile of cards.
 
 ## Components
 
 ### Buttons
 
-- Primary: near-black fill, white label, pill shape.
-- Outline: transparent or white fill with a quiet border.
-- Minimum interactive height: 44px.
-- Use direct action labels such as "Get started", "Start online visit", and "Login".
+- **Primary:** Clear Ink fill, white label, 46px minimum height on marketing surfaces and 52–56px for primary product or commerce actions; use a `999px` radius.
+- **Secondary:** White fill with a quiet ink border; reserve it for login and other subordinate actions.
+- **Hover / Focus:** Shift black fills to `#343437` and translate up by at most 1px; use the neutral focus ring and remove the lift under reduced motion.
+- **CTA grammar:** Use “See if online care fits” for exploratory marketing, “Start the $0 precheck” for the weight-care decision, and “Continue to medical intake” for the portal handoff. Do not collapse these stages into one vague action or imply that starting creates a charge.
 
 ### Navigation
 
-- Keep the Apoth wordmark left-aligned.
-- Route patient access to `/sign-in` and purchase entry to
-  `/checkout?product=weight`.
-- Mobile navigation opens as a full-width panel below the sticky header and uses a soft shadow.
+The 36px sun announcement sits above a sticky, lightly translucent canvas header. The desktop header is 74px tall inside the 1400px frame; mobile is 62px. Keep the Georgia wordmark left, quiet Figtree links centered, and black action plus login at right. Mobile navigation hands the primary action to a menu, while the product page also preserves a fixed 52px action at the bottom.
 
-### Cards and accordions
+### Story Mosaic and Treatment Strip
 
-- Product cards may use full-color photography, illustrated product still lifes, or a category color field.
-- FAQ items are white rounded cards with a subtle resting shadow.
-- Focus states use a neutral dark ring rather than a legacy clay ring.
+The signature mosaic uses a 24px pear product stage beside a 24px warm human-care story. Copy stays anchored inside the media field and imagery receives a decisive crop; the only large motion is a subtle `1.025` product-image scale over 900ms. Below it, three care lanes use top, bottom, and inter-lane hairlines with no card shadow.
 
-## Content and compliance
+### Pricing and Offer Rows
 
-- Apoth Health LLC is a technology platform, not a medical provider.
-- Clinical decisions belong to independent licensed providers through the
-  selected white-label clinical portal.
-- Compounded medications must retain the required not-FDA-approved disclosure and brand-name distinction.
-- Legal pages retain their review banners until counsel approval.
-- Stripe metadata remains free of PHI and uses only opaque identifiers.
-- Questionnaire answers are collected and retained by the approved clinical
-  portal; they are not rendered or persisted by Apoth.
+Keep pricing in one white 16px panel with a restrained ambient shadow. Use 72px hairline-separated rows, align exact prices to the edge, put the full-width 52px CTA after the options, and keep `$0` timing and approval language visible as microcopy. Treatment comparisons below the hero remain unboxed horizontal rows with 16px product-image fields.
 
-## Do and do not
+### Inputs and Status
 
-### Do
+Fields are white, at least 48px tall, and 14px rounded. Hover strengthens the neutral border; focus uses Care Blue with a three-pixel translucent halo. Errors use a warm, low-saturation surface with icon, title, recovery copy, and a real next action; status styling must never reveal or solicit clinical questionnaire content.
 
-- Match the reference fonts and exact color values on `/` and `/weight-loss`.
-- Keep imagery in full color.
-- Use black primary controls and category color for large storytelling moments.
-- Preserve asymmetric layouts, generous whitespace, and soft reference shadows.
-- Connect every visible action to a real route or intentionally remove it.
-- Validate desktop and mobile layouts, keyboard focus, contrast, and reduced motion.
+### FAQ and Process Rows
 
-### Do not
+FAQs are transparent disclosure rows separated by hairlines, with a 28px circular plus control and no resting shadow. Process bands invert to Clear Ink with white type, restrained translucent dividers, and 27–28px numbered circles. Motion is limited to the disclosure icon rotation and one orchestrated reveal; all information remains visible with reduced motion.
 
-- Do not translate the reference into the retired clay-and-sage system.
-- Do not substitute Fraunces or Inter for reference typography on new marketing pages.
-- Do not desaturate, grayscale, sepia-tone, or recolor reference imagery.
-- Do not flatten reference cards by removing their resting shadows.
-- Do not introduce gradient text, decorative side-stripe borders, countdowns, or pressure tactics.
-- Do not imply that Apoth practices medicine, stores the clinical chart, or controls clinical decisions.
+### Commerce and Portal Handoff
 
-## Current implementation status
+Commerce uses a white shell header, a five-step hairline progress strip, and a centered task column no wider than 760px. Portal launch is nearly unboxed: ownership status, one large Figtree heading, payment-timing copy between hairlines, a full-width 56px black action, and an ordered “What happens next” list. Keep Apoth’s role, the independent provider’s role, and the secure external launch explicit without rendering or persisting clinical answers.
 
-- `/` and `/weight-loss` are the reference implementation for this direction.
-- `/about`, `/privacy`, and `/terms` use the reference typography, neutral
-  reading canvas, rounded navigation panels, and dark shared footer.
-- `/checkout`, `/checkout/complete`, `/verify`, and `/portal/launch` use a
-  focused commerce receipt expression of this system: neutral canvas, black
-  pill actions, soft elevated panels, and clear `$0 today`/clinical-approval
-  disclosures. Legacy intake routes redirect into this funnel.
-- The standalone patient-app build shares the same tokens and components.
-- Future migrations must not change clinical, identity, payment, or data-flow
-  boundaries as part of a visual redesign.
+## Do's and Don'ts
+
+### Do:
+
+- Do use self-hosted Figtree for every interface and display role, with Georgia reserved for the Apoth wordmark.
+- Do compose marketing inside the 1400px editorial frame and preserve the roughly 66/34 first-viewport story mosaic.
+- Do use full-color product and lifestyle imagery with decisive crops and 16–24px media corners.
+- Do let hairlines, broad tonal fields, and the dark process band establish hierarchy before introducing elevation.
+- Do keep mobile controls at least 44px tall and preserve the persistent weight-care CTA above the safe-area inset.
+- Do state `$0` timing, separate offer acceptance, and institutional ownership beside the action they qualify.
+
+### Don't:
+
+- Don't substitute a legacy sans-serif, unrelated display face, or serif editorial accent for the Figtree system.
+- Don't reference an external visual-source repository or treat a prior implementation as the design authority.
+- Don't turn hairline lists, FAQs, treatment rows, or portal steps into repeated floating cards.
+- Don't add universal card sheen, lift, decorative gradients, or strong resting shadows.
+- Don't replace the stage-specific action language with a vague catch-all label.
+- Don't imply Apoth provides medical care, owns the clinical questionnaire or record, guarantees treatment, or begins billing before approval and separate offer acceptance.

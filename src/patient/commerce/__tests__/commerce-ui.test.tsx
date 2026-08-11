@@ -72,5 +72,23 @@ describe("checkout-as-signup UI", () => {
     expect(form).toHaveAttribute("method", "post");
     expect(container.querySelector('input[name="intent"]')).toHaveValue("launch");
     expect(screen.getByText(/review the exact treatment and price before any recurring charge begins/i)).toBeInTheDocument();
+    expect(screen.getByText("Payment method")).toBeInTheDocument();
+    expect(screen.getByText("Offer")).toBeInTheDocument();
+  });
+
+  it("offers safe recovery when the clinical portal cannot open", () => {
+    render(
+      <MemoryRouter>
+        <PortalLaunch error="portal_unavailable" />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /temporarily unavailable.*payment status have not changed/i,
+    );
+    expect(screen.getByRole("button", { name: /try secure portal again/i }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /return to account/i }))
+      .toHaveAttribute("href", "/account");
   });
 });

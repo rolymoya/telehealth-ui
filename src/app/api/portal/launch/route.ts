@@ -36,14 +36,14 @@ export async function POST(request: NextRequest) {
   const runtime = resolvePortalRuntimeConfig(process.env);
   const catalogCode = weightCatalogCode(process.env.APOTH_CHECKOUT_CATALOG_WEIGHT_ID);
   if (!auth.ok || !database.ok || !appData.ok || !runtime.ok || !catalogCode) {
-    return noStoreJson({ error: "portal_unavailable" }, 503);
+    return portalFailure(request, "portal_unavailable", 503);
   }
   const session = await getServerSession({
     config: auth.value,
     token: request.cookies.get(patientAccessCookieName)?.value,
   });
   if (!session.ok) {
-    return noStoreJson({ error: "authentication_required" }, 401);
+    return portalFailure(request, "authentication_required", 401);
   }
 
   const [snapshot, selection] = await Promise.all([
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     !selection.value ||
     selection.value.treatment !== "weight"
   ) {
-    return noStoreJson({ error: "portal_not_authorized" }, 403);
+    return portalFailure(request, "portal_not_authorized", 403);
   }
 
   const result = await launchPatientPortal({
@@ -76,8 +76,9 @@ export async function POST(request: NextRequest) {
     returnOrigin: runtime.value.returnOrigin,
   });
   if (!result.ok) {
-    return noStoreJson(
-      { error: result.code },
+    return portalFailure(
+      request,
+      result.code,
       result.code === "portal_not_authorized" ? 403 :
         result.code === "portal_busy" ? 409 : 503,
     );
@@ -92,6 +93,21 @@ export async function POST(request: NextRequest) {
   response.headers.set("Referrer-Policy", "no-referrer");
   response.headers.set("X-Content-Type-Options", "nosniff");
   return response;
+}
+
+function portalFailure(
+  request: NextRequest,
+  code: "authentication_required" | "portal_busy" | "portal_not_authorized" | "portal_unavailable",
+  status: number,
+) {
+  if ((request.headers.get("accept") ?? "").includes("text/html")) {
+    const recoveryUrl = new URL("/portal/launch", request.url);
+    recoveryUrl.searchParams.set("error", code);
+    const response = NextResponse.redirect(recoveryUrl, { status: 303 });
+    response.headers.set("Cache-Control", "no-store, private");
+    return response;
+  }
+  return noStoreJson({ error: code }, status);
 }
 
 function weightCatalogCode(value: string | undefined) {

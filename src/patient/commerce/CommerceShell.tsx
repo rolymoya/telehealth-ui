@@ -7,36 +7,37 @@ type CommerceStage = "checkout" | "verify" | "portal";
 
 const steps = [
   { key: "program", label: "Program" },
-  { key: "precheck", label: "Precheck" },
   { key: "account", label: "Account" },
   { key: "portal", label: "Clinical intake" },
+  { key: "payment", label: "Payment method" },
+  { key: "offer", label: "Offer" },
 ] as const;
 
 export function CommerceShell(input: {
   children: ReactNode;
   stage: CommerceStage;
 }) {
-  const activeIndex = input.stage === "portal" ? 3 : input.stage === "verify" ? 2 : 0;
+  const activeIndex = input.stage === "portal" ? 2 : input.stage === "verify" ? 1 : 0;
   return (
-    <div className="min-h-screen bg-[#f6f6f7] text-[#171719]">
-      <header className="border-b border-black/[0.06] bg-white">
+    <div className="min-h-screen bg-[#f9f9fa] text-[#171719]">
+      <header className="border-b border-black/[0.07] bg-white">
         <div className="mx-auto flex h-[68px] max-w-[1180px] items-center justify-between px-5 sm:h-[76px] sm:px-8">
           <a href={marketingHref("/")} aria-label="Apoth home">
             <Wordmark />
           </a>
-          <span className="inline-flex items-center gap-2 text-xs font-semibold text-black/55">
+          <span className="inline-flex items-center gap-2 text-xs font-medium text-black/55">
             <LockKeyhole className="h-4 w-4" aria-hidden="true" /> Secure patient flow
           </span>
         </div>
       </header>
 
-      <div className="border-b border-black/[0.05] bg-[#fbfbfc]">
-        <ol className="mx-auto flex max-w-[820px] items-center px-5 py-4" aria-label="Enrollment progress">
+      <div className="border-b border-black/[0.06] bg-[#f9f9fa]">
+        <ol className="mx-auto flex max-w-[760px] items-center px-5 py-4" aria-label="Enrollment progress">
           {steps.map((step, index) => (
             <Fragment key={step.key}>
               <li
-                className={`flex shrink-0 items-center gap-2 text-[10px] font-bold uppercase tracking-[0.09em] sm:text-xs ${
-                  index <= activeIndex ? "text-[#171719]" : "text-black/35"
+                className={`flex shrink-0 items-center gap-2 text-[10px] font-semibold sm:text-xs ${
+                  index <= activeIndex ? "text-[#171719]" : "text-black/55"
                 }`}
               >
                 <span
@@ -44,8 +45,8 @@ export function CommerceShell(input: {
                     index < activeIndex
                       ? "bg-[#171719] text-white"
                       : index === activeIndex
-                        ? "bg-[#f5df75] text-[#171719] ring-1 ring-black/10"
-                        : "bg-[#e8e8eb] text-black/45"
+                        ? "bg-[#171719] text-white"
+                        : "border border-black/15 bg-white text-black/60"
                   }`}
                 >
                   {index + 1}
@@ -64,8 +65,8 @@ export function CommerceShell(input: {
 
       {input.children}
 
-      <footer className="border-t border-black/[0.06] bg-white px-5 py-8 text-xs text-black/50 sm:px-8">
-        <div className="mx-auto flex max-w-[1180px] flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <footer className="border-t border-black/[0.07] bg-white px-5 py-8 text-xs text-black/65 sm:px-8">
+        <div className="mx-auto flex max-w-[760px] flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <p className="max-w-xl leading-5">
             Apoth Health LLC is a technology platform, not a medical provider.
             Treatment requires an independent clinical evaluation and is not guaranteed.

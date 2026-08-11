@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-11T03:17:10Z",
+  "title": "Design System: Apoth Story Mosaic",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Open Canvas",
+        "tonalRamp": ["oklch(15% 0.004 285)", "oklch(27% 0.004 285)", "oklch(39% 0.004 285)", "oklch(51% 0.004 285)", "oklch(63% 0.004 285)", "oklch(75% 0.004 285)", "oklch(87% 0.004 285)", "oklch(98% 0.004 285)"]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "tonalRamp": ["oklch(15% 0 0)", "oklch(27% 0 0)", "oklch(39% 0 0)", "oklch(51% 0 0)", "oklch(63% 0 0)", "oklch(75% 0 0)", "oklch(87% 0 0)", "oklch(100% 0 0)"]
+      },
+      "ink": {
+        "role": "primary",
+        "displayName": "Clear Ink",
+        "tonalRamp": ["oklch(15% 0.006 285)", "oklch(27% 0.006 285)", "oklch(39% 0.006 285)", "oklch(51% 0.006 285)", "oklch(63% 0.006 285)", "oklch(75% 0.006 285)", "oklch(87% 0.006 285)", "oklch(95% 0.006 285)"]
+      },
+      "ink-hover": {
+        "role": "primary",
+        "displayName": "Hover Ink",
+        "tonalRamp": ["oklch(15% 0.006 285)", "oklch(27% 0.006 285)", "oklch(39% 0.006 285)", "oklch(51% 0.006 285)", "oklch(63% 0.006 285)", "oklch(75% 0.006 285)", "oklch(87% 0.006 285)", "oklch(95% 0.006 285)"]
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Soft Ink",
+        "tonalRamp": ["oklch(15% 0.005 285)", "oklch(27% 0.005 285)", "oklch(39% 0.005 285)", "oklch(51% 0.005 285)", "oklch(63% 0.005 285)", "oklch(75% 0.005 285)", "oklch(87% 0.005 285)", "oklch(95% 0.005 285)"]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "tonalRamp": ["oklch(15% 0.004 285)", "oklch(27% 0.004 285)", "oklch(39% 0.004 285)", "oklch(51% 0.004 285)", "oklch(63% 0.004 285)", "oklch(75% 0.004 285)", "oklch(87% 0.004 285)", "oklch(95% 0.004 285)"]
+      },
+      "pear": {
+        "role": "primary",
+        "displayName": "Product Pear",
+        "tonalRamp": ["oklch(15% 0.08 135)", "oklch(27% 0.08 135)", "oklch(39% 0.08 135)", "oklch(51% 0.08 135)", "oklch(63% 0.08 135)", "oklch(75% 0.08 135)", "oklch(87% 0.08 135)", "oklch(95% 0.08 135)"]
+      },
+      "sun": {
+        "role": "secondary",
+        "displayName": "Quiet Sun",
+        "tonalRamp": ["oklch(15% 0.10 95)", "oklch(27% 0.10 95)", "oklch(39% 0.10 95)", "oklch(51% 0.10 95)", "oklch(63% 0.10 95)", "oklch(75% 0.10 95)", "oklch(87% 0.10 95)", "oklch(95% 0.10 95)"]
+      },
+      "warm-editorial": {
+        "role": "tertiary",
+        "displayName": "Warm Editorial",
+        "tonalRamp": ["oklch(15% 0.012 75)", "oklch(27% 0.012 75)", "oklch(39% 0.012 75)", "oklch(51% 0.012 75)", "oklch(63% 0.012 75)", "oklch(75% 0.012 75)", "oklch(87% 0.012 75)", "oklch(95% 0.012 75)"]
+      },
+      "pear-soft": {
+        "role": "secondary",
+        "displayName": "Soft Pear",
+        "tonalRamp": ["oklch(15% 0.035 135)", "oklch(27% 0.035 135)", "oklch(39% 0.035 135)", "oklch(51% 0.035 135)", "oklch(63% 0.035 135)", "oklch(75% 0.035 135)", "oklch(87% 0.035 135)", "oklch(95% 0.035 135)"]
+      },
+      "care-blue": {
+        "role": "tertiary",
+        "displayName": "Care Blue",
+        "tonalRamp": ["oklch(15% 0.14 260)", "oklch(27% 0.14 260)", "oklch(39% 0.14 260)", "oklch(51% 0.14 260)", "oklch(63% 0.14 260)", "oklch(75% 0.14 260)", "oklch(87% 0.14 260)", "oklch(95% 0.14 260)"]
+      },
+      "error-surface": {
+        "role": "tertiary",
+        "displayName": "Warm Error Surface",
+        "tonalRamp": ["oklch(15% 0.035 45)", "oklch(27% 0.035 45)", "oklch(39% 0.035 45)", "oklch(51% 0.035 45)", "oklch(63% 0.035 45)", "oklch(75% 0.035 45)", "oklch(87% 0.035 45)", "oklch(95% 0.035 45)"]
+      },
+      "error-ink": {
+        "role": "tertiary",
+        "displayName": "Recovery Umber",
+        "tonalRamp": ["oklch(15% 0.09 45)", "oklch(27% 0.09 45)", "oklch(39% 0.09 45)", "oklch(51% 0.09 45)", "oklch(63% 0.09 45)", "oklch(75% 0.09 45)", "oklch(87% 0.09 45)", "oklch(95% 0.09 45)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Outcome Display", "purpose": "Homepage outcome statements and the largest public marketing moments." },
+      "headline": { "displayName": "Editorial Headline", "purpose": "Section openings, product narratives, and major explanation bands." },
+      "title": { "displayName": "Story Title", "purpose": "Story cards, offers, disclosures, and process steps." },
+      "body": { "displayName": "Plain-Language Body", "purpose": "Patient-facing explanation at a readable 65ch measure." },
+      "label": { "displayName": "Operational Label", "purpose": "Navigation, actions, compact status, and price metadata." },
+      "wordmark": { "displayName": "Apoth Wordmark", "purpose": "The lowercase Apoth brand mark only; never editorial display copy." }
+    },
+    "shadows": [
+      { "name": "decision-panel", "value": "0 18px 50px rgba(23, 23, 25, 0.07)", "purpose": "The single grouped pricing decision on the weight-care hero." },
+      { "name": "quiet-overlay", "value": "0 12px 40px rgba(20, 24, 22, 0.08)", "purpose": "Menus and temporary elevated surfaces only." },
+      { "name": "product-object", "value": "drop-shadow(0 17px 16px rgba(40, 60, 43, 0.14))", "purpose": "Isolated medication-object staging; not content containers." },
+      { "name": "focus-ring", "value": "0 0 0 2px #f9f9fa, 0 0 0 4px rgba(24, 24, 26, 0.75)", "purpose": "High-contrast keyboard focus for non-field controls." }
+    ],
+    "motion": [
+      { "name": "state-fast", "value": "180ms ease", "purpose": "Buttons, links, disclosure icons, and quiet background changes." },
+      { "name": "action-lift", "value": "180ms cubic-bezier(0.2, 0.75, 0.25, 1)", "purpose": "The optional one-pixel lift on black actions." },
+      { "name": "image-stage", "value": "900ms cubic-bezier(0.19, 1, 0.22, 1)", "purpose": "The single homepage product-image scale moment." },
+      { "name": "orchestrated-reveal", "value": "650ms cubic-bezier(0.2, 0.75, 0.25, 1)", "purpose": "A bounded entrance for major editorial bands and steps." },
+      { "name": "reduced-motion", "value": "0.001ms", "purpose": "Effectively removes non-essential animation when reduced motion is requested." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "mobile-layout", "value": "760px" },
+      { "name": "story-collapse", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Pill Action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The direct black action used for exploratory marketing and section-level decisions.",
+      "html": "<a class=\"ds-primary-action\" href=\"#start\">See if online care fits<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14M13 6l6 6-6 6\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.8\"/></svg></a>",
+      "css": ".ds-primary-action { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; gap: 10px; border-radius: 999px; background: #171719; padding: 0 24px; color: #ffffff; font-family: Figtree, \"Helvetica Neue\", sans-serif; font-size: 14px; font-weight: 620; text-decoration: none; transition: background 180ms ease, transform 180ms cubic-bezier(0.2, 0.75, 0.25, 1); } .ds-primary-action svg { width: 17px; height: 17px; } .ds-primary-action:hover { background: #343437; transform: translateY(-1px); } .ds-primary-action:focus-visible { outline: none; box-shadow: 0 0 0 2px #f9f9fa, 0 0 0 4px rgba(24, 24, 26, 0.75); } .ds-primary-action:active { transform: translateY(0); } @media (prefers-reduced-motion: reduce) { .ds-primary-action { transition: none; } .ds-primary-action:hover { transform: none; } }"
+    },
+    {
+      "name": "Secondary Login Action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A quiet paper pill for returning-patient access beside the primary action.",
+      "html": "<a class=\"ds-login-action\" href=\"#sign-in\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"8\" r=\"3.5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\"/><path d=\"M5 20c.6-4 3-6 7-6s6.4 2 7 6\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-width=\"1.7\"/></svg>Login</a>",
+      "css": ".ds-login-action { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; gap: 8px; border: 1px solid rgba(23, 23, 25, 0.16); border-radius: 999px; background: #ffffff; padding: 0 24px; color: #171719; font-family: Figtree, \"Helvetica Neue\", sans-serif; font-size: 14px; font-weight: 620; text-decoration: none; transition: background 180ms ease; } .ds-login-action svg { width: 16px; height: 16px; } .ds-login-action:hover { background: #f1f1f2; } .ds-login-action:focus-visible { outline: none; box-shadow: 0 0 0 2px #f9f9fa, 0 0 0 4px rgba(24, 24, 26, 0.75); } .ds-login-action:active { background: #e9e9eb; }"
+    },
+    {
+      "name": "Patient Text Field",
+      "kind": "input",
+      "refersTo": "text-field",
+      "description": "The 48px patient-flow field with a quiet neutral resting edge and Care Blue focus state.",
+      "html": "<label class=\"ds-field-label\" for=\"ds-email\">Email address</label><input class=\"ds-field\" id=\"ds-email\" type=\"email\" placeholder=\"you@example.com\" />",
+      "css": ".ds-field-label { display: block; margin-bottom: 8px; color: #171719; font-family: Figtree, \"Helvetica Neue\", sans-serif; font-size: 13px; font-weight: 620; } .ds-field { width: 100%; min-height: 48px; border: 1px solid #dedee1; border-radius: 14px; background: #ffffff; padding: 0 16px; color: #171719; font-family: Figtree, \"Helvetica Neue\", sans-serif; font-size: 16px; transition: border-color 180ms ease, box-shadow 180ms ease; } .ds-field::placeholder { color: #77777c; } .ds-field:hover { border-color: #9b9ca0; } .ds-field:focus { border-color: #4e80ee; outline: none; box-shadow: 0 0 0 3px rgba(78, 128, 238, 0.16); } .ds-field:disabled { background: #f1f1f2; color: #77777c; cursor: not-allowed; }"
+    },
+    {
+      "name": "Sticky Marketing Navigation",
+      "kind": "nav",
+      "refersTo": "navigation-shell",
+      "description": "The low-chrome 1400px navigation with wordmark-only serif and a mobile collapse.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Primary navigation\"><a class=\"ds-wordmark\" href=\"#home\">apoth</a><div class=\"ds-nav-links\"><a href=\"#weight\">Weight loss</a><a href=\"#process\">How it works</a><a href=\"#about\">About</a></div><a class=\"ds-nav-cta\" href=\"#start\">See if online care fits</a><button class=\"ds-nav-menu\" type=\"button\" aria-label=\"Open menu\"><span></span><span></span></button></nav>",
+      "css": ".ds-nav { display: flex; width: min(100%, 1400px); height: 74px; align-items: center; justify-content: space-between; gap: 24px; margin: 0 auto; border-bottom: 1px solid rgba(23, 23, 25, 0.07); background: rgba(249, 249, 250, 0.95); padding: 0 32px; color: #171719; font-family: Figtree, \"Helvetica Neue\", sans-serif; backdrop-filter: blur(14px); } .ds-wordmark { color: #171719; font-family: Georgia, \"Times New Roman\", serif; font-size: 36px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; text-decoration: none; } .ds-nav-links { display: flex; align-items: center; gap: 38px; font-size: 14px; font-weight: 520; } .ds-nav-links a { color: inherit; text-decoration: none; transition: opacity 180ms ease; } .ds-nav-links a:hover { opacity: 0.56; } .ds-nav-cta { display: inline-flex; min-height: 46px; align-items: center; border-radius: 999px; background: #171719; padding: 0 24px; color: #ffffff; font-size: 14px; font-weight: 620; text-decoration: none; } .ds-nav-menu { display: none; width: 44px; height: 44px; border: 0; border-radius: 999px; background: #171719; place-content: center; gap: 5px; } .ds-nav-menu span { display: block; width: 17px; height: 1px; background: #ffffff; } .ds-nav :is(a, button):focus-visible { outline: none; box-shadow: 0 0 0 2px #f9f9fa, 0 0 0 4px rgba(24, 24, 26, 0.75); } @media (max-width: 1024px) { .ds-nav-links { display: none; } } @media (max-width: 760px) { .ds-nav { height: 62px; padding: 0 18px; } .ds-wordmark { font-size: 32px; } .ds-nav-cta { display: none; } .ds-nav-menu { display: grid; } }"
+    },
+    {
+      "name": "Hairline Care Lane",
+      "kind": "custom",
+      "description": "The unboxed horizontal category lane used below the homepage story mosaic.",
+      "html": "<a class=\"ds-care-lane\" href=\"#weight\"><span><strong>Weight loss</strong><small>Available now · plans from $99/mo*</small></span><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14M13 6l6 6-6 6\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.5\"/></svg></a>",
+      "css": ".ds-care-lane { display: flex; min-height: 98px; align-items: center; justify-content: space-between; gap: 24px; border-top: 1px solid #dedee1; border-bottom: 1px solid #dedee1; background: #f9f9fa; padding: 18px 24px; color: #171719; font-family: Figtree, \"Helvetica Neue\", sans-serif; text-decoration: none; transition: background 180ms ease; } .ds-care-lane:hover { background: #ffffff; } .ds-care-lane:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgba(23, 23, 25, 0.72); } .ds-care-lane span { display: grid; gap: 4px; } .ds-care-lane strong { font-size: 18px; font-weight: 540; } .ds-care-lane small { color: #626266; font-size: 12px; } .ds-care-lane svg { width: 20px; height: 20px; } @media (max-width: 760px) { .ds-care-lane { min-height: 76px; padding: 14px 4px; } }"
+    },
+    {
+      "name": "Pricing Decision Panel",
+      "kind": "card",
+      "refersTo": "pricing-panel",
+      "description": "The one deliberately elevated product decision, keeping exact options and $0 timing together.",
+      "html": "<section class=\"ds-pricing\" aria-labelledby=\"ds-pricing-title\"><p class=\"ds-pricing-note\">Independent provider review required. Starting the precheck is $0.</p><div class=\"ds-price-row\"><span id=\"ds-pricing-title\">Compounded semaglutide</span><strong>$99<small>/month*</small></strong></div><div class=\"ds-price-row\"><span>Compounded tirzepatide</span><strong>$199<small>/month*</small></strong></div><a href=\"#precheck\">Start the $0 precheck</a><p class=\"ds-pricing-microcopy\">Due before intake: $0. Billing begins only after clinical approval and separate offer acceptance.</p></section>",
+      "css": ".ds-pricing { border-radius: 16px; background: #ffffff; padding: 20px; color: #171719; font-family: Figtree, \"Helvetica Neue\", sans-serif; box-shadow: 0 18px 50px rgba(23, 23, 25, 0.07); } .ds-pricing-note { margin: 0 0 16px; color: #4e5c49; font-size: 12px; font-weight: 560; line-height: 1.45; } .ds-price-row { display: flex; min-height: 72px; align-items: center; justify-content: space-between; gap: 18px; border-top: 1px solid #dedee1; } .ds-price-row + .ds-price-row { border-bottom: 1px solid #dedee1; } .ds-price-row > span { max-width: 180px; font-size: 14px; font-weight: 560; line-height: 1.25; } .ds-price-row strong { font-size: 28px; font-weight: 580; letter-spacing: -0.025em; } .ds-price-row small { color: #626266; font-size: 13px; font-weight: 450; letter-spacing: 0; } .ds-pricing > a { display: flex; min-height: 52px; align-items: center; justify-content: center; margin-top: 20px; border-radius: 999px; background: #171719; color: #ffffff; font-size: 14px; font-weight: 620; text-decoration: none; transition: background 180ms ease; } .ds-pricing > a:hover { background: #343437; } .ds-pricing > a:focus-visible { outline: none; box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px rgba(24, 24, 26, 0.75); } .ds-pricing-microcopy { margin: 14px 2px 0; color: #5c5c61; font-size: 11px; line-height: 1.55; } @media (max-width: 760px) { .ds-pricing { padding: 16px; } .ds-price-row { min-height: 64px; } .ds-price-row strong { font-size: 25px; } }"
+    },
+    {
+      "name": "Hairline FAQ Disclosure",
+      "kind": "custom",
+      "description": "A transparent disclosure row whose divider and circular plus replace card chrome.",
+      "html": "<details class=\"ds-faq\"><summary><span>When does billing begin?</span><span class=\"ds-faq-plus\" aria-hidden=\"true\"></span></summary><p>Saving a payment method is $0 due. No subscription starts until clinical approval and separate acceptance of the exact offer.</p></details>",
+      "css": ".ds-faq { border-top: 1px solid #dedee1; border-bottom: 1px solid #dedee1; background: transparent; color: #171719; font-family: Figtree, \"Helvetica Neue\", sans-serif; } .ds-faq summary { display: flex; min-height: 82px; cursor: pointer; align-items: center; justify-content: space-between; gap: 24px; padding: 20px 0; list-style: none; font-size: 16px; font-weight: 540; } .ds-faq summary::-webkit-details-marker { display: none; } .ds-faq summary:focus-visible { outline: none; box-shadow: inset 0 0 0 2px rgba(23, 23, 25, 0.72); } .ds-faq-plus { position: relative; width: 28px; height: 28px; flex: 0 0 28px; border: 1px solid rgba(23, 23, 25, 0.18); border-radius: 50%; } .ds-faq-plus::before, .ds-faq-plus::after { position: absolute; left: 7px; top: 13px; width: 12px; height: 1px; background: #171719; content: \"\"; } .ds-faq-plus::after { transform: rotate(90deg); transition: transform 180ms ease; } .ds-faq[open] .ds-faq-plus::after { transform: rotate(0); } .ds-faq p { max-width: 680px; margin: -5px 48px 0 0; padding-bottom: 26px; color: #626266; font-size: 14px; line-height: 1.6; } @media (prefers-reduced-motion: reduce) { .ds-faq-plus::after { transition: none; } }"
+    },
+    {
+      "name": "Commerce Progress Strip",
+      "kind": "custom",
+      "description": "The five-stage receipt-like progress indicator that preserves the patient’s place without adding panels.",
+      "html": "<ol class=\"ds-progress\" aria-label=\"Enrollment progress\"><li class=\"ds-progress-done\"><span>1</span><b>Program</b></li><i></i><li class=\"ds-progress-done\"><span>2</span><b>Account</b></li><i></i><li class=\"ds-progress-active\"><span>3</span><b>Clinical intake</b></li><i></i><li><span>4</span><b>Payment method</b></li><i></i><li><span>5</span><b>Offer</b></li></ol>",
+      "css": ".ds-progress { display: flex; max-width: 760px; align-items: center; margin: 0 auto; border-top: 1px solid rgba(23, 23, 25, 0.06); border-bottom: 1px solid rgba(23, 23, 25, 0.06); background: #f9f9fa; padding: 16px 20px; color: rgba(23, 23, 25, 0.55); font-family: Figtree, \"Helvetica Neue\", sans-serif; list-style: none; } .ds-progress li { display: flex; flex-shrink: 0; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; } .ds-progress li > span { display: grid; width: 24px; height: 24px; place-items: center; border: 1px solid rgba(23, 23, 25, 0.15); border-radius: 50%; background: #ffffff; font-size: 10px; } .ds-progress li > b { font-weight: inherit; } .ds-progress .ds-progress-done, .ds-progress .ds-progress-active { color: #171719; } .ds-progress .ds-progress-done > span, .ds-progress .ds-progress-active > span { border-color: #171719; background: #171719; color: #ffffff; } .ds-progress > i { height: 1px; flex: 1; margin: 0 16px; background: rgba(23, 23, 25, 0.1); } @media (max-width: 640px) { .ds-progress li:not(.ds-progress-active) > b { display: none; } .ds-progress li { font-size: 10px; } .ds-progress > i { margin: 0 12px; } }"
+    },
+    {
+      "name": "Portal Launch Handoff",
+      "kind": "custom",
+      "description": "The nearly unboxed final bridge into the independent provider’s secure clinical portal.",
+      "html": "<section class=\"ds-portal\" aria-labelledby=\"ds-portal-title\"><div class=\"ds-portal-status\"><span>Account secured</span><span>Independent clinical care</span></div><h1 id=\"ds-portal-title\">Continue to your medical intake</h1><p>Your clinical questionnaire and ongoing care live in the independent provider’s secure patient portal.</p><div class=\"ds-portal-timing\">Payment-method setup after intake is $0 due. No subscription starts until clinical approval and your separate acceptance of the exact recurring treatment price.</div><button type=\"button\">Continue to medical intake<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14M13 6l6 6-6 6\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.8\"/></svg></button><small>Opens the secure patient portal</small></section>",
+      "css": ".ds-portal { max-width: 760px; margin: 0 auto; background: #f9f9fa; padding: 32px 20px 40px; color: #171719; font-family: Figtree, \"Helvetica Neue\", sans-serif; } .ds-portal-status { display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid rgba(23, 23, 25, 0.1); padding-bottom: 16px; color: rgba(23, 23, 25, 0.65); font-size: 12px; font-weight: 600; } .ds-portal h1 { max-width: 680px; margin: 28px 0 0; font-size: clamp(40.8px, 6vw, 62.4px); font-weight: 460; letter-spacing: -0.035em; line-height: 0.98; text-wrap: balance; } .ds-portal > p { max-width: 650px; margin: 16px 0 0; color: rgba(23, 23, 25, 0.65); font-size: 16px; line-height: 1.7; } .ds-portal-timing { margin-top: 24px; border-top: 1px solid rgba(23, 23, 25, 0.1); border-bottom: 1px solid rgba(23, 23, 25, 0.1); padding: 16px 0; color: rgba(23, 23, 25, 0.65); font-size: 14px; line-height: 1.6; } .ds-portal button { display: inline-flex; width: 100%; min-height: 56px; align-items: center; justify-content: center; gap: 8px; margin-top: 24px; border: 0; border-radius: 999px; background: #171719; padding: 0 28px; color: #ffffff; font-family: inherit; font-size: 14px; font-weight: 620; transition: background 180ms ease, transform 180ms ease; } .ds-portal button svg { width: 16px; height: 16px; } .ds-portal button:hover { background: #343437; transform: translateY(-1px); } .ds-portal button:focus-visible { outline: none; box-shadow: 0 0 0 2px #f9f9fa, 0 0 0 4px rgba(24, 24, 26, 0.75); } .ds-portal small { display: block; margin-top: 12px; color: rgba(23, 23, 25, 0.65); font-size: 12px; text-align: center; } @media (min-width: 640px) { .ds-portal { padding: 40px 32px; } } @media (prefers-reduced-motion: reduce) { .ds-portal button { transition: none; } .ds-portal button:hover { transform: none; } }"
+    },
+    {
+      "name": "Persistent Mobile Product CTA",
+      "kind": "nav",
+      "refersTo": "button-primary-large",
+      "description": "The safe-area-aware weight-care action that remains available after the desktop header CTA disappears.",
+      "html": "<div class=\"ds-mobile-cta\"><a href=\"#precheck\">Start the $0 precheck<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14M13 6l6 6-6 6\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"1.8\"/></svg></a></div>",
+      "css": ".ds-mobile-cta { display: none; font-family: Figtree, \"Helvetica Neue\", sans-serif; } @media (max-width: 760px) { .ds-mobile-cta { display: block; border-top: 1px solid rgba(23, 23, 25, 0.12); background: rgba(249, 249, 250, 0.96); padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); backdrop-filter: blur(14px); } .ds-mobile-cta a { display: flex; min-height: 52px; align-items: center; justify-content: center; gap: 9px; border-radius: 999px; background: #171719; color: #ffffff; font-size: 14px; font-weight: 650; text-decoration: none; } .ds-mobile-cta a:hover { background: #343437; } .ds-mobile-cta a:focus-visible { outline: none; box-shadow: 0 0 0 2px #f9f9fa, 0 0 0 4px rgba(24, 24, 26, 0.75); } .ds-mobile-cta svg { width: 17px; height: 17px; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Clear Care Mosaic",
+    "overview": "The Clear Care Mosaic pairs everyday warmth with exact healthcare boundaries. Public pages use large, lightweight Figtree headlines, cinematic full-color imagery, broad pear and warm editorial fields, and low-chrome composition to make the offer legible without making care feel transactional or clinical.\n\nExpression intentionally recedes as a patient advances. Marketing begins inside a generous 1400px story frame; product choice becomes a focused 60/40 decision; account, payment, and portal-launch steps narrow to quiet, nearly unboxed task columns. At every stage, Apoth remains the technology, identity, and commerce layer while the independent provider portal owns the questionnaire, clinical review, clinical record, and care workflow.",
+    "keyCharacteristics": [
+      "Figtree for every interface and display role; Georgia only for the Apoth wordmark.",
+      "A neutral `#f9f9fa` canvas structured by hairlines, tonal bands, and decisive image crops.",
+      "Pear and sun fields create memorable category and action moments without becoming universal brand primaries.",
+      "Black pill actions use direct, context-specific language and preserve honest payment timing.",
+      "Marketing is spatial and editorial; commerce is narrow, calm, and operational."
+    ],
+    "rules": [
+      { "name": "The Accent Field Rule", "body": "Pear, sun, and warm editorial colors earn attention through broad fields; do not scatter them across badges, icon bubbles, or decorative fragments.", "section": "colors" },
+      { "name": "The Boundary Color Rule", "body": "Error and status colors communicate operational state only. Never use color to imply clinical eligibility, approval, or treatment outcome.", "section": "colors" },
+      { "name": "The One Serif Rule", "body": "Georgia belongs to the lowercase Apoth wordmark only; do not use serif type for editorial headlines, quotes, product names, or decorative accents.", "section": "typography" },
+      { "name": "The Progressive Quieting Rule", "body": "Each step toward clinical intake removes visual chrome: mosaic, then product decision, then receipt-like account flow, then a nearly unboxed portal launch.", "section": "layout" },
+      { "name": "The Surface Discipline Rule", "body": "If a hairline or background transition establishes structure, do not add a shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use self-hosted Figtree for every interface and display role, with Georgia reserved for the Apoth wordmark.",
+      "Do compose marketing inside the 1400px editorial frame and preserve the roughly 66/34 first-viewport story mosaic.",
+      "Do use full-color product and lifestyle imagery with decisive crops and 16–24px media corners.",
+      "Do let hairlines, broad tonal fields, and the dark process band establish hierarchy before introducing elevation.",
+      "Do keep mobile controls at least 44px tall and preserve the persistent weight-care CTA above the safe-area inset.",
+      "Do state `$0` timing, separate offer acceptance, and institutional ownership beside the action they qualify."
+    ],
+    "donts": [
+      "Don't substitute a legacy sans-serif, unrelated display face, or serif editorial accent for the Figtree system.",
+      "Don't reference an external visual-source repository or treat a prior implementation as the design authority.",
+      "Don't turn hairline lists, FAQs, treatment rows, or portal steps into repeated floating cards.",
+      "Don't add universal card sheen, lift, decorative gradients, or strong resting shadows.",
+      "Don't replace the stage-specific action language with a vague catch-all label.",
+      "Don't imply Apoth provides medical care, owns the clinical questionnaire or record, guarantees treatment, or begins billing before approval and separate offer acceptance."
+    ]
+  }
+}

@@ -44,7 +44,7 @@ export function Nav({ variant = "light" }: NavProps) {
               isDark ? "bg-white text-[#171719] hover:bg-white/90" : "bg-[#171719] text-white hover:bg-[#343437]"
             }`}
           >
-            Get started
+            See if online care fits
           </a>
           <a
             href="/sign-in"

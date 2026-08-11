@@ -10,7 +10,7 @@ export default function NotFound() {
       body="The link may have changed, or the page may no longer be available. No account or care information was changed."
       actions={[
         { href: "/", label: "Go home" },
-        { href: onboardingHref("weight"), label: "Start a visit", variant: "secondary" },
+        { href: onboardingHref("weight"), label: "See if online care fits", variant: "secondary" },
       ]}
     />
   );
