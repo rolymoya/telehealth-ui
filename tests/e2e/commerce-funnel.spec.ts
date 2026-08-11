@@ -69,7 +69,7 @@ test("keeps the active native account and portal routes", async ({ page }) => {
     { path: "/intake", heading: "Privacy notice, then a short precheck." },
     { path: "/sign-up", heading: "Create your account." },
     { path: "/onboarding/consent", heading: "Review telehealth and platform terms." },
-    { path: "/portal/launch", heading: "Continue to your medical intake." },
+    { path: "/portal/launch", heading: "Continue to your medical intake" },
     { path: "/medication-management", heading: "Medication management" },
   ]) {
     await page.goto(route.path);
