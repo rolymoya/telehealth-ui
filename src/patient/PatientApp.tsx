@@ -78,7 +78,7 @@ function AuthPage({ mode }: { mode: AuthPanelMode }) {
   const [params] = useSearchParams();
   return (
     <>
-      <Nav variant="light" />
+      <Nav variant="light" announcement={false} />
       <main id="main">
         <AuthPanel mode={mode} returnTo={params.get("returnTo")} />
       </main>
@@ -92,7 +92,7 @@ function GetStartedPage() {
   const product = params.get("product");
   return (
     <>
-      <Nav variant="light" />
+      <Nav variant="light" announcement={false} />
       <main id="main">
         <section className="mx-auto grid max-w-[1120px] gap-5 px-5 py-10 text-ink md:grid-cols-[0.86fr_1fr] md:px-8 md:py-20">
           <div className="max-w-3xl rounded-[26px] bg-[#f5df75] p-7 shadow-soft sm:p-10">
@@ -125,7 +125,7 @@ function IntakePage() {
   const product = params.get("product");
   return (
     <>
-      <Nav variant="light" />
+      <Nav variant="light" announcement={false} />
       <main id="main" className="text-ink">
         <section className="mx-auto grid max-w-[1120px] gap-5 px-5 py-10 md:grid-cols-[0.86fr_1fr] md:px-8 md:py-20">
           <div className="max-w-prose rounded-[26px] bg-[#e2f1eb] p-7 shadow-soft sm:p-10">
@@ -154,7 +154,7 @@ function IntakePage() {
 function ConsentPage() {
   return (
     <>
-      <Nav variant="light" />
+      <Nav variant="light" announcement={false} />
       <main id="main">
         <section className="mx-auto max-w-[980px] px-5 py-10 text-ink md:px-8 md:py-20">
           <ConsentAcceptanceClient
@@ -181,7 +181,7 @@ function AccountPage() {
 function BillingOfferPage() {
   return (
     <>
-      <Nav variant="light" />
+      <Nav variant="light" announcement={false} />
       <BillingOfferClient />
       <Footer />
     </>

@@ -52,8 +52,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ["Figtree", "Helvetica Neue", "sans-serif"],
-        sans: ["Figtree", "Helvetica Neue", "sans-serif"],
+        display: ["Figtree", "Figtree Fallback", "sans-serif"],
+        sans: ["Figtree", "Figtree Fallback", "sans-serif"],
       },
       fontSize: {
         // Display scale, optical-size aware via Fraunces variable axis (font-variation-settings handled in components when needed)

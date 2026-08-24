@@ -4,13 +4,12 @@ import { ArrowUpRight, Menu, X } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/marketing-v2/ui/Button";
+import { navLinks } from "@/lib/data";
 import { onboardingHref } from "@/lib/public-commerce";
 
-const defaultLinks = [
-  ["Weight Loss", "/weight-loss"],
-  ["About", "/about"],
-  ["FAQs", "/#faq"],
-] as const;
+const defaultLinks = navLinks.map(
+  ({ label, href }) => [label, href] as const,
+);
 
 type MobileMenuProps = {
   links?: ReadonlyArray<readonly [string, string]>;

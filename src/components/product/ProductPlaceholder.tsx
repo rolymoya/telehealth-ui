@@ -12,7 +12,7 @@ export function ProductPlaceholder({
 }) {
   return (
     <>
-      <Nav variant="light" />
+      <Nav variant="light" announcement={false} />
       <main id="main">
         <section className="mx-auto max-w-[920px] px-5 py-10 text-ink md:px-8 md:py-20">
           <div className="overflow-hidden rounded-[28px] border border-black/[0.05] bg-white shadow-soft">

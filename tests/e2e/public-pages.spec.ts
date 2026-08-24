@@ -44,7 +44,7 @@ test.describe("public navigation and CTAs", () => {
 
     await page.goto("/");
     await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", {
-      name: "Weight Loss",
+      name: "Weight loss",
     }).click();
     await expect(page).toHaveURL(/\/weight-loss$/);
     await expect(

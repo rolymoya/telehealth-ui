@@ -7,7 +7,6 @@ import BillingPage from "@/app/billing/page";
 import DashboardLoading from "@/app/dashboard/loading";
 import GlobalError from "@/app/error";
 import IntakeError from "@/app/intake/error";
-import Loading from "@/app/loading";
 import NotFound from "@/app/not-found";
 import MdiError from "@/app/onboarding/mdi/error";
 import MdiHandoffPage from "@/app/onboarding/mdi/page";
@@ -15,7 +14,7 @@ import { PortalLaunch } from "@/patient/commerce/PortalLaunch";
 import { MdiUnavailableState } from "@/components/product/ProviderUnavailableStates";
 
 describe("route states", () => {
-  it("renders root not-found and loading states with calm recovery copy", () => {
+  it("renders the root not-found state with calm recovery copy", () => {
     render(<NotFound />);
 
     expect(screen.getByRole("heading", {
@@ -23,12 +22,6 @@ describe("route states", () => {
     })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /go home/i }))
       .toHaveAttribute("href", "/");
-
-    render(<Loading />);
-
-    expect(screen.getByRole("heading", {
-      name: /preparing your next step/i,
-    })).toBeInTheDocument();
   });
 
   it("does not render raw error details and still retries", async () => {

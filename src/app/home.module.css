@@ -10,58 +10,24 @@
   overflow: hidden;
   background: var(--canvas);
   color: var(--ink);
+  /* Opacity only — a transform here would become the containing block for
+     descendants and break the sticky hero media. The header sits outside this
+     wrapper, so it stays solid while the content eases in under it. */
+  animation: pageEnter 520ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
 }
 
-.announcement {
-  display: flex;
-  min-height: 36px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: var(--sun);
-  padding: 8px 20px;
-  font-size: 12px;
-  font-weight: 500;
-  text-align: center;
+@keyframes pageEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.announcement svg { width: 15px; height: 15px; }
-
-.header {
-  position: sticky;
-  z-index: 50;
-  top: 0;
-  border-bottom: 1px solid rgba(23, 23, 25, .07);
-  background: rgba(249, 249, 250, .95);
-  backdrop-filter: blur(14px);
+@media (prefers-reduced-motion: reduce) {
+  .page { animation: none; }
 }
 
-.headerInner {
-  display: flex;
-  width: min(100%, 1400px);
-  height: 74px;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 auto;
-  padding: 0 32px;
-}
+/* Header styles live in src/components/Nav.module.css. */
 
-.wordmark {
-  color: var(--ink);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 36px;
-  font-weight: 700;
-  letter-spacing: -.04em;
-  line-height: 1;
-}
-
-.desktopNav { display: flex; align-items: center; gap: 38px; font-size: 14px; font-weight: 520; }
-.desktopNav a { transition: opacity 180ms ease; }
-.desktopNav a:hover { opacity: .56; }
-.headerActions { display: flex; align-items: center; gap: 10px; }
-
-.primaryButton,
-.loginButton {
+.primaryButton {
   display: inline-flex;
   min-height: 46px;
   align-items: center;
@@ -70,14 +36,12 @@
   padding: 0 24px;
   font-size: 14px;
   font-weight: 620;
+  background: var(--ink);
+  color: #fff;
   transition: background 180ms ease, transform 180ms cubic-bezier(.2,.75,.25,1);
 }
 
-.primaryButton { background: var(--ink); color: #fff; }
 .primaryButton:hover { background: #343437; transform: translateY(-1px); }
-.loginButton { gap: 8px; border: 1px solid rgba(23,23,25,.16); background: #fff; }
-.loginButton:hover { background: #f1f1f2; }
-.loginButton svg { width: 16px; height: 16px; }
 
 .hero { width: min(100%, 1400px); margin: 0 auto; padding: 68px 32px 0; }
 
@@ -181,7 +145,6 @@
 .close p { max-width: 580px; margin: 22px 0 30px; color: rgba(23,23,25,.66); font-size: 17px; line-height: 1.5; }
 
 @media (max-width: 1024px) {
-  .desktopNav { display: none; }
   .heroIntro { grid-template-columns: 1fr; }
   .proofList { display: grid; grid-template-columns: repeat(3, 1fr); }
   .proofList li { border-bottom: 1px solid var(--line); }
@@ -195,10 +158,6 @@
 }
 
 @media (max-width: 760px) {
-  .headerInner { height: 62px; padding: 0 18px; }
-  .wordmark { font-size: 32px; }
-  .headerActions > .primaryButton,
-  .loginButton { display: none; }
   .hero { padding: 40px 16px 0; }
   .heroIntro { gap: 30px; }
   .heroIntro h1 { font-size: clamp(44px, 13vw, 58px); letter-spacing: -.035em; }

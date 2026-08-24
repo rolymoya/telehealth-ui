@@ -4,19 +4,19 @@ import { useEffect } from "react";
 
 export function MotionObserver() {
   useEffect(() => {
-    const root = document.documentElement;
     const elements = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
     const completionTimers: number[] = [];
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    root.classList.add("motion-ready");
+    // `motion-ready` is rendered on <html> in the root layout, so the hidden
+    // start state applies from first paint instead of being added after it.
 
     if (reducedMotion || !("IntersectionObserver" in window)) {
       elements.forEach((element) => {
         element.setAttribute("data-revealed", "true");
         element.setAttribute("data-reveal-complete", "true");
       });
-      return () => root.classList.remove("motion-ready");
+      return;
     }
 
     const observer = new IntersectionObserver(
@@ -39,7 +39,6 @@ export function MotionObserver() {
     return () => {
       observer.disconnect();
       completionTimers.forEach((timer) => window.clearTimeout(timer));
-      root.classList.remove("motion-ready");
     };
   }, []);
 

@@ -1,0 +1,99 @@
+/* Site header. Self-contained: does not inherit custom properties from a page
+   wrapper, so it renders identically on marketing and product routes. */
+
+.announcement {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #f2da68;
+  color: #171719;
+  padding: 8px 20px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.announcement svg { width: 15px; height: 15px; }
+
+/* `view-transition-name` is set inline in Nav.tsx, not here: CSS Modules
+   rewrites the value to a hashed name, which the `::view-transition-group()`
+   selectors in globals.css would then fail to match. */
+.header {
+  position: sticky;
+  z-index: 50;
+  top: 0;
+  border-bottom: 1px solid rgba(23, 23, 25, .07);
+  background: rgba(249, 249, 250, .95);
+  color: #171719;
+  backdrop-filter: blur(14px);
+}
+
+.headerInner {
+  display: flex;
+  width: min(100%, 1400px);
+  height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.wordmark {
+  color: inherit;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -.04em;
+  line-height: 1;
+}
+
+.nav { display: flex; align-items: center; gap: 38px; font-size: 14px; font-weight: 520; }
+.nav a { color: inherit; transition: opacity 180ms ease; }
+.nav a:hover { opacity: .56; }
+
+.headerActions { display: flex; align-items: center; gap: 10px; }
+
+.cta,
+.login {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0 24px;
+  font-size: 14px;
+  font-weight: 620;
+  transition: background 180ms ease, transform 180ms cubic-bezier(.2, .75, .25, 1);
+}
+
+.cta { background: #171719; color: #fff; }
+.cta:hover { background: #343437; transform: translateY(-1px); }
+.login { gap: 8px; border: 1px solid rgba(23, 23, 25, .16); background: #fff; color: #171719; }
+.login:hover { background: #f1f1f2; }
+.login svg { width: 16px; height: 16px; }
+
+/* Dark surfaces (unused today, retained for the `variant` prop). */
+.dark { border-bottom-color: rgba(255, 255, 255, .1); background: rgba(23, 23, 25, .95); color: #fff; }
+.dark .cta { background: #fff; color: #171719; }
+.dark .cta:hover { background: rgba(255, 255, 255, .9); }
+.dark .login { border-color: rgba(255, 255, 255, .25); background: transparent; color: #fff; }
+.dark .login:hover { background: rgba(255, 255, 255, .1); }
+
+/* 1023px, not 1020px: matches the Tailwind `lg` breakpoint MobileMenu uses for
+   its hamburger, so exactly one of the two is visible at any width. */
+@media (max-width: 1023px) {
+  .nav { display: none; }
+}
+
+@media (max-width: 760px) {
+  .headerInner { height: 62px; padding: 0 18px; }
+  .wordmark { font-size: 32px; }
+  .cta, .login { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta, .login, .nav a { transition: none; }
+  .cta:hover { transform: none; }
+}

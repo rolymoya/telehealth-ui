@@ -7,11 +7,10 @@ import {
   PackageCheck,
   ShieldCheck,
   Truck,
-  UserRound,
 } from "lucide-react";
 
 import { Footer } from "@/components/Footer";
-import { MobileMenu } from "@/components/marketing-v2/MobileMenu";
+import { Nav } from "@/components/Nav";
 import { onboardingHref } from "@/lib/public-commerce";
 
 import styles from "./page.module.css";
@@ -93,38 +92,6 @@ const faqs = [
   },
 ];
 
-function Header() {
-  return (
-    <>
-      <div className={styles.announcement}><PackageCheck aria-hidden="true" /> Free expedited shipping on prescribed treatment</div>
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <a className={styles.logo} href="/" aria-label="Apoth home">apoth</a>
-          <nav className={styles.nav} aria-label="Primary navigation">
-            <a href="#options">Treatment options</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="#faq">FAQs</a>
-            <a href="/about">About</a>
-          </nav>
-          <div className={styles.headerActions}>
-            <a className={styles.headerCta} href={weightOnboardingHref}>Start the $0 precheck</a>
-            <a className={styles.loginButton} href="/sign-in"><UserRound aria-hidden="true" /> Login</a>
-            <MobileMenu
-              links={[
-                ["Treatment options", "#options"],
-                ["How it works", "#how-it-works"],
-                ["FAQs", "#faq"],
-              ]}
-              ctaHref={weightOnboardingHref}
-              ctaLabel="Start the $0 precheck"
-            />
-          </div>
-        </div>
-      </header>
-    </>
-  );
-}
-
 function FaqRow({ question, answer }: { question: string; answer: string }) {
   return (
     <details className={styles.faqRow}>
@@ -136,9 +103,9 @@ function FaqRow({ question, answer }: { question: string; answer: string }) {
 
 export default function WeightLossPage() {
   return (
-    <main id="main" className={`${styles.page} marketing-v2`}>
-      <Header />
-
+    <>
+      <Nav ctaHref={weightOnboardingHref} ctaLabel="Start the $0 precheck" />
+      <main id="main" className={`${styles.page} marketing-v2`}>
       <div id="main-content">
         <section className={styles.hero}>
           <div className={styles.heroMedia}>
@@ -273,6 +240,7 @@ export default function WeightLossPage() {
       </div>
 
       <Footer />
-    </main>
+      </main>
+    </>
   );
 }

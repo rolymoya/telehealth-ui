@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { HashScroll } from "@/components/HashScroll";
 import { assertPublicServerStartupConfig } from "@/lib/secrets/startup";
 import "./globals.css";
 
@@ -55,7 +56,48 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className="motion-ready">
+      <head>
+        {/* Without these the browser discovers the fonts only after CSS parses,
+            paints the page in Helvetica Neue, then re-renders in Figtree at
+            different metrics — text visibly changes size mid-load. Preloading
+            gets them in before first paint. */}
+        <link
+          rel="preload"
+          href="/fonts/figtree-latin-variable.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/fonts/figtree-latin-ext-variable.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        {/* `.motion-ready` gates the reveal animations' hidden start state and
+            is rendered on <html> below rather than added by script, so the
+            markup React hydrates matches what the server sent. Without JS
+            nothing would ever reveal those elements, so restore them here. */}
+        <noscript>
+          <style>{`.motion-ready .marketing-v2 [data-reveal]{opacity:1!important;transform:none!important}`}</style>
+        </noscript>
+        {/* Runs before the body parses. Three things race to set scroll
+            position on a `#section` load: the browser's native fragment jump,
+            the App Router's reset to top during hydration, and HashScroll's
+            animation. The first two are what made arriving on a section lurch
+            twice. Stashing the hash and taking it off the URL leaves only the
+            animation; HashScroll restores the hash once it has finished.
+            Touches no rendered markup, so hydration still matches. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "if(location.hash){window.__apothPendingHash=location.hash;" +
+              "history.replaceState(null,'',location.pathname+location.search);}",
+          }}
+        />
+      </head>
       <body className="app-v2">
         <span
           aria-hidden="true"
@@ -71,6 +113,7 @@ export default function RootLayout({
         >
           Skip to content
         </a>
+        <HashScroll />
         {children}
       </body>
     </html>

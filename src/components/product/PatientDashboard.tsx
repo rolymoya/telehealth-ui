@@ -19,7 +19,7 @@ export function PatientDashboard({
 
   return (
     <>
-      <Nav variant="light" />
+      <Nav variant="light" announcement={false} />
       <main id="main" className="text-ink">
         <section className="mx-auto max-w-[1270px] px-5 py-10 md:px-8 md:py-16">
           <div className="grid gap-5 lg:grid-cols-[0.62fr_1.38fr] lg:items-start">

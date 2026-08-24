@@ -6,14 +6,12 @@ import {
   CalendarClock,
   Check,
   LockKeyhole,
-  PackageCheck,
   ShieldCheck,
   Truck,
-  UserRound,
 } from "lucide-react";
 
 import { Footer } from "@/components/Footer";
-import { MobileMenu } from "@/components/marketing-v2/MobileMenu";
+import { Nav } from "@/components/Nav";
 import { MotionObserver } from "@/components/marketing-v2/MotionObserver";
 import {
   Accordion,
@@ -79,36 +77,10 @@ const faqs = [
 
 export default function Home() {
   return (
-    <main id="main" className={`${styles.page} marketing-v2`}>
+    <>
+      <Nav />
+      <main id="main" className={`${styles.page} marketing-v2`}>
       <MotionObserver />
-
-      <div className={styles.announcement}>
-        <PackageCheck aria-hidden="true" />
-        Free expedited shipping on prescribed treatment
-      </div>
-
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <a className={styles.wordmark} href="/" aria-label="Apoth home">
-            apoth
-          </a>
-          <nav className={styles.desktopNav} aria-label="Primary navigation">
-            <a href="/weight-loss">Weight loss</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="/about">About</a>
-            <a href="#faq">FAQs</a>
-          </nav>
-          <div className={styles.headerActions}>
-            <a className={styles.primaryButton} href={weightOnboardingHref}>
-              See if online care fits
-            </a>
-            <a className={styles.loginButton} href="/sign-in">
-              <UserRound aria-hidden="true" /> Login
-            </a>
-            <MobileMenu ctaHref={weightOnboardingHref} />
-          </div>
-        </div>
-      </header>
 
       <div id="main-content">
         <section className={styles.hero} aria-labelledby="home-heading">
@@ -239,6 +211,7 @@ export default function Home() {
       </div>
 
       <Footer />
-    </main>
+      </main>
+    </>
   );
 }

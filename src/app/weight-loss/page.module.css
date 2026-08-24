@@ -12,22 +12,12 @@
   color: var(--ink);
 }
 
-.announcement { display: flex; min-height: 36px; align-items: center; justify-content: center; gap: 8px; background: var(--sun); padding: 8px 20px; font-size: 12px; font-weight: 500; text-align: center; }
-.announcement svg { width: 15px; height: 15px; }
-.header { position: sticky; z-index: 50; top: 0; border-bottom: 1px solid rgba(23,23,25,.07); background: rgba(249,249,250,.95); backdrop-filter: blur(14px); }
-.headerInner { display: flex; width: min(100%,1400px); height: 74px; align-items: center; justify-content: space-between; margin: 0 auto; padding: 0 32px; }
-.logo { font-family: Georgia,"Times New Roman",serif; font-size: 36px; font-weight: 700; letter-spacing: -.04em; line-height: 1; }
-.nav { display: flex; align-items: center; gap: 36px; font-size: 14px; font-weight: 520; }
-.nav a { transition: opacity 180ms ease; }
-.nav a:hover { opacity: .56; }
-.headerActions { display: flex; align-items: center; gap: 10px; }
-.headerCta,.loginButton,.primaryButton,.lightButton { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; border-radius: 999px; padding: 0 24px; font-size: 14px; font-weight: 620; transition: background 180ms ease,transform 180ms ease; }
-.headerCta,.primaryButton { background: var(--ink); color: #fff; }
-.headerCta:hover,.primaryButton:hover { background: #343437; transform: translateY(-1px); }
-.loginButton { gap: 8px; border: 1px solid rgba(23,23,25,.16); background: #fff; }
-.loginButton svg { width: 16px; height: 16px; }
+/* Header styles live in src/components/Nav.module.css. */
+.primaryButton,.lightButton { display: inline-flex; min-height: 46px; align-items: center; justify-content: center; border-radius: 999px; padding: 0 24px; font-size: 14px; font-weight: 620; transition: background 180ms ease,transform 180ms ease; }
+.primaryButton { background: var(--ink); color: #fff; }
+.primaryButton:hover { background: #343437; transform: translateY(-1px); }
 
-.hero { display: grid; width: min(100%,1400px); grid-template-columns: minmax(0,1.25fr) minmax(390px,.75fr); gap: clamp(42px,6vw,88px); margin: 0 auto; padding: 48px 32px 110px; }
+.hero { display: grid; width: min(100%,1400px); grid-template-columns: minmax(0,1.25fr) minmax(390px,.75fr); gap: clamp(42px,6vw,88px); margin: 0 auto; padding: 48px 32px 72px; }
 .heroMedia { position: sticky; top: 112px; min-height: 760px; align-self: start; overflow: hidden; border-radius: 24px; background: var(--pear); }
 .heroImage { object-fit: cover; object-position: center; }
 .heroDetails { align-self: start; padding-top: 18px; }
@@ -50,7 +40,10 @@
 .inclusions svg { width: 18px; height: 18px; stroke-width: 1.6; }
 .safetyLink { display: inline-block; margin-top: 22px; color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 4px; }
 
-.options { display: grid; width: min(100%,1240px); grid-template-columns: minmax(0,.72fr) minmax(0,1.28fr); gap: 9vw; margin: 0 auto; padding: 118px 32px; }
+/* Top padding trimmed against .hero's bottom padding to close the gap under
+   the hero; the 118px bottom is kept so the rhythm with the next section is
+   unchanged. */
+.options { display: grid; width: min(100%,1240px); grid-template-columns: minmax(0,.72fr) minmax(0,1.28fr); gap: 9vw; margin: 0 auto; padding: 80px 32px 118px; }
 .optionsIntro h2 { margin: 0; font-size: clamp(44px,4.8vw,68px); font-weight: 440; letter-spacing: -.035em; line-height: .98; }
 .optionsIntro p { max-width: 480px; margin: 24px 0 0; color: var(--muted); font-size: 16px; line-height: 1.55; }
 .optionList { border-top: 1px solid var(--line); }
@@ -112,7 +105,6 @@
 .mobileCta { display: none; }
 
 @media (max-width: 1020px) {
-  .nav { display: none; }
   .hero { grid-template-columns: 1fr; }
   .heroMedia { position: relative; top: auto; min-height: 630px; }
   .heroDetails { max-width: 720px; }
@@ -120,11 +112,8 @@
 }
 
 @media (max-width: 760px) {
-  .headerInner { height: 62px; padding: 0 18px; }
-  .logo { font-size: 32px; }
-  .headerCta,.loginButton { display: none; }
   .page { padding-bottom: 78px; }
-  .hero { gap: 18px; padding: 16px 16px 72px; }
+  .hero { gap: 18px; padding: 16px 16px 48px; }
   .heroMedia { min-height: 250px; border-radius: 20px; }
   .heroImage { object-position: center 38%; }
   .heroDetails { padding: 0 4px; }
@@ -134,7 +123,7 @@
   .priceRow { min-height: 64px; }
   .priceRow > span { max-width: 145px; font-size: 13px; }
   .priceRow strong { font-size: 25px; }
-  .options { gap: 44px; padding: 72px 20px; }
+  .options { gap: 44px; padding: 56px 20px 72px; }
   .optionsIntro h2 { font-size: 44px; }
   .optionRow { grid-template-columns: 110px 1fr; gap: 20px; padding: 24px 0; }
   .optionImage { min-height: 150px; }

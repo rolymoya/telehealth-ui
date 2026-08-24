@@ -52,7 +52,7 @@ describe("marketing pages", () => {
 
     expect(screen.getByRole("button", { name: "Close menu" }))
       .toHaveAttribute("aria-expanded", "true");
-    expect(screen.getAllByRole("link", { name: "Weight Loss" }).at(-1))
+    expect(screen.getAllByRole("link", { name: "Weight loss" }).at(-1))
       .toHaveAttribute("href", "/weight-loss");
     expect(screen.getAllByRole("link", { name: "See if online care fits" }).at(-1))
       .toHaveAttribute("href", "/get-started?product=weight");

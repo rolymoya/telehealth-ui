@@ -25,6 +25,64 @@
     U+2C60-2C7F, U+A720-A7FF;
 }
 
+/* Every nav link is a full document navigation, which paints a white frame
+   between pages. Cross-document view transitions cross-fade instead. Chromium
+   honours this today; elsewhere the declaration is inert and navigation is
+   unchanged. Must stay at the top level — `@view-transition` cannot be nested
+   inside `@layer`. */
+@view-transition {
+  navigation: auto;
+}
+
+/* Keep in step with START_DELAY_MS in HashScroll.tsx: the anchor scroll must
+   not begin until this has finished, or the page moves under the cross-fade
+   and then jumps when the overlay lifts. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: cubic-bezier(0.2, 0.75, 0.25, 1);
+}
+
+/* The header is identical on every page, so hold it still and let only the
+   content below it cross-fade. */
+::view-transition-group(site-header),
+::view-transition-group(site-announcement) {
+  animation-duration: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}
+
+/* Metric-matched fallback, so the swap from fallback to Figtree does not
+   reflow text. Measured at 100px: Helvetica Neue renders 2.8% wider than
+   Figtree, Arial 0.4% narrower — hence Arial plus a size-adjust nudge rather
+   than the Helvetica Neue this stack used to name first. Liberation Sans is
+   metric-compatible with Arial and covers Linux. */
+@font-face {
+  font-family: "Figtree Fallback";
+  font-weight: 300 599;
+  src: local("Arial"), local("Liberation Sans"), local("Helvetica");
+  size-adjust: 100.42%;
+  ascent-override: 95%;
+  descent-override: 25%;
+  line-gap-override: 0%;
+}
+
+/* Split by weight: Arial's bold is proportionally narrower than Figtree's, so
+   one size-adjust cannot serve both. The display headings run at 750. */
+@font-face {
+  font-family: "Figtree Fallback";
+  font-weight: 600 900;
+  src: local("Arial Bold"), local("Liberation Sans Bold"), local("Arial");
+  size-adjust: 97.63%;
+  ascent-override: 95%;
+  descent-override: 25%;
+  line-gap-override: 0%;
+}
+
 @layer base {
   :root {
     --background: 240 9% 98%;
@@ -49,12 +107,29 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  /* Height of the sticky announcement bar + header, so an anchored section
+     lands below the chrome instead of underneath it. See Nav.module.css. */
+  :root {
+    --site-header-offset: 122px;
+  }
+
+  @media (max-width: 760px) {
+    :root {
+      --site-header-offset: 110px;
+    }
+  }
+
+  [id] {
+    scroll-margin-top: var(--site-header-offset);
   }
 
   body {
     background: #f9f9fa;
     color: #171719;
-    font-family: "Figtree", "Helvetica Neue", sans-serif;
+    font-family: "Figtree", "Figtree Fallback", sans-serif;
     font-size: 16px;
     line-height: 1.55;
     font-feature-settings: "kern" 1, "liga" 1;
@@ -91,7 +166,7 @@
 
 @layer components {
   .display-serif {
-    font-family: "Figtree", "Helvetica Neue", sans-serif;
+    font-family: "Figtree", "Figtree Fallback", sans-serif;
     font-feature-settings: "kern" 1, "liga" 1;
     font-weight: 750 !important;
     letter-spacing: -0.05em;
@@ -103,7 +178,7 @@
   }
 
   .app-v2 .text-eyebrow {
-    font-family: "Figtree", "Helvetica Neue", sans-serif;
+    font-family: "Figtree", "Figtree Fallback", sans-serif;
     font-size: 0.68rem;
     font-weight: 800;
     letter-spacing: 0.14em;
@@ -133,7 +208,7 @@
 
   .app-v2 .prose-policy h2,
   .app-v2 .prose-policy h3 {
-    font-family: "Figtree", "Helvetica Neue", sans-serif;
+    font-family: "Figtree", "Figtree Fallback", sans-serif;
     font-weight: 750;
     letter-spacing: -0.035em;
   }
@@ -194,7 +269,7 @@
     --ring: 240 3% 11%;
     --radius: 1rem;
     color: hsl(var(--foreground));
-    font-family: "Figtree", "Helvetica Neue", sans-serif;
+    font-family: "Figtree", "Figtree Fallback", sans-serif;
     font-size: 16px;
     font-feature-settings: "kern" 1, "liga" 1;
     line-height: normal;
