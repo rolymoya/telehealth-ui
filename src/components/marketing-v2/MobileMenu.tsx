@@ -32,12 +32,21 @@ export function MobileMenu({
       {open ? (
         <div className="absolute left-0 right-0 top-full border-t border-black/[0.05] bg-[#f9f9fa] p-5 shadow-soft">
           <nav className="grid gap-1" aria-label="Mobile navigation">
-            {navLinks.map((item) =>
+            {navLinks.map((item, index) =>
               isNavGroup(item)
                 ? (
                   // Groups flatten into a labelled section: a nested dropdown
                   // inside an already-expanded panel is needless indirection.
-                  <div className="grid gap-1" key={item.label}>
+                  // A hairline closes the section off from the links that
+                  // follow, but only when something actually follows it.
+                  <div
+                    className={
+                      index < navLinks.length - 1
+                        ? "grid gap-1 border-b border-black/[0.08] pb-3 mb-2"
+                        : "grid gap-1"
+                    }
+                    key={item.label}
+                  >
                     <p className="px-4 pb-1 pt-3 text-eyebrow uppercase text-ash">
                       {item.label}
                     </p>

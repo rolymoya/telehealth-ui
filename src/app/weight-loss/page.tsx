@@ -109,14 +109,19 @@ export default function WeightLossPage() {
       <div id="main-content">
         <section className={styles.hero}>
           <div className={styles.heroMedia}>
-            <Image
-              src="/images/apoth-weight-loss-hero.webp"
-              alt="Unbranded weight-management treatment vial and injector pens"
-              fill
-              priority
-              sizes="(min-width: 960px) 58vw, 100vw"
-              className={styles.heroImage}
-            />
+            {/* next/image with `fill` requires a relative/absolute/fixed
+                parent. The panel itself has to stay sticky, so the image gets
+                its own relative wrapper inside it. */}
+            <div className={styles.heroMediaInner}>
+              <Image
+                src="/images/apoth-weight-loss-hero.webp"
+                alt="Unbranded weight-management treatment vial and injector pens"
+                fill
+                priority
+                sizes="(min-width: 960px) 58vw, 100vw"
+                className={styles.heroImage}
+              />
+            </div>
           </div>
 
           <div className={styles.heroDetails}>

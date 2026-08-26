@@ -13,9 +13,14 @@ const nextDir = path.join(projectRoot, ".next");
 const serverAppDir = path.join(nextDir, "server", "app");
 const outputDir = path.join(projectRoot, "out");
 
+// Publish allowlist, not a mirror of what Next prerendered. Deliberately
+// explicit: the build also prerenders account and checkout routes that belong
+// to the patient app bundle and must not be published to the marketing CDN.
+// A new public page 404s in production until it is added here.
 const requiredRoutes = [
   "/",
   "/about",
+  "/nad",
   "/privacy",
   "/terms",
   "/weight-loss",
