@@ -32,7 +32,7 @@ const proofPoints = [
 ];
 
 const carePaths = [
-  { label: "Weight loss", detail: "Available now · plans from $99/mo*", href: "/weight-loss" },
+  { label: "Weight loss", detail: "Available now · plans from $199/mo*", href: "/weight-loss" },
   { label: "NAD+", detail: "Planned · not currently available", href: "/nad" },
 ];
 
@@ -99,7 +99,7 @@ export default function Home() {
             <a className={styles.weightStory} href="/weight-loss" aria-label="Explore weight-loss care">
               <div className={styles.storyCopy}>
                 <h2>Weight care, built around you</h2>
-                <p>Provider-led GLP-1 options from $99/month*</p>
+                <p>Provider-led GLP-1 options from $199/month*</p>
                 <span className={styles.storyAction}>Explore weight care <ArrowRight aria-hidden="true" /></span>
               </div>
               <Image
@@ -177,8 +177,8 @@ export default function Home() {
             <p>Review transparent plan pricing, complete your clinical intake securely, and stay connected to provider-led follow-up.</p>
             <ul>
               <li><Check aria-hidden="true" /> Independent licensed-provider evaluation</li>
-              <li><Check aria-hidden="true" /> Compounded semaglutide from $99/month*</li>
-              <li><Check aria-hidden="true" /> Compounded tirzepatide from $199/month*</li>
+              <li><Check aria-hidden="true" /> Compounded semaglutide from $199/month*</li>
+              <li><Check aria-hidden="true" /> Compounded tirzepatide from $299/month*</li>
               <li><Check aria-hidden="true" /> No charge before approval and offer acceptance</li>
             </ul>
             <a className={styles.primaryButton} href="/weight-loss">See weight-care options</a>

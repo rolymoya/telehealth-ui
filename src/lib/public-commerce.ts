@@ -16,7 +16,7 @@ const products: Record<PublicProductCode, PublicProduct> = {
     code: "weight",
     displayName: "Weight management",
     planName: "Apoth weight management membership",
-    priceLabel: "$99–$199",
+    priceLabel: "$199–$299",
     priceDetail: "per month, based on the treatment prescribed and accepted",
     dueTodayLabel: "$0",
   },

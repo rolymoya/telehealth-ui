@@ -26,13 +26,13 @@ export const metadata: Metadata = {
 const offers = [
   {
     title: "Compounded semaglutide",
-    price: "$99",
+    price: "$199",
     cadence: "/month*",
     copy: "A provider may consider semaglutide after reviewing your health history and clinical eligibility.",
   },
   {
     title: "Compounded tirzepatide",
-    price: "$199",
+    price: "$299",
     cadence: "/month*",
     copy: "A provider may consider tirzepatide after reviewing your health history and clinical eligibility.",
   },

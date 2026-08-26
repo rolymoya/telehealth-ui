@@ -35,9 +35,9 @@ const pending = [
       "Clinical eligibility criteria, and the conditions under which an independent licensed provider would consider it. Apoth does not make this determination.",
   },
   {
-    title: "Pricing and billing",
+    title: "What the plan includes",
     body:
-      "Monthly price, what the plan includes, and when the first charge occurs relative to clinical approval and separate acceptance.",
+      "What the monthly price covers, and when the first charge occurs relative to clinical approval and separate acceptance.",
   },
   {
     title: "Where it is available",
@@ -77,11 +77,7 @@ export default function NadPage() {
                 <div className={styles.rows}>
                   <div className={styles.row}>
                     <span>Plan price</span>
-                    <strong><Todo /></strong>
-                  </div>
-                  <div className={styles.row}>
-                    <span>Due before intake</span>
-                    <strong><Todo /></strong>
+                    <strong>$179<small>/month*</small></strong>
                   </div>
                 </div>
 
@@ -90,10 +86,11 @@ export default function NadPage() {
                 </span>
 
                 <p className={styles.microcopy}>
-                  Enrollment is not open for this treatment. When it opens, the
-                  price and terms will be shown here before any charge, and no
-                  subscription starts until clinical approval and your separate
-                  acceptance of the exact treatment and recurring price.
+                  *Self-pay price. <Todo>plan inclusions</Todo> What the plan
+                  covers is confirmed before this treatment is offered.
+                  Enrollment is not open, and no subscription starts until
+                  clinical approval and your separate acceptance of the exact
+                  treatment and recurring price.
                 </p>
               </div>
             </div>

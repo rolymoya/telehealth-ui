@@ -45,6 +45,8 @@
 .rows { border-top: 1px solid var(--line); }
 .row { display: flex; min-height: 72px; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
 .row > span { max-width: 200px; font-size: 14px; font-weight: 560; line-height: 1.25; }
+.row strong { font-size: 28px; font-weight: 580; letter-spacing: -.025em; }
+.row small { color: var(--muted); font-size: 13px; font-weight: 450; letter-spacing: 0; }
 
 .waitlistButton {
   display: inline-flex;
