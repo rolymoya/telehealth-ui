@@ -10,6 +10,7 @@ const footerGroups = [
     heading: "Care",
     links: [
       { label: "GLP-1 treatments", href: "/weight-loss" },
+      { label: "NAD+", href: "/nad" },
       { label: "See if online care fits", href: weightOnboardingHref },
       { label: "Patient login", href: "/sign-in" },
       { label: "Patient dashboard", href: "/dashboard" },

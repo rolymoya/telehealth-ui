@@ -98,7 +98,9 @@
 .humanCopy h2 { margin: 0; font-size: 27px; font-weight: 520; letter-spacing: -.02em; line-height: 1.08; }
 .humanCopy p { margin: 11px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
 
-.careStrip { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 44px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+/* Column count follows the number of care paths, so adding one does not wrap
+   into a ragged second row against the fixed border rules below. */
+.careStrip { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin-top: 44px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .careStrip a,
 .careStrip > div { display: flex; min-height: 98px; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 24px; transition: background 180ms ease; }
 .careStrip > * + * { border-left: 1px solid var(--line); }
@@ -174,7 +176,7 @@
   .humanStory { grid-template-columns: 1fr; grid-template-rows: 260px auto; }
   .humanImageWrap { min-height: 260px; }
   .humanCopy { padding: 24px; }
-  .careStrip { grid-template-columns: 1fr; margin-top: 30px; }
+  .careStrip { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: 1fr; margin-top: 30px; }
   .careStrip a,
   .careStrip > div { min-height: 76px; padding: 14px 4px; }
   .careStrip > * + * { border-top: 1px solid var(--line); border-left: 0; }

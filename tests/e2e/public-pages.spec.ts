@@ -43,9 +43,10 @@ test.describe("public navigation and CTAs", () => {
     const errors = collectUnexpectedPageErrors(page);
 
     await page.goto("/");
-    await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", {
-      name: "Weight loss",
-    }).click();
+    // GLP-1s now sits behind the Treatments disclosure menu.
+    const primaryNav = page.getByRole("navigation", { name: "Primary navigation" });
+    await primaryNav.getByRole("button", { name: "Treatments" }).click();
+    await primaryNav.getByRole("link", { name: "GLP-1s" }).click();
     await expect(page).toHaveURL(/\/weight-loss$/);
     await expect(
       page.getByRole("heading", { name: /Personalized GLP.1 treatment/i }),

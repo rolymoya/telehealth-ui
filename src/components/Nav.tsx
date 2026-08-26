@@ -1,8 +1,9 @@
 import { PackageCheck, UserRound } from "lucide-react";
 
-import { navLinks } from "@/lib/data";
+import { isNavGroup, navLinks } from "@/lib/data";
 import { onboardingHref } from "@/lib/public-commerce";
 import { MobileMenu } from "@/components/marketing-v2/MobileMenu";
+import { NavMenu } from "@/components/NavMenu";
 import styles from "./Nav.module.css";
 
 type NavProps = {
@@ -47,11 +48,21 @@ export function Nav({
           </a>
 
           <nav className={styles.nav} aria-label="Primary navigation">
-            {navLinks.map((link) => (
-              <a key={link.href} href={link.href}>
-                {link.label}
-              </a>
-            ))}
+            {navLinks.map((item) =>
+              isNavGroup(item)
+                ? (
+                  <NavMenu
+                    key={item.label}
+                    items={item.children}
+                    label={item.label}
+                  />
+                )
+                : (
+                  <a key={item.href} href={item.href}>
+                    {item.label}
+                  </a>
+                )
+            )}
           </nav>
 
           <div className={styles.headerActions}>

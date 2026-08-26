@@ -53,6 +53,57 @@
 .nav a { color: inherit; transition: opacity 180ms ease; }
 .nav a:hover { opacity: .56; }
 
+.menuWrap { position: relative; display: flex; align-items: center; }
+
+.menuTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: opacity 180ms ease;
+}
+
+.menuTrigger:hover { opacity: .56; }
+.menuTrigger svg { width: 15px; height: 15px; transition: transform 180ms ease; }
+.menuTriggerOpen svg { transform: rotate(180deg); }
+
+.menuPanel {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 18px);
+  left: 50%;
+  min-width: 196px;
+  transform: translateX(-50%);
+  margin: 0;
+  border: 1px solid rgba(23, 23, 25, .07);
+  border-radius: 18px;
+  background: #fff;
+  padding: 8px;
+  list-style: none;
+  /* RULES.md sanctions resting elevation on menus. */
+  box-shadow: 0 18px 50px rgba(23, 23, 25, .13);
+}
+
+.menuPanel a {
+  display: flex;
+  /* RULES.md: controls stay at least 44px high. */
+  min-height: 44px;
+  align-items: center;
+  border-radius: 11px;
+  padding: 0 14px;
+  color: #171719;
+  font-size: 14px;
+  font-weight: 560;
+  transition: background 150ms ease;
+}
+
+.menuPanel a:hover { background: rgba(23, 23, 25, .05); }
+
 .headerActions { display: flex; align-items: center; gap: 10px; }
 
 .cta,
@@ -80,6 +131,9 @@
 .dark .cta:hover { background: rgba(255, 255, 255, .9); }
 .dark .login { border-color: rgba(255, 255, 255, .25); background: transparent; color: #fff; }
 .dark .login:hover { background: rgba(255, 255, 255, .1); }
+.dark .menuPanel { border-color: rgba(255, 255, 255, .12); background: #1f1f22; }
+.dark .menuPanel a { color: #fff; }
+.dark .menuPanel a:hover { background: rgba(255, 255, 255, .08); }
 
 /* 1023px, not 1020px: matches the Tailwind `lg` breakpoint MobileMenu uses for
    its hamburger, so exactly one of the two is visible at any width. */

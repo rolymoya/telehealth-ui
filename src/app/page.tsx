@@ -33,8 +33,7 @@ const proofPoints = [
 
 const carePaths = [
   { label: "Weight loss", detail: "Available now · plans from $99/mo*", href: "/weight-loss" },
-  { label: "Hair health", detail: "Planned · not currently available", href: null },
-  { label: "Sexual health", detail: "Planned · not currently available", href: null },
+  { label: "NAD+", detail: "Planned · not currently available", href: "/nad" },
 ];
 
 const steps = [

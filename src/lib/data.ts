@@ -192,10 +192,28 @@ export const usStates: { code: string; name: string }[] = [
   { code: "WY", name: "Wyoming" },
 ];
 
+export type NavLink = { href: string; label: string };
+export type NavGroup = { label: string; children: readonly NavLink[] };
+export type NavItem = NavLink | NavGroup;
+
+export function isNavGroup(item: NavItem): item is NavGroup {
+  return "children" in item;
+}
+
 // The single source of truth for the site header. Every link resolves from any
 // page, so the nav renders identically on every route.
-export const navLinks = [
-  { href: "/weight-loss", label: "Weight loss" },
+//
+// `/weight-loss` keeps its URL even though the label is now GLP-1s: it is the
+// Stripe checkout cancelPath (lib/enrollment/catalog.ts), a sitemap entry, and
+// a footer destination. Renaming it would 404 abandoned checkouts.
+export const navLinks: readonly NavItem[] = [
+  {
+    label: "Treatments",
+    children: [
+      { href: "/weight-loss", label: "GLP-1s" },
+      { href: "/nad", label: "NAD+" },
+    ],
+  },
   { href: "/weight-loss#how-it-works", label: "How it works" },
   { href: "/#faq", label: "FAQs" },
   { href: "/about", label: "About" },

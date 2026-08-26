@@ -52,8 +52,11 @@ describe("marketing pages", () => {
 
     expect(screen.getByRole("button", { name: "Close menu" }))
       .toHaveAttribute("aria-expanded", "true");
-    expect(screen.getAllByRole("link", { name: "Weight loss" }).at(-1))
+    // Weight loss now sits under the Treatments group, labelled GLP-1s.
+    expect(screen.getAllByRole("link", { name: "GLP-1s" }).at(-1))
       .toHaveAttribute("href", "/weight-loss");
+    expect(screen.getAllByRole("link", { name: "NAD+" }).at(-1))
+      .toHaveAttribute("href", "/nad");
     expect(screen.getAllByRole("link", { name: "See if online care fits" }).at(-1))
       .toHaveAttribute("href", "/get-started?product=weight");
   });

@@ -22,10 +22,10 @@ export default function AboutPage() {
             </h1>
             <p className="mt-7 max-w-measure text-pretty text-[1.075rem] leading-[1.6] text-ink/80 md:text-[1.15rem]">
               Apoth is a telehealth technology platform. We connect adults with
-              US-licensed clinicians for sexual health, hair, weight, and
-              physician-supervised peptide care, and we coordinate with a
-              licensed pharmacy partner where medication is prescribed. We do not
-              practice medicine. We do not dispense medication. We are the
+              US-licensed clinicians for weight care and wellness, and we
+              coordinate with a licensed pharmacy partner where medication is
+              prescribed. We do not practice medicine. We do not dispense
+              medication. We are the
               software, account experience, intake interface, billing
               orchestration, and minimal linkage layer between you, your
               clinician, and your pharmacy.
