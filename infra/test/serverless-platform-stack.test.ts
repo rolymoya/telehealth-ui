@@ -651,6 +651,12 @@ describe("ServerlessPlatformStack", () => {
       Name: "apoth-staging-static-clean-routes",
       FunctionCode: Match.stringLikeRegexp('/weight-loss'),
     });
+    // A public route missing from this map is rewritten to /404.html before
+    // it reaches the bucket, so the page 404s even though it was uploaded.
+    template.hasResourceProperties("AWS::CloudFront::Function", {
+      Name: "apoth-staging-static-clean-routes",
+      FunctionCode: Match.stringLikeRegexp('/nad'),
+    });
     template.hasResourceProperties("AWS::CloudFront::Function", {
       Name: "apoth-staging-patient-app-routes",
       FunctionCode: Match.stringLikeRegexp('/patient-index\\.html'),

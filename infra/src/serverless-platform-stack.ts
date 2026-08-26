@@ -1829,9 +1829,13 @@ exports.handler = async () => ({
 function handler(event) {
   var request = event.request;
   var uri = request.uri;
+  // Keep in step with requiredRoutes in scripts/export-static-routes.mjs.
+  // A route missing here is rewritten to /404.html before it reaches the
+  // bucket, so the page 404s even when the object was uploaded.
   var staticRoutes = {
     "/": true,
     "/about": true,
+    "/nad": true,
     "/privacy": true,
     "/terms": true,
     "/weight-loss": true,
