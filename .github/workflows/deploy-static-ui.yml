@@ -140,8 +140,10 @@ jobs:
           set -euo pipefail
           test -f out/index.html
           test -f out/about/index.html
+          test -f out/nad/index.html
           test -f out/privacy/index.html
           test -f out/terms/index.html
+          test -f out/weight-loss/index.html
           test -f dist/patient-app/index.html
           test -f dist/patient-app/patient-index.html
           test -d dist/patient-app/patient-assets
