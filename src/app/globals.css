@@ -107,7 +107,10 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    scroll-behavior: smooth;
+    /* No `scroll-behavior: smooth` here. On the root it animates *every*
+       scroll that is not explicitly instant, including wheel, keyboard and
+       scrollbar input, so an ordinary scroll stalls partway and needs a second
+       push. Anchor clicks ask for smooth explicitly in HashScroll instead. */
   }
 
   /* Height of the sticky announcement bar + header, so an anchored section

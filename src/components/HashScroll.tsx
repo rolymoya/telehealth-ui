@@ -45,19 +45,20 @@ function headerOffset() {
  * hydration reset we are correcting for, and writing the position every frame
  * lets us re-read the destination as late-loading images shift it.
  *
- * Same-page fragment links are unaffected and stay on the native path, which
- * `scroll-behavior: smooth` in globals.css already animates.
+ * Same-page fragment links are handled here too, so they can animate without
+ * a global `scroll-behavior: smooth` — on the root that would animate every
+ * user scroll, not just anchors.
  */
 export function HashScroll() {
-  // Nav links point at the page that owns each section (`/weight-loss#how-it-works`),
-  // which is right from elsewhere but reloads the whole document when the
-  // current page has that section too — home has its own `#how-it-works`.
-  // Scroll in place instead. Delegated so the mobile menu, which mounts on
-  // open, is covered as well.
+  // Two jobs. Nav links point at the page that owns each section
+  // (`/weight-loss#how-it-works`), which is right from elsewhere but reloads
+  // the whole document when the current page has that section too — home has
+  // its own `#how-it-works`. And any in-page anchor should glide rather than
+  // jump. Both reduce to: if the target is on this page, scroll to it.
+  //
+  // Delegated from the document so the footer, in-page links, and the mobile
+  // menu, which mounts on open, are all covered.
   useEffect(() => {
-    const header = document.querySelector("header");
-    if (!header) return;
-
     const onClick = (event: MouseEvent) => {
       if (
         event.defaultPrevented ||
@@ -75,23 +76,25 @@ export function HashScroll() {
 
       const url = new URL(anchor.href, window.location.href);
       if (!url.hash || url.origin !== window.location.origin) return;
-      // Same path already scrolls without reloading; leave it to the browser.
-      if (url.pathname === window.location.pathname) return;
 
       const target = document.getElementById(
         decodeURIComponent(url.hash.slice(1)),
       );
+      // Not on this page: let the browser navigate to the page that owns it.
       if (!target) return;
 
       event.preventDefault();
       window.history.pushState(null, "", url.hash);
-      // `auto` defers to `scroll-behavior`, which globals.css sets to smooth
-      // and flattens under prefers-reduced-motion.
-      target.scrollIntoView({ behavior: "auto", block: "start" });
+      target.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+        block: "start",
+      });
     };
 
-    header.addEventListener("click", onClick);
-    return () => header.removeEventListener("click", onClick);
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
   }, []);
 
   useEffect(() => {
