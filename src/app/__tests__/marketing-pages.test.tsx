@@ -5,6 +5,9 @@ import HomePage from "@/app/page";
 import WeightLossPage from "@/app/weight-loss/page";
 
 beforeEach(() => {
+  // These assertions describe the sellable configuration, so pin the mode
+  // rather than depending on the default.
+  vi.stubEnv("APOTH_LAUNCH_MODE", "live");
   vi.stubGlobal(
     "matchMedia",
     vi.fn().mockReturnValue({
@@ -17,6 +20,47 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+
+describe("waitlist mode", () => {
+  beforeEach(() => {
+    vi.stubEnv("APOTH_LAUNCH_MODE", "waitlist");
+  });
+
+  it("offers a waitlist instead of enrollment on the landing page", () => {
+    render(<HomePage />);
+
+    expect(screen.queryByRole("link", { name: /see if online care fits/i }))
+      .not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /join the waitlist/i })[0])
+      .toHaveAttribute("href", "#waitlist");
+    expect(screen.getByText(/coming soon . join the waitlist/i))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /join the waitlist/i }))
+      .toBeInTheDocument();
+  });
+
+  it("keeps the weight-loss page off the enrollment path", () => {
+    render(<WeightLossPage />);
+
+    expect(screen.queryByRole("link", { name: /start the \$0 precheck/i }))
+      .not.toBeInTheDocument();
+    for (const link of screen.getAllByRole("link", { name: /join the waitlist/i })) {
+      expect(link).toHaveAttribute("href", "#waitlist");
+    }
+    expect(screen.getByText(/not yet accepting patients/i)).toBeInTheDocument();
+  });
+
+  it("collects only an email address", () => {
+    render(<HomePage />);
+
+    const form = screen.getByRole("button", { name: /join the waitlist/i })
+      .closest("form");
+    const fields = form?.querySelectorAll("input") ?? [];
+    expect(fields).toHaveLength(1);
+    expect(fields[0]).toHaveAttribute("type", "email");
+  });
 });
 
 describe("marketing pages", () => {

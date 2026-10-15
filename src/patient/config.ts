@@ -15,6 +15,17 @@ export type PublicStripeConfig =
       reason: "missing" | "stage_mismatch";
     };
 
+/**
+ * Mirrors resolveLaunchMode in lib/launch-mode for the Vite bundle, which
+ * cannot read process.env. Defaults closed for the same reason: never present
+ * enrollment as open because a variable was missing.
+ */
+export function patientLaunchMode(): "live" | "waitlist" {
+  return import.meta.env?.VITE_LAUNCH_MODE?.trim() === "live"
+    ? "live"
+    : "waitlist";
+}
+
 export function marketingHref(path: `/${string}`) {
   const configured = import.meta.env?.VITE_MARKETING_ORIGIN?.trim();
   if (!configured) {

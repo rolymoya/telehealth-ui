@@ -19,6 +19,7 @@ import { RequirePatientSession } from "./session";
 import { CheckoutCompletion } from "./commerce/CheckoutCompletion";
 import { PortalLaunch } from "./commerce/PortalLaunch";
 import { isPublicProductCode } from "@/lib/public-commerce";
+import { marketingHref, patientLaunchMode } from "./config";
 
 export function PatientApp() {
   return (
@@ -30,10 +31,13 @@ export function PatientApp() {
         <Route path="/reset-password" element={<AuthPage mode="reset-password" />} />
         <Route path="/verify-email" element={<AuthPage mode="verify-email" />} />
         <Route path="/sign-out" element={<AuthPage mode="sign-out" />} />
-        <Route path="/get-started" element={<GetStartedPage />} />
-        <Route path="/checkout" element={<CheckoutPage />} />
+        {/* Enrollment entry is closed in waitlist mode, so a stale ad link or
+            a bookmarked URL cannot reach a purchase flow. Sign-in and the
+            dashboard stay open for existing accounts. */}
+        <Route path="/get-started" element={<EnrollmentEntry><GetStartedPage /></EnrollmentEntry>} />
+        <Route path="/checkout" element={<EnrollmentEntry><CheckoutPage /></EnrollmentEntry>} />
         <Route path="/checkout/complete" element={<CheckoutCompletion />} />
-        <Route path="/intake" element={<IntakePage />} />
+        <Route path="/intake" element={<EnrollmentEntry><IntakePage /></EnrollmentEntry>} />
         <Route
           path="/onboarding/consent"
           element={<Protected><ConsentPage /></Protected>}
@@ -68,6 +72,19 @@ function CheckoutPage() {
         : "/get-started"}
     />
   );
+}
+
+/**
+ * Closes enrollment entry while the site is in waitlist mode. Sends people to
+ * the marketing page that owns the waitlist rather than showing a dead end,
+ * since the likeliest arrival here is a stale ad or bookmarked link.
+ */
+function EnrollmentEntry({ children }: { children: ReactNode }) {
+  if (patientLaunchMode() === "live") return <>{children}</>;
+  if (typeof window !== "undefined") {
+    window.location.replace(marketingHref("/weight-loss#waitlist"));
+  }
+  return null;
 }
 
 function Protected({ children }: { children: ReactNode }) {

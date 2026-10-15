@@ -1,17 +1,16 @@
 import { PackageCheck } from "lucide-react";
 
 import { Wordmark } from "./Icons";
-import { onboardingHref } from "@/lib/public-commerce";
+import { weightOffer } from "@/lib/product-availability";
 
-const weightOnboardingHref = onboardingHref("weight");
-
-const footerGroups = [
+function footerGroupsFor(weightLaunchOffer: ReturnType<typeof weightOffer>) {
+  return [
   {
     heading: "Care",
     links: [
       { label: "GLP-1 treatments", href: "/weight-loss" },
       { label: "NAD+", href: "/nad" },
-      { label: "See if online care fits", href: weightOnboardingHref },
+      { label: weightLaunchOffer.ctaLabel, href: weightLaunchOffer.href },
       { label: "Patient login", href: "/sign-in" },
       { label: "Patient dashboard", href: "/dashboard" },
     ],
@@ -34,9 +33,12 @@ const footerGroups = [
       { label: "Privacy practices", href: "/privacy#notice-of-privacy-practices" },
     ],
   },
-] as const;
+  ] as const;
+}
 
 export function Footer() {
+  const weightLaunchOffer = weightOffer();
+  const footerGroups = footerGroupsFor(weightLaunchOffer);
   return (
     <footer id="footer" className="bg-[#1e1e20] px-5 py-16 text-white lg:px-8">
       <div className="mx-auto max-w-[1270px]">
@@ -52,8 +54,8 @@ export function Footer() {
               pharmacy shipping rules support care.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <a className="inline-flex min-h-11 items-center rounded-full bg-white px-5 text-xs font-semibold text-[#171719] hover:bg-white/90" href={weightOnboardingHref}>
-                See if online care fits
+              <a className="inline-flex min-h-11 items-center rounded-full bg-white px-5 text-xs font-semibold text-[#171719] hover:bg-white/90" href={weightLaunchOffer.href}>
+                {weightLaunchOffer.ctaLabel}
               </a>
               <a className="inline-flex min-h-11 items-center rounded-full border border-white/25 px-5 text-xs font-semibold hover:bg-white/10" href="/sign-in">
                 Patient login

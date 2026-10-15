@@ -3,6 +3,7 @@ import { CalendarClock, ShieldCheck } from "lucide-react";
 
 import { Footer } from "@/components/Footer";
 import { Nav } from "@/components/Nav";
+import { WaitlistForm } from "@/components/WaitlistForm";
 
 import styles from "./page.module.css";
 
@@ -81,9 +82,9 @@ export default function NadPage() {
                   </div>
                 </div>
 
-                <span aria-disabled="true" className={styles.waitlistButton}>
-                  <CalendarClock aria-hidden="true" /> Not yet available
-                </span>
+                <a className={styles.waitlistButton} href="#waitlist">
+                  <CalendarClock aria-hidden="true" /> Join the waitlist
+                </a>
 
                 <p className={styles.microcopy}>
                   *Self-pay price. <Todo>plan inclusions</Todo> What the plan
@@ -131,6 +132,12 @@ export default function NadPage() {
               </p>
             </div>
           </section>
+
+          <WaitlistForm
+            product="nad"
+            heading="Be first to know when NAD+ opens"
+            body="NAD+ is not available yet. Leave your email and we will let you know once it is offered through Apoth."
+          />
         </div>
 
         <Footer />

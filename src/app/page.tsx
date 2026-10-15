@@ -19,11 +19,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/marketing-v2/ui/Accordion";
-import { onboardingHref } from "@/lib/public-commerce";
+import { WaitlistForm } from "@/components/WaitlistForm";
+import { weightAvailabilityDetail, weightOffer } from "@/lib/product-availability";
 
 import styles from "./home.module.css";
-
-const weightOnboardingHref = onboardingHref("weight");
 
 const proofPoints = [
   { icon: BadgeDollarSign, title: "Straightforward pricing", copy: "Know the plan price before you accept it." },
@@ -31,10 +30,12 @@ const proofPoints = [
   { icon: Truck, title: "Delivery included", copy: "Free expedited shipping when treatment is prescribed." },
 ];
 
-const carePaths = [
-  { label: "Weight loss", detail: "Available now · plans from $199/mo*", href: "/weight-loss" },
-  { label: "NAD+", detail: "Planned · not currently available", href: "/nad" },
-];
+function carePathsFor(weightDetail: string) {
+  return [
+    { label: "Weight loss", detail: weightDetail, href: "/weight-loss" },
+    { label: "NAD+", detail: "Planned · not currently available", href: "/nad" },
+  ];
+}
 
 const steps = [
   {
@@ -75,6 +76,13 @@ const faqs = [
 ];
 
 export default function Home() {
+  // Read per render, not at module scope, so the mode is observable in tests
+  // and never frozen at import time.
+  const offer = weightOffer();
+  const weightCtaHref = offer.href;
+  const weightCtaLabel = offer.ctaLabel;
+  const carePaths = carePathsFor(weightAvailabilityDetail("$199/mo*"));
+
   return (
     <>
       <Nav />
@@ -150,7 +158,7 @@ export default function Home() {
             <div className={styles.processHeading} data-reveal>
               <h2>A clear path from choice to care</h2>
               <p>Apoth keeps the experience connected while each organization stays responsible for its part.</p>
-              <a href={weightOnboardingHref}>See if online care fits <ArrowRight aria-hidden="true" /></a>
+              <a href={weightCtaHref}>{weightCtaLabel} <ArrowRight aria-hidden="true" /></a>
             </div>
             <ol className={styles.steps}>
               {steps.map((step, index) => (
@@ -201,12 +209,22 @@ export default function Home() {
           </Accordion>
         </section>
 
-        <section className={styles.close}>
-          <CalendarClock aria-hidden="true" />
-          <h2>Begin when you’re ready</h2>
-          <p>Starting takes a few minutes. Payment-method setup is $0 due, and treatment is never guaranteed.</p>
-          <a className={styles.primaryButton} href={weightOnboardingHref}>See if online care fits</a>
-        </section>
+        {offer.status === "available"
+          ? (
+            <section className={styles.close}>
+              <CalendarClock aria-hidden="true" />
+              <h2>Begin when you’re ready</h2>
+              <p>Starting takes a few minutes. Payment-method setup is $0 due, and treatment is never guaranteed.</p>
+              <a className={styles.primaryButton} href={weightCtaHref}>{weightCtaLabel}</a>
+            </section>
+          )
+          : (
+            <WaitlistForm
+              product="weight"
+              heading="Be first to know when we open"
+              body="Apoth is not accepting patients yet. Leave your email and we will let you know the moment provider-led weight care becomes available in your state."
+            />
+          )}
       </div>
 
       <Footer />

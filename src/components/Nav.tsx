@@ -1,7 +1,7 @@
 import { PackageCheck, UserRound } from "lucide-react";
 
 import { isNavGroup, navLinks } from "@/lib/data";
-import { onboardingHref } from "@/lib/public-commerce";
+import { weightOffer } from "@/lib/product-availability";
 import { MobileMenu } from "@/components/marketing-v2/MobileMenu";
 import { NavMenu } from "@/components/NavMenu";
 import styles from "./Nav.module.css";
@@ -17,11 +17,16 @@ type NavProps = {
 
 export function Nav({
   variant = "light",
-  ctaHref = onboardingHref("weight"),
-  ctaLabel = "See if online care fits",
+  ctaHref,
+  ctaLabel,
   announcement = true,
 }: NavProps) {
   const isDark = variant === "dark";
+  // Falls back to whatever the launch mode offers, so no caller has to know
+  // whether the site is selling yet.
+  const offer = weightOffer();
+  const href = ctaHref ?? offer.href;
+  const label = ctaLabel ?? offer.ctaLabel;
 
   return (
     <>
@@ -66,13 +71,13 @@ export function Nav({
           </nav>
 
           <div className={styles.headerActions}>
-            <a className={styles.cta} href={ctaHref}>
-              {ctaLabel}
+            <a className={styles.cta} href={href}>
+              {label}
             </a>
             <a className={styles.login} href="/sign-in">
               <UserRound aria-hidden="true" /> Login
             </a>
-            <MobileMenu ctaHref={ctaHref} ctaLabel={ctaLabel} />
+            <MobileMenu ctaHref={href} ctaLabel={label} />
           </div>
         </div>
       </header>

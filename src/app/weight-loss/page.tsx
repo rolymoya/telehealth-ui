@@ -11,11 +11,10 @@ import {
 
 import { Footer } from "@/components/Footer";
 import { Nav } from "@/components/Nav";
-import { onboardingHref } from "@/lib/public-commerce";
+import { WaitlistForm } from "@/components/WaitlistForm";
+import { weightOffer } from "@/lib/product-availability";
 
 import styles from "./page.module.css";
-
-const weightOnboardingHref = onboardingHref("weight");
 
 export const metadata: Metadata = {
   title: "Personalized GLP-1 Treatments | Apoth",
@@ -102,9 +101,13 @@ function FaqRow({ question, answer }: { question: string; answer: string }) {
 }
 
 export default function WeightLossPage() {
+  // Read per render so the mode is observable in tests, not frozen at import.
+  const launchOffer = weightOffer({ liveCtaLabel: "Start the $0 precheck" });
+  const isComingSoon = launchOffer.status === "coming-soon";
+
   return (
     <>
-      <Nav ctaHref={weightOnboardingHref} ctaLabel="Start the $0 precheck" />
+      <Nav ctaHref={launchOffer.href} ctaLabel={launchOffer.ctaLabel} />
       <main id="main" className={`${styles.page} marketing-v2`}>
       <div id="main-content">
         <section className={styles.hero}>
@@ -130,7 +133,10 @@ export default function WeightLossPage() {
 
             <div className={styles.pricingPanel}>
               <p className={styles.reviewNote}>
-                <ShieldCheck aria-hidden="true" /> Independent provider review required. Starting the precheck is $0.
+                <ShieldCheck aria-hidden="true" />{" "}
+                {isComingSoon
+                  ? "Not yet accepting patients. Pricing is shown so you know what to expect; any treatment will require review by an independent licensed provider."
+                  : "Independent provider review required. Starting the precheck is $0."}
               </p>
               <div className={styles.priceRows}>
                 {offers.map((offer) => (
@@ -140,7 +146,7 @@ export default function WeightLossPage() {
                   </div>
                 ))}
               </div>
-              <a className={styles.primaryButton} href={weightOnboardingHref}>Start the $0 precheck <ArrowRight aria-hidden="true" /></a>
+              <a className={styles.primaryButton} href={launchOffer.href}>{launchOffer.ctaLabel} <ArrowRight aria-hidden="true" /></a>
               <p className={styles.microcopy}>*Self-pay price includes clinical care, standard injection supplies, medication, and expedited shipping only if prescribed. Due before intake: $0. Plans renew monthly only after clinical approval and separate acceptance of the exact treatment and price. Labs, if separately required, are not included.</p>
             </div>
 
@@ -173,7 +179,7 @@ export default function WeightLossPage() {
                   <h3>{offer.title}</h3>
                   <p>{offer.copy}</p>
                   <strong>{offer.price}<small>{offer.cadence}</small></strong>
-                  <a href={weightOnboardingHref}>Start the $0 precheck <ArrowRight aria-hidden="true" /></a>
+                  <a href={launchOffer.href}>{launchOffer.ctaLabel} <ArrowRight aria-hidden="true" /></a>
                 </div>
               </article>
             ))}
@@ -199,7 +205,7 @@ export default function WeightLossPage() {
                 </li>
               ))}
             </ol>
-            <a className={styles.lightButton} href={weightOnboardingHref}>Start the $0 precheck</a>
+            <a className={styles.lightButton} href={launchOffer.href}>{launchOffer.ctaLabel}</a>
           </div>
         </section>
 
@@ -233,15 +239,25 @@ export default function WeightLossPage() {
           <p>Compounded semaglutide and compounded tirzepatide are not FDA-approved. They are not the same as Ozempic, Wegovy, Mounjaro, or Zepbound, and have not been evaluated by the FDA for safety, effectiveness, or quality. They are prepared by a licensed 503A compounding pharmacy partner only under a valid prescription from an independent clinician licensed in your state. Treatment is not guaranteed and results vary.</p>
         </section>
 
-        <section className={styles.close}>
-          <h2>See whether weight care fits you</h2>
-          <p>Start with a short precheck. There is no charge before clinical approval and your separate acceptance of the exact offer.</p>
-          <a className={styles.primaryButton} href={weightOnboardingHref}>Start the $0 precheck <ArrowRight aria-hidden="true" /></a>
-        </section>
+        {isComingSoon
+          ? (
+            <WaitlistForm
+              product="weight"
+              heading="Be first to know when we open"
+              body="Apoth is not accepting patients yet. Leave your email and we will let you know the moment provider-led weight care becomes available in your state."
+            />
+          )
+          : (
+            <section className={styles.close}>
+              <h2>See whether weight care fits you</h2>
+              <p>Start with a short precheck. There is no charge before clinical approval and your separate acceptance of the exact offer.</p>
+              <a className={styles.primaryButton} href={launchOffer.href}>{launchOffer.ctaLabel} <ArrowRight aria-hidden="true" /></a>
+            </section>
+          )}
       </div>
 
       <div className={styles.mobileCta}>
-        <a href={weightOnboardingHref}>Start the $0 precheck <ArrowRight aria-hidden="true" /></a>
+        <a href={launchOffer.href}>{launchOffer.ctaLabel} <ArrowRight aria-hidden="true" /></a>
       </div>
 
       <Footer />
